@@ -174,6 +174,12 @@ export function ProfileScreen({ profile,userId,onLogout,onUpdate }:{ profile:Use
             {age&&<div style={{ fontSize:17,color:C.textSub,fontWeight:400 }}>{age}</div>}
             {profile.is_verified&&<div style={{ background:C.mintSoft,borderRadius:8,padding:"2px 9px",fontSize:11,color:C.mint,fontWeight:600 }}>✓ 認證</div>}
           </div>
+          {/* User ID */}
+          <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:8 }}>
+            <span style={{ fontSize:11.5,color:C.textDim }}>ID:</span>
+            <span style={{ fontSize:11.5,color:C.textMuted,fontFamily:"monospace",letterSpacing:".5px" }}>{userId.slice(0,8).toUpperCase()}</span>
+            <button onClick={()=>{navigator.clipboard?.writeText(userId);}} style={{ background:"none",border:"none",color:C.textDim,fontSize:10,cursor:"pointer",fontFamily:"inherit",padding:"1px 5px" }} title="複製完整ID">複製</button>
+          </div>
           {loc&&<div style={{ fontSize:14,color:C.textMuted,marginBottom:8 }}>📍 {loc}</div>}
           {bio&&<div style={{ fontSize:14,color:C.textSub,lineHeight:1.7,marginBottom:14 }}>{bio}</div>}
           <div style={{ display:"flex",flexWrap:"wrap" as const,gap:6 }}>

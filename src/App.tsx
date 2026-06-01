@@ -48,6 +48,7 @@ export default function App() {
   const [userId, setUserId]         = useState<string|null>(null);
   const [profile, setProfile]       = useState<UserProfile|null>(null);
   const [splashSeen, setSplashSeen] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const [tab, setTab]               = useState<Tab>("explore");
   const [loading, setLoading]       = useState(true);
   const [inChat, setInChat]         = useState(false);
@@ -73,12 +74,34 @@ export default function App() {
     if (!userId || !authed) return;
     sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId);
     loadAll();
+
     const ch = sb.channel(`app-${userId}`)
-      .on("postgres_changes", { event:"INSERT", schema:"public", table:"notifications", filter:`user_id=eq.${userId}` }, () => loadAll())
+      // New match → reload matches list immediately
+      .on("postgres_changes", { event:"INSERT", schema:"public", table:"matches",
+        filter:`user1_id=eq.${userId}` }, () => { getMatches(userId!).then(setMatches); })
+      .on("postgres_changes", { event:"INSERT", schema:"public", table:"matches",
+        filter:`user2_id=eq.${userId}` }, () => { getMatches(userId!).then(setMatches); })
+      // New message → update unread badge
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"chat_messages" }, () => loadUnread())
+      // Notifications
+      .on("postgres_changes", { event:"INSERT", schema:"public", table:"notifications",
+        filter:`user_id=eq.${userId}` }, () => loadAll())
       .subscribe();
+
+    // Reload matches when tab becomes visible again (user returns to app)
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        // Show brief loading splash
+        setResuming(true);
+        setTimeout(() => setResuming(false), 1200);
+        getMatches(userId!).then(setMatches);
+        loadUnread();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     const iv = setInterval(() => sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId), 4*60*1000);
-    return () => { sb.removeChannel(ch); clearInterval(iv); };
+    return () => { sb.removeChannel(ch); clearInterval(iv); document.removeEventListener("visibilitychange", onVisible); };
   }, [userId, authed]);
 
   async function loadAll() {
@@ -125,7 +148,7 @@ export default function App() {
   </>;
 
   if (!authed) return <><style>{GLOBAL_CSS}</style><LoginScreen onLogin={() => setAuthed(true)}/></>;
-  if (!splashSeen) return <><style>{GLOBAL_CSS}</style><SplashScreen onDone={() => setSplashSeen(true)}/></>;
+  if (!splashSeen || resuming) return <><style>{GLOBAL_CSS}</style><SplashScreen onDone={() => { setSplashSeen(true); setResuming(false); }}/></>;
 
   return (
     <>

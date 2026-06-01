@@ -14,7 +14,7 @@ const MAX_W = { maxWidth: 480, margin: "0 auto", width: "100%" };
 function SparkPanel({ spark, matchId, myUserId, other, onSparkUpdate, onBondUpdate }:
   { spark: any; matchId: string; myUserId: string; other: any;
     onSparkUpdate: (s: any) => void; onBondUpdate: () => void }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true); // default collapsed — not in the way
   const [hiding, setHiding] = useState(false);
 
   function handleDone() {
@@ -407,7 +407,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
   function getSparkReactText(content: string) { return content.replace("[SPARK_REACT]", ""); }
 
   function renderMsgs() {
-    const els: React.ReactNode[] = [];
+    const els: JSX.Element[] = [];
     let lastDate = "";
     msgs.forEach((msg, idx) => {
       const dateStr = fmtDate(msg.timestamp);
