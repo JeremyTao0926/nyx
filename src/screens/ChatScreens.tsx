@@ -46,9 +46,14 @@ function SparkPanel({ spark, matchId, myUserId, other, onSparkUpdate, onBondUpda
       <div style={{ padding: "0 12px 4px" }}>
         {spark && <SparkCard
           spark={spark} myUserId={myUserId} matchId={matchId} otherName={other.name}
-          onAnswered={s => { if(s) onSparkUpdate(s); handleDone(); }}
+          onAnswered={s => {
+            if(s) { onSparkUpdate(s);
+              // Auto-collapse after reveal
+              if (s.revealedAt) setTimeout(() => setCollapsed(true), 4000);
+            }
+            handleDone();
+          }}
           onReact={text => {
-            // Send as special SPARK_REACT message type
             const special = `[SPARK_REACT]${text}`;
             sendChatMsg(matchId, myUserId, special);
           }}

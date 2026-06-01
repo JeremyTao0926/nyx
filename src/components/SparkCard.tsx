@@ -29,9 +29,10 @@ export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAn
   // Check if already reacted (look for existing SPARK_REACT message from me for this spark)
   useEffect(() => {
     if (!revealed) return;
+    const questionSnippet = spark.question.slice(0, 15);
     sb.from("chat_messages")
       .select("id").eq("match_id", matchId).eq("sender_id", myUserId)
-      .like("content", `[SPARK_REACT]%`)
+      .like("content", `[SPARK_REACT]%${questionSnippet}%`)
       .then(({ data }) => { if (data && data.length > 0) setReacted(true); });
   }, [revealed, matchId, myUserId]);
 
