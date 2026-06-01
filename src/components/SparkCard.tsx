@@ -56,7 +56,7 @@ export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAn
           match_id: fresh.matchId, user1_id: fresh.user1Id, user2_id: fresh.user2Id,
           type: "spark", title: fresh.question.slice(0, 28) + "...",
           content: { question: fresh.question, answerA: fresh.answerUser1, answerB: fresh.answerUser2 },
-        }).then(() => {}).catch(() => {});
+        }).then(() => {}, () => {});
       }
     }
     sb.channel(`encounter-notify-${matchId}`, { config: { broadcast: { self: false } } })

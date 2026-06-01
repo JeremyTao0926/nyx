@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { C, WRAP, sb, sound, fmtTime, fmtDate, fmtMsgTime, blockUser, reportUser, loadChatMsgs, sendChatMsg, markMsgsRead, uploadPhoto, buildSys, groqChat, compressImage, getTodaySpark, getBondInfo } from "../utils";
 import type { DailySpark, BondInfo } from "../utils";
 import { REPORT_CATEGORIES } from "../components/Modals";
@@ -412,7 +412,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
   function getSparkReactText(content: string) { return content.replace("[SPARK_REACT]", ""); }
 
   function renderMsgs() {
-    const els: JSX.Element[] = [];
+    const els: React.ReactNode[] = [];
     let lastDate = "";
     msgs.forEach((msg, idx) => {
       const dateStr = fmtDate(msg.timestamp);
