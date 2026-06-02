@@ -392,16 +392,35 @@ ${ctxStr}
   }
 
 
+  const sheetSwipeY = useRef(0);
+  const [sheetTranslate, setSheetTranslate] = useState(0);
+
+  function onSheetTouchStart(e: React.TouchEvent) {
+    sheetSwipeY.current = e.touches[0].clientY;
+  }
+  function onSheetTouchMove(e: React.TouchEvent) {
+    const dy = e.touches[0].clientY - sheetSwipeY.current;
+    if (dy > 0) setSheetTranslate(dy);
+  }
+  function onSheetTouchEnd(e: React.TouchEvent) {
+    const dy = e.changedTouches[0].clientY - sheetSwipeY.current;
+    if (dy > 80) { onClose(); }
+    else setSheetTranslate(0);
+  }
+
   return <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(4,3,14,0.92)", backdropFilter: "blur(16px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
-    <div onClick={e => e.stopPropagation()} style={{ ...MAX_W, background: C.surf, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, padding: "24px 22px 44px", maxHeight: "72vh", overflowY: "auto", animation: "slideUp .32s cubic-bezier(.34,1.56,.64,1)" }}>
-      <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.15)", margin: "0 auto 18px" }} />
+    <div onClick={e => e.stopPropagation()}
+      onTouchStart={onSheetTouchStart}
+      onTouchMove={onSheetTouchMove}
+      onTouchEnd={onSheetTouchEnd}
+      style={{ ...MAX_W, background: C.surf, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, padding: "24px 22px 44px", maxHeight: "72vh", overflowY: "auto", animation: "slideUp .32s cubic-bezier(.34,1.56,.64,1)", transform: `translateY(${sheetTranslate}px)`, transition: sheetTranslate === 0 ? "transform .3s ease" : "none" }}>
+      <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.15)", margin: "0 auto 18px", cursor: "pointer" }} onClick={onClose}/>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <span style={{ fontSize: 18 }}>🔍</span>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
           {isMe ? "分析我的說法" : "對方訊息解讀"}
         </div>
         {!loading && result && <span style={{ fontSize: 10, color: C.mint, background: "rgba(0,201,167,0.12)", padding: "2px 8px", borderRadius: 10 }}>已緩存</span>}
-        {cache.has(msg.id) && <span style={{ fontSize: 10, color: C.teal, background: "rgba(6,214,160,0.12)", padding: "2px 8px", borderRadius: 10 }}>已緩存</span>}
       </div>
       <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: C.textMuted, fontStyle: "italic", borderLeft: `2px solid ${C.gold}` }}>{msg.content}</div>
       {loading ? (
@@ -884,7 +903,27 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
 
   const ac = C.pink;
 
-  return <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg }}>
+  // Swipe right to go back (iOS style)
+  const swipeStartX = useRef(0);
+  const swipeStartY = useRef(0);
+
+  function onSwipeTouchStart(e: React.TouchEvent) {
+    swipeStartX.current = e.touches[0].clientX;
+    swipeStartY.current = e.touches[0].clientY;
+  }
+  function onSwipeTouchEnd(e: React.TouchEvent) {
+    const dx = e.changedTouches[0].clientX - swipeStartX.current;
+    const dy = Math.abs(e.changedTouches[0].clientY - swipeStartY.current);
+    // Swipe right: dx > 80px, mostly horizontal, started within left 40px
+    if (dx > 80 && dy < 60 && swipeStartX.current < 40) {
+      onBack();
+    }
+  }
+
+  return <div
+    onTouchStart={onSwipeTouchStart}
+    onTouchEnd={onSwipeTouchEnd}
+    style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg }}>
     {/* Header - centered name */}
     <div style={{ padding: "14px 16px", background: "rgba(9,9,15,0.95)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
       <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", fontFamily: "inherit", width: 36 }}>‹</button>
