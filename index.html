@@ -3,8 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>vite-project</title>
+    <!-- Lock zoom, prevent pinch/double-tap zoom -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- iOS PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>NYX</title>
+    <style>
+      /* Prevent text selection everywhere */
+      * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+      /* Allow selection only in input/textarea */
+      input, textarea { -webkit-user-select: text; user-select: text; }
+      /* Prevent scroll bounce on iOS */
+      html, body { overscroll-behavior: none; overflow: hidden; height: 100%; }
+      /* Prevent context menu on long press */
+      * { -webkit-tap-highlight-color: transparent; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

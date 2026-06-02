@@ -903,27 +903,43 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
 
   const ac = C.pink;
 
-  // Swipe right to go back (iOS style)
+  // Hinge-style swipe right to go back
   const swipeStartX = useRef(0);
   const swipeStartY = useRef(0);
+  const [swipeDx, setSwipeDx] = useState(0);
+  const isSwiping = useRef(false);
 
   function onSwipeTouchStart(e: React.TouchEvent) {
     swipeStartX.current = e.touches[0].clientX;
     swipeStartY.current = e.touches[0].clientY;
+    isSwiping.current = false;
   }
-  function onSwipeTouchEnd(e: React.TouchEvent) {
-    const dx = e.changedTouches[0].clientX - swipeStartX.current;
-    const dy = Math.abs(e.changedTouches[0].clientY - swipeStartY.current);
-    // Swipe right: dx > 80px, mostly horizontal, started within left 40px
-    if (dx > 80 && dy < 60 && swipeStartX.current < 40) {
-      onBack();
+  function onSwipeTouchMove(e: React.TouchEvent) {
+    const dx = e.touches[0].clientX - swipeStartX.current;
+    const dy = Math.abs(e.touches[0].clientY - swipeStartY.current);
+    // Only track horizontal swipe from left edge
+    if (swipeStartX.current < 40 && dx > 0 && dy < 60) {
+      isSwiping.current = true;
+      setSwipeDx(dx);
     }
+  }
+  function onSwipeTouchEnd() {
+    if (isSwiping.current && swipeDx > 100) {
+      onBack();
+    } else {
+      setSwipeDx(0);
+    }
+    isSwiping.current = false;
   }
 
   return <div
     onTouchStart={onSwipeTouchStart}
+    onTouchMove={onSwipeTouchMove}
     onTouchEnd={onSwipeTouchEnd}
-    style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg }}>
+    style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, touchAction: "pan-y",
+      transform: `translateX(${swipeDx}px)`,
+      transition: swipeDx === 0 ? "transform .25s ease" : "none",
+      boxShadow: swipeDx > 0 ? `-${swipeDx * 0.3}px 0 20px rgba(0,0,0,0.4)` : "none" }}>
     {/* Header - centered name */}
     <div style={{ padding: "14px 16px", background: "rgba(9,9,15,0.95)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
       <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", fontFamily: "inherit", width: 36 }}>‹</button>
