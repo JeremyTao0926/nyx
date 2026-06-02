@@ -184,7 +184,7 @@ function AnalysisSheet({ msg, isMe, context, gender, mbti, matchDaysSince, other
     // ── Cross-session enthusiasm analysis ────────────────
     // Split ALL context into sessions by 3h gaps
     const SESSION_GAP = 3 * 3600000; // 3 hours
-    const allMsgs = context; // full history
+    const allMsgs = context.slice(-100); // cap at 100 for performance
     const sessions: typeof context[] = [];
     let curSession: typeof context = [];
     for (let i = 0; i < allMsgs.length; i++) {
@@ -337,8 +337,7 @@ ${mbtiInsight}
 - ${velocity}｜${initiativeStr}
 - 對話走勢：${trend}${speedTrend ? "｜"+speedTrend : ""}
 - ${silenceNote || "無明顯沉默期"}
-- ${sessionTrendStr || ""}
-- 關係階段：${stage}${myMbtiNote}
+${sessionTrendStr ? "- "+sessionTrendStr+"\n" : ""}- 關係階段：${stage}${myMbtiNote}
 ${inflectionAdvice ? "【跨對話分析】"+inflectionAdvice : ""}
 
 【對話背景（最近14條，格式：發話人：內容）】
@@ -363,8 +362,7 @@ ${ctxStr}
 - ${velocity}｜${initiativeStr}
 - 對話走勢：${trend}${speedTrend ? "｜"+speedTrend : ""}
 - ${silenceNote || "無明顯沉默期"}
-- ${sessionTrendStr || ""}
-- ${otherHe}這句話長度：${relativeLen}
+${sessionTrendStr ? "- "+sessionTrendStr+"\n" : ""}- ${otherHe}這句話長度：${relativeLen}
 - 關係階段：${stage}${myMbtiNote}
 ${inflectionAdvice ? "【跨對話分析】"+inflectionAdvice : ""}
 
@@ -386,7 +384,7 @@ ${ctxStr}
 如果跨對話分析顯示有轉折點，在結尾單獨一行給出戰略建議（冷處理或追擊），直接說做什麼。`;
 
     try {
-      const r = await groqChat([{ role: "system", content: sysPrompt }, { role: "user", content: prompt }]);
+      const r = await groqChat([{ role: "user", content: prompt }], sysPrompt, undefined, 500);
       setResult(r); onCache(msg.id, r);
     } catch { setResult("分析失敗 😔"); }
     setLoading(false);
@@ -399,14 +397,22 @@ ${ctxStr}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <span style={{ fontSize: 18 }}>🔍</span>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
-        {isMe ? "分析我的說法" : "對方訊息解讀"}
-      </div>
+          {isMe ? "分析我的說法" : "對方訊息解讀"}
+        </div>
+        {!loading && result && <span style={{ fontSize: 10, color: C.mint, background: "rgba(0,201,167,0.12)", padding: "2px 8px", borderRadius: 10 }}>已緩存</span>}
         {cache.has(msg.id) && <span style={{ fontSize: 10, color: C.teal, background: "rgba(6,214,160,0.12)", padding: "2px 8px", borderRadius: 10 }}>已緩存</span>}
       </div>
       <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: C.textMuted, fontStyle: "italic", borderLeft: `2px solid ${C.gold}` }}>{msg.content}</div>
-      {loading
-        ? <div style={{ display: "flex", gap: 6, padding: "12px 0" }}>{[0, 1, 2].map(i => <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: C.pink, display: "inline-block", animation: `dot 1.1s ${i * .18}s ease-in-out infinite` }} />)}</div>
-        : <NyxText text={result} />}
+      {loading ? (
+        <div style={{ padding: "16px 0" }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            {[0,1,2].map(i => <span key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: C.gold, display: "inline-block", animation: `dot 1.1s ${i*.18}s ease-in-out infinite` }}/>)}
+          </div>
+          <div style={{ fontSize: 12.5, color: C.textMuted, animation: "fadeIn .5s ease" }}>
+            分析中，通常需要5-10秒...
+          </div>
+        </div>
+      ) : <NyxText text={result} />}
     </div>
   </div>;
 }

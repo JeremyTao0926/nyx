@@ -144,14 +144,13 @@ export async function compressImage(file: File, maxW = 1080, quality = 0.82): Pr
 }
 
 /* ─── Groq ───────────────────────────────────────────── */
-export async function groqChat(messages: GMsg[], systemPrompt?: string, fullHistory?: GMsg[]): Promise<string> {
-  // If fullHistory provided (Clone mode), use it directly with system prompt
+export async function groqChat(messages: GMsg[], systemPrompt?: string, fullHistory?: GMsg[], maxTokens = 400): Promise<string> {
   const payload = fullHistory && systemPrompt
     ? [{ role: "system" as const, content: systemPrompt }, ...fullHistory]
     : systemPrompt
       ? [{ role: "system" as const, content: systemPrompt }, ...messages]
       : messages;
-  const r = await fetch(GROQ_URL, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_KEY}` }, body: JSON.stringify({ model: TEXT_MODEL, messages: payload, temperature: 0.9, max_tokens: 300 }) });
+  const r = await fetch(GROQ_URL, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_KEY}` }, body: JSON.stringify({ model: TEXT_MODEL, messages: payload, temperature: 0.9, max_tokens: maxTokens }) });
   const d = await r.json(); if (!r.ok) throw new Error(d.error?.message ?? "Groq error");
   return d.choices[0].message.content as string;
 }
