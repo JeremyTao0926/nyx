@@ -936,10 +936,11 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
     onTouchStart={onSwipeTouchStart}
     onTouchMove={onSwipeTouchMove}
     onTouchEnd={onSwipeTouchEnd}
-    style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, touchAction: "pan-y",
+    style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg,
+      touchAction: "pan-y", position: "absolute", inset: 0,
       transform: `translateX(${swipeDx}px)`,
-      transition: swipeDx === 0 ? "transform .25s ease" : "none",
-      boxShadow: swipeDx > 0 ? `-${swipeDx * 0.3}px 0 20px rgba(0,0,0,0.4)` : "none" }}>
+      transition: swipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
+      boxShadow: swipeDx > 10 ? `-8px 0 24px rgba(0,0,0,0.5)` : "none" }}>
     {/* Header - centered name */}
     <div style={{ padding: "14px 16px", background: "rgba(9,9,15,0.95)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
       <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", fontFamily: "inherit", width: 36 }}>‹</button>
