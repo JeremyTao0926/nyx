@@ -10,7 +10,7 @@ export const SUPABASE_URL =
 
 export const SUPABASE_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY;
-  
+
 export const GROQ_URL     = "https://api.groq.com/openai/v1/chat/completions";
 export const TEXT_MODEL   = "llama-3.3-70b-versatile";
 export const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
