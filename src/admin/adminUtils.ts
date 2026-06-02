@@ -16,6 +16,12 @@ export interface AdminUser {
   isActive: boolean;
 }
 
+export interface UserStats {
+  matches: number;
+  messages: number;
+  reports: number;
+}
+
 export interface PlatformStats {
   total_users: number;
   test_users: number;
@@ -59,14 +65,26 @@ export interface UserRow {
 
 // ─── Admin auth check ─────────────────────────────────
 export async function getMyAdminRole(): Promise<AdminRole | null> {
-  const { data: { user } } = await sb.auth.getUser();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+
+  console.log("USER =", user);
+
   if (!user) return null;
-  const { data } = await sb.from("admin_users")
-    .select("role, is_active")
-    .eq("user_id", user.id)
-    .single();
-  if (!data || !data.is_active) return null;
-  return data.role as AdminRole;
+
+  const result = await sb
+    .from("admin_users")
+    .select("*")
+    .eq("user_id", user.id);
+
+  console.log("ADMIN QUERY =", result);
+
+  const { data } = result;
+
+  if (!data || data.length === 0) return null;
+
+  return data[0].role as AdminRole;
 }
 
 export function canDo(role: AdminRole | null, required: AdminRole): boolean {
@@ -167,4 +185,53 @@ export async function getAuditLog(limit = 50) {
     .order("created_at", { ascending: false })
     .limit(limit);
   return data || [];
+}
+
+export async function getUserStats(userId: string): Promise<UserStats> {
+  const [matches, messages, reports] = await Promise.all([
+    sb.from("matches").select("id", { count: "exact", head: true })
+      .or(`user1_id.eq.${userId},user2_id.eq.${userId}`),
+
+    sb.from("chat_messages").select("id", { count: "exact", head: true })
+      .eq("sender_id", userId),
+
+    sb.from("reports").select("id", { count: "exact", head: true })
+      .eq("reported_id", userId),
+  ]);
+
+  return {
+    matches: matches.count || 0,
+    messages: messages.count || 0,
+    reports: reports.count || 0,
+  };
+}
+
+export async function disableUser(userId: string) {
+  const { error } = await sb.rpc("disable_user", {
+    p_user_id: userId,
+  });
+
+  if (error) throw error;
+
+  await logAction("disable_user", "user", userId);
+}
+
+export async function restoreUser(userId: string) {
+  const { error } = await sb.rpc("restore_user", {
+    p_user_id: userId,
+  });
+
+  if (error) throw error;
+
+  await logAction("restore_user", "user", userId);
+}
+
+export async function softDeleteUser(userId: string) {
+  const { error } = await sb.rpc("soft_delete_user", {
+    p_user_id: userId,
+  });
+
+  if (error) throw error;
+
+  await logAction("soft_delete_user", "user", userId);
 }

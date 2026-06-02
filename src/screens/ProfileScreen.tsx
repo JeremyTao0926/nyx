@@ -91,6 +91,18 @@ export function ProfileScreen({ profile,userId,onLogout,onUpdate }:{ profile:Use
   const [soundOn,setSoundOn]=useState(sound.enabled);
   const [lang,setLang]=useState<Lang>((profile as any).language||"zh");
   const [hideOnline,setHideOnline]=useState((profile as any).hide_online_status||false);
+  // Extended profile fields
+  const [occupation,setOccupation]=useState((profile as any).occupation||"");
+  const [education,setEducation]=useState((profile as any).education||"");
+  const [income,setIncome]=useState((profile as any).income||"");
+  const [heightCm,setHeightCm]=useState((profile as any).height_cm||"");
+  const [drinking,setDrinking]=useState((profile as any).drinking||"");
+  const [smoking,setSmoking]=useState((profile as any).smoking||"");
+  const [exercise,setExercise]=useState((profile as any).exercise||"");
+  const [hasPets,setHasPets]=useState((profile as any).has_pets||"");
+  const [wantChildren,setWantChildren]=useState((profile as any).want_children||"");
+  const [relGoal,setRelGoal]=useState((profile as any).relationship_goal||"");
+  const [loveLanguage,setLoveLanguage]=useState((profile as any).love_language||"");
   const [saving,setSaving]=useState(false);
   const [stats,setStats]=useState({likesReceived:0,likesGiven:0,matches:0});
   useEffect(()=>{
@@ -114,7 +126,7 @@ export function ProfileScreen({ profile,userId,onLogout,onUpdate }:{ profile:Use
   async function handlePhoto(file:File){if(photos.length>=6)return;setUploading(true);try{const url=await uploadPhoto(file,userId,photos.length);setPhotos(p=>[...p,url]);}catch(e){console.error(e);}setUploading(false);}
   async function save(){
     setSaving(true);
-    const patch:Partial<UserProfile>={display_name:name,bio:bio||null,birthday:birthday||null,location_text:loc||null,ethnicity,hobbies,mbti,gender,looking_for_gender:lookingFor,avatar_url:avatarUrl||null,photos};
+    const patch:Partial<UserProfile>={display_name:name,bio:bio||null,birthday:birthday||null,location_text:loc||null,ethnicity,hobbies,mbti,gender,looking_for_gender:lookingFor,avatar_url:avatarUrl||null,photos,...({occupation:occupation||null,education:education||null,income:income||null,height_cm:heightCm||null,drinking:drinking||null,smoking:smoking||null,exercise:exercise||null,has_pets:hasPets||null,want_children:wantChildren||null,relationship_goal:relGoal||null,love_language:loveLanguage||null} as any)};
     await updateProfile(userId,patch);onUpdate(patch);setActiveTab("view");setSaving(false);sound.pop();
   }
   async function handleLocate(){
@@ -262,6 +274,92 @@ export function ProfileScreen({ profile,userId,onLogout,onUpdate }:{ profile:Use
         <div style={{ marginBottom:28 }}><TagChips options={HOBBIES} value={hobbies} onChange={setHobbies} color={C.mint}/></div>
         <SLabel>相片（最多6張）</SLabel>
         <div style={{ marginBottom:32 }}><PhotoGrid photos={photos} onAdd={handlePhoto} onRemove={i=>setPhotos(ps=>ps.filter((_,j)=>j!==i))} uploading={uploading}/></div>
+
+        {/* ── Extended profile ── */}
+        <div style={{ borderTop:`1px solid ${C.border}`,paddingTop:24,marginBottom:8 }}>
+          <SLabel>基本資訊</SLabel>
+          <div style={{ display:"flex",flexDirection:"column",gap:12,marginBottom:24 }}>
+            <div>
+              <div style={{ fontSize:12,color:C.textMuted,marginBottom:5 }}>職業</div>
+              <input value={occupation} onChange={e=>setOccupation(e.target.value)} placeholder="設計師、工程師、學生..." style={{ ...INP,width:"100%",boxSizing:"border-box" as const }}/>
+            </div>
+            <div>
+              <div style={{ fontSize:12,color:C.textMuted,marginBottom:5 }}>學歷</div>
+              <select value={education} onChange={e=>setEducation(e.target.value)} style={{ ...INP,width:"100%",boxSizing:"border-box" as const,appearance:"none" as const }}>
+                <option value="">選擇學歷</option>
+                <option value="high_school">高中 / 中專</option>
+                <option value="college">大專</option>
+                <option value="bachelor">本科</option>
+                <option value="master">碩士</option>
+                <option value="phd">博士</option>
+              </select>
+            </div>
+            <div style={{ display:"flex",gap:10 }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:12,color:C.textMuted,marginBottom:5 }}>身高 (cm)</div>
+                <input type="number" value={heightCm} onChange={e=>setHeightCm(e.target.value)} placeholder="170" style={{ ...INP,width:"100%",boxSizing:"border-box" as const }}/>
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:12,color:C.textMuted,marginBottom:5 }}>年收入（選填）</div>
+                <select value={income} onChange={e=>setIncome(e.target.value)} style={{ ...INP,width:"100%",boxSizing:"border-box" as const,appearance:"none" as const }}>
+                  <option value="">不透露</option>
+                  <option value="<20">20萬以下</option>
+                  <option value="20-50">20–50萬</option>
+                  <option value="50-100">50–100萬</option>
+                  <option value=">100">100萬以上</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <SLabel>生活方式</SLabel>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:24 }}>
+            {([
+              {label:"飲酒",val:drinking,set:setDrinking,opts:[["never","不喝"],["sometimes","偶爾"],["often","常喝"]]},
+              {label:"抽煙",val:smoking,set:setSmoking,opts:[["never","不抽"],["sometimes","偶爾"],["often","常抽"]]},
+              {label:"運動",val:exercise,set:setExercise,opts:[["never","從不"],["sometimes","偶爾"],["weekly","每週"],["daily","每天"]]},
+              {label:"寵物",val:hasPets,set:setHasPets,opts:[["none","無"],["cat","貓"],["dog","狗"],["other","其他"]]},
+            ] as any[]).map(({label,val,set,opts})=>(
+              <div key={label}>
+                <div style={{ fontSize:12,color:C.textMuted,marginBottom:5 }}>{label}</div>
+                <select value={val} onChange={(e:any)=>set(e.target.value)} style={{ ...INP,width:"100%",boxSizing:"border-box" as const,appearance:"none" as const,fontSize:13 }}>
+                  <option value="">未填</option>
+                  {opts.map(([v,l]:string[])=><option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+
+          <SLabel>感情觀</SLabel>
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:12,color:C.textMuted,marginBottom:8 }}>尋找關係</div>
+            <div style={{ display:"flex",gap:8,flexWrap:"wrap" as const }}>
+              {[["serious","認真交往"],["friends_first","先朋友再說"],["casual","隨緣"],["open","開放"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setRelGoal(relGoal===v?"":v)}
+                  style={{ padding:"7px 14px",borderRadius:20,border:`1px solid ${relGoal===v?C.gold:C.border}`,background:relGoal===v?C.goldSoft:"transparent",color:relGoal===v?C.gold:C.textSub,fontSize:13,cursor:"pointer",fontFamily:"inherit" }}>{l}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:12,color:C.textMuted,marginBottom:8 }}>想要孩子？</div>
+            <div style={{ display:"flex",gap:8 }}>
+              {[["yes","想要"],["no","不想"],["undecided","未決定"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setWantChildren(wantChildren===v?"":v)}
+                  style={{ padding:"7px 14px",borderRadius:20,border:`1px solid ${wantChildren===v?C.gold:C.border}`,background:wantChildren===v?C.goldSoft:"transparent",color:wantChildren===v?C.gold:C.textSub,fontSize:13,cursor:"pointer",fontFamily:"inherit" }}>{l}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom:24 }}>
+            <div style={{ fontSize:12,color:C.textMuted,marginBottom:8 }}>戀愛語言</div>
+            <div style={{ display:"flex",gap:8,flexWrap:"wrap" as const }}>
+              {[["words","肯定言語"],["time","精心時刻"],["acts","服務行為"],["touch","肢體接觸"],["gifts","送禮"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setLoveLanguage(loveLanguage===v?"":v)}
+                  style={{ padding:"7px 14px",borderRadius:20,border:`1px solid ${loveLanguage===v?C.rose:C.border}`,background:loveLanguage===v?C.roseSoft:"transparent",color:loveLanguage===v?C.rose:C.textSub,fontSize:13,cursor:"pointer",fontFamily:"inherit" }}>{l}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <div style={{ display:"flex",gap:10 }}>
           <button onClick={()=>setActiveTab("view")} style={{ flex:1,padding:"13px",borderRadius:14,background:"transparent",border:`1px solid ${C.border}`,color:C.textMuted,fontFamily:"inherit",fontSize:14,cursor:"pointer" }}>取消</button>
           <button onClick={save} disabled={saving} style={{ flex:2,padding:"13px",borderRadius:14,background:C.grad,border:"none",color:"#fff",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer",opacity:saving?.7:1,boxShadow:`0 4px 16px ${C.roseGlow}` }}>{saving?"儲存中...":"儲存"}</button>

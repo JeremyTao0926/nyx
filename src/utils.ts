@@ -144,8 +144,14 @@ export async function compressImage(file: File, maxW = 1080, quality = 0.82): Pr
 }
 
 /* ─── Groq ───────────────────────────────────────────── */
-export async function groqChat(messages: GMsg[]): Promise<string> {
-  const r = await fetch(GROQ_URL, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_KEY}` }, body: JSON.stringify({ model: TEXT_MODEL, messages, temperature: 0.85, max_tokens: 2048 }) });
+export async function groqChat(messages: GMsg[], systemPrompt?: string, fullHistory?: GMsg[]): Promise<string> {
+  // If fullHistory provided (Clone mode), use it directly with system prompt
+  const payload = fullHistory && systemPrompt
+    ? [{ role: "system" as const, content: systemPrompt }, ...fullHistory]
+    : systemPrompt
+      ? [{ role: "system" as const, content: systemPrompt }, ...messages]
+      : messages;
+  const r = await fetch(GROQ_URL, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_KEY}` }, body: JSON.stringify({ model: TEXT_MODEL, messages: payload, temperature: 0.9, max_tokens: 300 }) });
   const d = await r.json(); if (!r.ok) throw new Error(d.error?.message ?? "Groq error");
   return d.choices[0].message.content as string;
 }
@@ -290,6 +296,21 @@ export async function getExploreProfiles(uid: string, p: UserProfile): Promise<E
   if (excl.length > 0) q = q.not("id", "in", `(${excl.join(",")})`);
   if (p.looking_for_gender && p.looking_for_gender !== "both") q = q.eq("gender", p.looking_for_gender);
   if (p.filter_country) q = q.eq("country", p.filter_country);
+  // Age filter — always include users with no birthday (NULL)
+  if (p.filter_min_age && p.filter_min_age > 0) {
+    const maxBirthday = new Date();
+    maxBirthday.setFullYear(maxBirthday.getFullYear() - p.filter_min_age);
+    const maxDate = maxBirthday.toISOString().slice(0,10);
+    q = q.or(`birthday.is.null,birthday.lte.${maxDate}`);
+  }
+  if (p.filter_max_age && p.filter_max_age < 99) {
+    const minBirthday = new Date();
+    minBirthday.setFullYear(minBirthday.getFullYear() - p.filter_max_age - 1);
+    const minDate = minBirthday.toISOString().slice(0,10);
+    q = q.or(`birthday.is.null,birthday.gte.${minDate}`);
+  }
+  // Exclude banned users
+  q = q.eq("is_banned", false);
   q = q.order("last_active", { ascending: false }).limit(50);
   const { data } = await q;
   if (!data) return [];

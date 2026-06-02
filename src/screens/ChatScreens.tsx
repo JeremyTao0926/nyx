@@ -1,25 +1,29 @@
 import React, { useState, useEffect, useRef } from "react";
 import { C, WRAP, sb, sound, fmtTime, fmtDate, fmtMsgTime, blockUser, reportUser, loadChatMsgs, sendChatMsg, markMsgsRead, uploadPhoto, buildSys, groqChat, compressImage, getTodaySpark, getBondInfo } from "../utils";
 import type { DailySpark, BondInfo } from "../utils";
+import { SparkCard } from "../components/SparkCard";
 import { REPORT_CATEGORIES } from "../components/Modals";
 import { Av, TypingBubble, NyxText, Lightbox } from "../components/Atoms";
 import { EmojiPanel } from "../components/Modals";
-import { SparkCard } from "../components/SparkCard";
 import { MemoryWall } from "./MemoryWall";
+import { CloneScreen } from "./CloneScreen";
 import type { UserProfile, MatchItem, ChatMsg, ImgItem } from "../types";
 
 const MAX_W = { maxWidth: 480, margin: "0 auto", width: "100%" };
 
-/* ─── EncounterPanel — collapsible, auto-hides after reveal ─ */
+/* ─── SparkPanel — collapsible daily spark in chat ──── */
 function SparkPanel({ spark, matchId, myUserId, other, onSparkUpdate, onBondUpdate }:
   { spark: any; matchId: string; myUserId: string; other: any;
     onSparkUpdate: (s: any) => void; onBondUpdate: () => void }) {
-  const [collapsed, setCollapsed] = useState(true); // default collapsed — not in the way
+  // Always start collapsed — user opens when ready
+  const [collapsed, setCollapsed] = useState(true);
   const [hiding, setHiding] = useState(false);
 
-  function handleDone() {
-    onBondUpdate();
-  }
+  const isUser1 = myUserId === spark?.user1Id;
+  const myAnswer = spark ? (isUser1 ? spark.answerUser1 : spark.answerUser2) : null;
+  const revealed = !!spark?.revealedAt;
+  // Show dot if today's spark exists and I haven't answered yet
+  const hasNew = spark && !myAnswer && !revealed;
 
   function dismiss() {
     setHiding(true);
@@ -31,15 +35,22 @@ function SparkPanel({ spark, matchId, myUserId, other, onSparkUpdate, onBondUpda
       style={{ background: C.bgGold, borderBottom: `1px solid ${C.border}`, padding: "8px 16px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
       <span style={{ fontSize: 11, color: C.rose }}>♥</span>
       <span style={{ fontSize: 12, color: C.rose, fontWeight: 600 }}>今日真心話</span>
-      <span style={{ fontSize: 11, color: C.textMuted, marginLeft: 2 }}>— 點擊展開</span>
+      {hasNew
+        ? <span style={{ fontSize: 10, background: C.rose, color: "#fff", borderRadius: 10, padding: "1px 7px", fontWeight: 700, marginLeft: 2 }}>新</span>
+        : revealed
+          ? <span style={{ fontSize: 11, color: C.mint, marginLeft: 2 }}>已揭曉</span>
+          : myAnswer
+            ? <span style={{ fontSize: 11, color: C.textMuted, marginLeft: 2 }}>等待對方...</span>
+            : null
+      }
       <span style={{ marginLeft: "auto", fontSize: 14, color: C.textMuted }}>⌄</span>
     </div>
   );
 
   return (
-    <div style={{ background: C.bg, borderBottom: `1px solid ${C.border}`, maxHeight: 360, overflowY: "auto", opacity: hiding ? 0 : 1, transition: "opacity .25s", ...MAX_W, width: "100%" }}>
+    <div style={{ background: C.bg, borderBottom: `1px solid ${C.border}`, maxHeight: 360, overflowY: "auto", opacity: hiding ? 0 : 1, transition: "opacity .25s" }}>
       <div style={{ display: "flex", justifyContent: "flex-end", padding: "6px 12px 0" }}>
-        <button onClick={dismiss} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4, padding: "2px 6px" }}>
+        <button onClick={dismiss} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", padding: "2px 6px" }}>
           收起 ⌃
         </button>
       </div>
@@ -47,22 +58,21 @@ function SparkPanel({ spark, matchId, myUserId, other, onSparkUpdate, onBondUpda
         {spark && <SparkCard
           spark={spark} myUserId={myUserId} matchId={matchId} otherName={other.name}
           onAnswered={s => {
-            if(s) { onSparkUpdate(s);
-              // Auto-collapse after reveal
+            if (s) {
+              onSparkUpdate(s);
               if (s.revealedAt) setTimeout(() => setCollapsed(true), 4000);
             }
-            handleDone();
+            onBondUpdate();
           }}
-          onReact={text => {
-            const special = `[SPARK_REACT]${text}`;
-            sendChatMsg(matchId, myUserId, special);
-          }}
+          onReact={text => { sendChatMsg(matchId, myUserId, `[SPARK_REACT]${text}`); }}
         />}
       </div>
     </div>
   );
 }
 
+
+/* ─── EncounterPanel — collapsible, auto-hides after reveal ─ */
 
 function onlineStatus(lastActive: string | null, hidden: boolean): { label: string; color: string; dot: boolean } {
   if (hidden || !lastActive) return { label: "", color: "transparent", dot: false };
@@ -278,10 +288,11 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
   const [pendingImg, setPendingImg] = useState<{ file: File; preview: string } | null>(null);
   const [analysisTarget, setAnalysisTarget] = useState<ChatMsg | null>(null);
   const [analysisCache, setAnalysisCache] = useState<Map<string, string>>(new Map());
-  // Daily Spark + Memory
+  const [lightboxImg, setLightboxImg] = useState<string | null>(null);
   const [spark, setSpark] = useState<DailySpark | null>(null);
   const [bond, setBond] = useState<BondInfo | null>(null);
   const [showMemory, setShowMemory] = useState(false);
+  const [showClone, setShowClone] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -294,12 +305,20 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
   useEffect(() => {
     loadChatMsgs(matchId).then(m => { setMsgs(m); setLoaded(true); });
     markMsgsRead(matchId, myUserId);
-    // Load spark + bond on mount
-    getTodaySpark(matchId, myUserId, other.id).then(s => { console.log("spark loaded:", s); setSpark(s); });
+    getTodaySpark(matchId, myUserId, other.id).then(s => setSpark(s));
     getBondInfo(matchId).then(b => setBond(b));
+
+    // Refresh spark at midnight if chat stays open
+    const now = new Date();
+    const midnight = new Date(now); midnight.setHours(24,0,0,0);
+    const msToMidnight = midnight.getTime() - now.getTime();
+    const midnightTimer = setTimeout(() => {
+      getTodaySpark(matchId, myUserId, other.id).then(s => setSpark(s));
+    }, msToMidnight);
 
     // Realtime: use Broadcast channel (no RLS needed) to notify other person
     const encounterCh = sb.channel(`encounter-notify-${matchId}`, { config: { broadcast: { self: false } } })
+
       .on("broadcast", { event: "spark_answered" }, () => {
         getTodaySpark(matchId, myUserId, other.id).then(s => {
           setSpark(s);
@@ -349,7 +368,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
         }
       }).subscribe();
 
-    return () => { sb.removeChannel(msgCh); if (typingCh.current) sb.removeChannel(typingCh.current); sb.removeChannel(encounterCh); };
+    return () => { sb.removeChannel(msgCh); if (typingCh.current) sb.removeChannel(typingCh.current); sb.removeChannel(encounterCh); clearTimeout(midnightTimer); };
   }, [matchId]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, otherTyping]);
@@ -427,12 +446,18 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       const showAvatar = !isMe && isLastInGroup;
       const isImage = msg.isImage || (typeof msg.content === "string" && (msg.content.startsWith("https://") || msg.content.startsWith("http://")) && !msg.content.includes(" ") && !msg.content.includes("\n"));
 
-      // Special: SPARK_REACT message card
+      // Special: SPARK_REACT message card — same row structure as normal messages
       if (isSparkReact(msg.content)) {
         const txt = getSparkReactText(msg.content);
         els.push(
-          <div key={msg.id} style={{ display:"flex", justifyContent:isMe?"flex-end":"flex-start", margin:"6px 0", animation:"fadeUp .3s ease" }}>
-            <div style={{ maxWidth:"80%", background:isMe?`linear-gradient(135deg,${C.bgGold},rgba(30,26,14,0.95))`:`linear-gradient(135deg,rgba(20,18,14,0.98),rgba(28,22,14,0.95))`, border:`1px solid ${C.rose}44`, borderRadius:16, padding:"12px 14px", boxShadow:"0 2px 12px rgba(0,0,0,0.3)" }}>
+          <div key={msg.id} style={{ display:"flex", flexDirection:isMe?"row-reverse":"row", alignItems:"flex-end", gap:8, marginBottom:10, animation:"fadeUp .3s ease" }}>
+            {/* Avatar — only render for other person */}
+            {!isMe && (
+              <div style={{ width:32, flexShrink:0 }}>
+                <Av url={other.avatar} name={other.name} size={30} grad="linear-gradient(145deg,#ff9a3c,#ff6b6b)" />
+              </div>
+            )}
+            <div style={{ maxWidth:"72%", background:isMe?`linear-gradient(135deg,${C.bgGold},rgba(30,26,14,0.95))`:`linear-gradient(135deg,rgba(20,18,14,0.98),rgba(28,22,14,0.95))`, border:`1px solid ${C.rose}44`, borderRadius:16, padding:"12px 14px", boxShadow:"0 2px 12px rgba(0,0,0,0.3)" }}>
               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:7 }}>
                 <span style={{ fontSize:11, color:C.rose }}>♥</span>
                 <span style={{ fontSize:10.5, fontWeight:700, color:C.rose, letterSpacing:".5px", textTransform:"uppercase" as const }}>真心話回應</span>
@@ -442,7 +467,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
             </div>
           </div>
         );
-        return; // forEach equivalent of continue
+        return;
       }
 
       const displayContent = msg.content.includes("\n") && msg.content.startsWith("↩️")
@@ -452,15 +477,17 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
         <div key={msg.id}
           style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", alignItems: "flex-end", gap: 8, marginBottom: isLastInGroup ? 10 : 2, animation: `${isMe ? "userIn" : "nyxIn"} .25s ease both` }}
           onContextMenu={e => { e.preventDefault(); setMenuMsg(msg); }}>
-          {/* Avatar placeholder for spacing even when not shown */}
-          <div style={{ width: 32, flexShrink: 0 }}>
-            {showAvatar && <Av url={other.avatar} name={other.name} size={30} grad="linear-gradient(145deg,#ff9a3c,#ff6b6b)" />}
-          </div>
+          {/* Avatar — only render div for other person's messages */}
+          {!isMe && (
+            <div style={{ width: 32, flexShrink: 0 }}>
+              {showAvatar && <Av url={other.avatar} name={other.name} size={30} grad="linear-gradient(145deg,#ff9a3c,#ff6b6b)" />}
+            </div>
+          )}
           <div style={{ maxWidth: "72%", display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
             {msg.content.startsWith("↩️") && <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 2, opacity: .7 }}>{msg.content.split("\n")[0]}</div>}
             <div style={{ padding: isImage ? "4px" : "10px 14px", borderRadius: isMe ? "18px 4px 18px 18px" : "4px 18px 18px 18px", background: isMe ? C.grad : "rgba(24,20,36,0.98)", border: isMe ? undefined : `1px solid ${C.border}`, color: "#fff", fontSize: 14.5, lineHeight: 1.6, boxShadow: isMe ? `0 3px 12px rgba(255,56,92,0.25)` : "none", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
               {isImage
-                ? <img src={msg.content} alt="📷" style={{ maxWidth: 220, maxHeight: 280, borderRadius: 10, objectFit: "cover" as const, display: "block", cursor: "pointer" }} onClick={() => window.open(msg.content, "_blank")} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                ? <img src={msg.content} alt="📷" style={{ maxWidth: 220, maxHeight: 280, borderRadius: 10, objectFit: "cover" as const, display: "block", cursor: "pointer" }} onClick={() => setLightboxImg(msg.content)} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
                 : displayContent}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
@@ -490,6 +517,10 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
         </div>
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+        <button onClick={() => setShowClone(true)} style={{ display:"flex", alignItems:"center", gap:4, padding:"5px 10px", borderRadius:20, background:"rgba(255,255,255,0.05)", border:`1px solid ${C.border}`, cursor:"pointer", fontFamily:"inherit" }}>
+          <span style={{ fontSize:13 }}>🪞</span>
+          <span style={{ fontSize:11, color:C.textMuted, fontWeight:600 }}>Clone</span>
+        </button>
         <button onClick={() => setShowMemory(true)} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:20, background:C.goldSoft, border:`1px solid ${C.gold}33`, cursor:"pointer", fontFamily:"inherit" }}>
           <span style={{ fontSize:12, color:C.gold }}>✦</span>
           <span style={{ fontSize:11, color:C.gold, fontWeight:600 }}>{bond ? bond.label : "回憶"}</span>
@@ -498,10 +529,11 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       </div>
     </div>
 
-    {/* Daily Spark card pinned below header */}
+
+
+    {/* Daily Spark */}
     {spark && <SparkPanel
-      spark={spark}
-      matchId={matchId} myUserId={myUserId} other={other}
+      spark={spark} matchId={matchId} myUserId={myUserId} other={other}
       onSparkUpdate={s => setSpark(s)}
       onBondUpdate={() => getBondInfo(matchId).then(setBond)}
     />}
@@ -536,9 +568,8 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
         <div style={{ display: "flex", alignItems: "flex-end", gap: 6, background: "rgba(255,255,255,0.05)", border: `1px solid ${showEmoji ? `${ac}55` : C.border}`, borderRadius: 26, padding: "8px 8px 8px 6px", transition: "border-color .2s" }}
           onFocusCapture={e => (e.currentTarget.style.borderColor = `${ac}55`)}
           onBlurCapture={e => { if (!showEmoji) e.currentTarget.style.borderColor = C.border; }}>
-          <button onClick={() => { setShowEmoji(p => !p); sound.tap(); }} style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0, background: showEmoji ? `rgba(255,56,92,0.18)` : "transparent", border: "none", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: showEmoji ? ac : C.textMuted }}>😊</button>
-          <button onClick={() => fileRef.current?.click()} style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0, background: "transparent", border: "none", color: C.textMuted, fontSize: 17, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} title="上傳相片" onMouseEnter={e => (e.currentTarget.style.color = ac)} onMouseLeave={e => (e.currentTarget.style.color = C.textMuted)}>🖼️</button>
-          <button onClick={() => cameraRef.current?.click()} style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0, background: "transparent", border: "none", color: C.textMuted, fontSize: 17, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} title="拍攝" onMouseEnter={e => (e.currentTarget.style.color = C.teal)} onMouseLeave={e => (e.currentTarget.style.color = C.textMuted)}>📷</button>
+          <button onClick={() => { setShowEmoji(p => !p); sound.tap(); }} style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0, background: showEmoji ? "rgba(201,168,76,0.15)" : "transparent", border: "none", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: showEmoji ? C.gold : C.textMuted }}>😊</button>
+          <button onClick={() => fileRef.current?.click()} style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0, background: "transparent", border: "none", color: C.textMuted, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} title="上傳相片" onMouseEnter={e => (e.currentTarget.style.color = C.gold)} onMouseLeave={e => (e.currentTarget.style.color = C.textMuted)}>⊕</button>
           <textarea ref={textRef} value={input} onChange={e => { handleInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 100) + "px"; }} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={`傳訊息給 ${other.name}...`} rows={1} style={{ background: "transparent", border: "none", outline: "none", color: C.text, resize: "none", fontSize: 14.5, lineHeight: 1.55, width: "100%", maxHeight: 100, overflowY: "auto", paddingTop: 5, fontFamily: "'Plus Jakarta Sans','Noto Sans TC',sans-serif" }} />
           <button onClick={send} style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0, background: (input.trim() || pendingImg) ? C.grad : "rgba(255,255,255,0.07)", border: "none", color: "#fff", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s", fontFamily: "inherit", boxShadow: (input.trim() || pendingImg) ? `0 3px 14px rgba(255,56,92,0.5)` : "none" }}><span style={{ marginLeft: 2 }}>➤</span></button>
         </div>
@@ -546,9 +577,10 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
     </div>
 
     {/* Other profile */}
+    {lightboxImg && <Lightbox lb={{ images:[lightboxImg], index:0 }} onClose={() => setLightboxImg(null)} />}
     {showOtherProfile && otherProfileData && <OtherProfileModal profile={otherProfileData} onClose={() => setShowOtherProfile(false)} />}
     {showMemory && <MemoryWall matchId={matchId} otherName={other.name} onClose={() => setShowMemory(false)} />}
-    {showMemory && <MemoryWall matchId={matchId} otherName={other.name} onClose={() => setShowMemory(false)} />}
+    {showClone && <CloneScreen matchId={matchId} myUserId={myUserId} myProfile={myProfile} other={other} onClose={() => setShowClone(false)} />}
 
     {/* Msg menu */}
     {menuMsg && <MsgMenu msg={menuMsg} isMe={menuMsg.senderId === myUserId}

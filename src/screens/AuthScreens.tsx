@@ -214,7 +214,7 @@ function Step4({ onNext }: { onNext: (lookingFor: string) => void }) {
 }
 
 // Step 5: Photo upload (required)
-function Step5({ onNext, userId }: { onNext: (avatarUrl: string) => void; userId: string }) {
+function Step5({ onNext }: { onNext: (avatarUrl: string, blob: Blob) => void }) {
   const [preview, setPreview] = useState<string | null>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -223,15 +223,14 @@ function Step5({ onNext, userId }: { onNext: (avatarUrl: string) => void; userId
 
   async function handleFile(file: File) { setCropFile(file); }
 
+  const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
+
   async function handleCropped(blob: Blob) {
     setCropFile(null);
-    setUploading(true);
-    try {
-      const f = new File([blob], "avatar.jpg", { type: "image/jpeg" });
-      const url = await uploadAvatar(f, userId);
-      setPreview(url);
-    } catch { setErr("上傳失敗，請重試"); }
-    setUploading(false);
+    // Show preview immediately using object URL, don't upload yet (no real uid yet)
+    const localUrl = URL.createObjectURL(blob);
+    setPreview(localUrl);
+    setPendingBlob(blob);
   }
 
   return <>
@@ -257,7 +256,7 @@ function Step5({ onNext, userId }: { onNext: (avatarUrl: string) => void; userId
     </div>
     {err && <div style={{ fontSize: 13, color: C.rose, textAlign: "center", marginBottom: 12 }}>{err}</div>}
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <button onClick={() => preview && onNext(preview)} disabled={!preview || uploading}
+      <button onClick={() => preview && pendingBlob && onNext(preview, pendingBlob)} disabled={!preview || uploading}
         style={{ width: "100%", padding: "15px", borderRadius: 50, background: preview ? C.grad : "rgba(255,255,255,0.07)", border: "none", color: preview ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: preview ? "pointer" : "default", transition: "all .25s" }}>
         {uploading ? "上傳中..." : "繼續 →"}
       </button>
@@ -350,7 +349,7 @@ function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => vo
   const [sent, setSent] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   // Collected data
-  const data = useRef({ email: "", pass: "", name: "", username: "", birthday: "", gender: "male" as "male" | "female", lookingFor: "female", avatarUrl: "", city: "", mbti: "INFP", hobbies: [] as string[] });
+  const data = useRef({ email: "", pass: "", name: "", username: "", birthday: "", gender: "male" as "male" | "female", lookingFor: "female", avatarUrl: "", avatarBlob: null as Blob | null, city: "", mbti: "INFP", hobbies: [] as string[] });
 
   const TOTAL_REQUIRED = 5; // steps 1-5 have progress bar
   const TOTAL = 8;
@@ -367,13 +366,27 @@ function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => vo
       if (error) throw error;
       const uid = authData.user?.id;
       if (uid) {
-        // Upsert profile with all collected data
+        // Re-upload avatar with real uid
+        let finalAvatarUrl = d.avatarUrl || null;
+        if (d.avatarBlob) {
+          try {
+            const f = new File([d.avatarBlob], "avatar.jpg", { type: "image/jpeg" });
+            finalAvatarUrl = await uploadAvatar(f, uid);
+          } catch { /* keep original url */ }
+        }
+        // Upsert full profile
         await sb.from("profiles").upsert({
           id: uid, username: d.username, display_name: d.name, email: d.email,
           birthday: d.birthday, gender: d.gender, looking_for_gender: d.lookingFor,
-          avatar_url: d.avatarUrl || null, location_text: d.city || null,
+          avatar_url: finalAvatarUrl, location_text: d.city || null,
           mbti: d.mbti, hobbies: d.hobbies, onboarding_done: true,
         }, { onConflict: "id" });
+        // Separate update to guarantee birthday is saved (in case trigger overwrote it)
+        if (d.birthday) {
+          await sb.from("profiles").update({
+            birthday: d.birthday, avatar_url: finalAvatarUrl, onboarding_done: true
+          }).eq("id", uid);
+        }
       }
       setSent(true);
     } catch (e: any) { alert(e.message || "註冊失敗，請重試"); }
@@ -400,7 +413,7 @@ function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => vo
       {step === 2 && <Step2 onNext={(name, username, birthday) => { data.current.name = name; data.current.username = username; data.current.birthday = birthday; setStep(3); }} />}
       {step === 3 && <Step3 onNext={g => { data.current.gender = g; setStep(4); }} />}
       {step === 4 && <Step4 onNext={lf => { data.current.lookingFor = lf; setStep(5); }} />}
-      {step === 5 && <Step5 userId="temp" onNext={url => { data.current.avatarUrl = url; setStep(6); }} />}
+      {step === 5 && <Step5 onNext={(url, blob) => { data.current.avatarUrl = url; data.current.avatarBlob = blob; setStep(6); }} />}
       {step === 6 && <Step6 userId="temp" onNext={city => { data.current.city = city; setStep(7); }} />}
       {step === 7 && <Step7 onNext={mbti => { data.current.mbti = mbti; setStep(8); }} />}
       {step === 8 && <Step8 onNext={finalize} />}

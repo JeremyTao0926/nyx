@@ -79,11 +79,11 @@ function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
   // Lightbox
   if (lbIdx !== null) return (
     <div style={{ position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.96)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center" }}>
-      <button onClick={()=>setLbIdx(null)} style={{ position:"absolute",top:16,left:16,width:38,height:38,borderRadius:"50%",background:"rgba(255,255,255,0.1)",border:`1px solid ${C.border}`,color:"#fff",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>‹</button>
-      <div style={{ display:"flex",alignItems:"center",gap:12,maxWidth:"90vw" }}>
-        {allPhotos.length>1&&<button onClick={()=>setLbIdx(i=>Math.max(0,i!-1))} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.08)",border:`1px solid ${C.border}`,color:"#fff",fontSize:20,cursor:"pointer" }}>‹</button>}
-        <img src={allPhotos[lbIdx]} alt="" style={{ maxWidth:"72vw",maxHeight:"80vh",objectFit:"contain",borderRadius:14 }}/>
-        {allPhotos.length>1&&<button onClick={()=>setLbIdx(i=>Math.min(allPhotos.length-1,i!+1))} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.08)",border:`1px solid ${C.border}`,color:"#fff",fontSize:20,cursor:"pointer" }}>›</button>}
+      <button onClick={()=>setLbIdx(null)} style={{ position:"absolute",top:16,left:16,width:38,height:38,borderRadius:"50%",background:"rgba(255,255,255,0.1)",border:"none",color:"#fff",fontSize:22,cursor:"pointer" }}>‹</button>
+      <div style={{ display:"flex",alignItems:"center",gap:16 }}>
+        {allPhotos.length>1 && <button onClick={()=>setLbIdx(i=>Math.max(0,i!-1))} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.1)",border:"none",color:"#fff",fontSize:22,cursor:"pointer" }}>‹</button>}
+        <img src={allPhotos[lbIdx]} alt="" style={{ maxWidth:"78vw",maxHeight:"82vh",objectFit:"contain" as const,borderRadius:12 }}/>
+        {allPhotos.length>1 && <button onClick={()=>setLbIdx(i=>Math.min(allPhotos.length-1,i!+1))} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.1)",border:"none",color:"#fff",fontSize:22,cursor:"pointer" }}>›</button>}
       </div>
     </div>
   );
@@ -91,87 +91,130 @@ function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
   return (
     <div style={{ position:"fixed",inset:0,zIndex:150,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.5)" }}>
       <div style={{ width:"100%",maxWidth:480,background:C.bg,display:"flex",flexDirection:"column",height:"100%",position:"relative",animation:"slideUp .28s cubic-bezier(.32,.72,0,1)" }}>
-
-        {/* Floating back + more */}
-        <div style={{ position:"absolute",top:16,left:12,zIndex:10 }}>
-          <button onClick={onClose} style={{ width:36,height:36,borderRadius:"50%",background:"rgba(12,10,8,0.65)",backdropFilter:"blur(12px)",border:`1px solid rgba(255,255,255,0.12)`,color:"#fff",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>‹</button>
-        </div>
-        <div style={{ position:"absolute",top:16,right:12,zIndex:10 }}>
-          <button style={{ width:36,height:36,borderRadius:"50%",background:"rgba(12,10,8,0.65)",backdropFilter:"blur(12px)",border:`1px solid rgba(255,255,255,0.12)`,color:"rgba(255,255,255,0.7)",fontSize:17,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>⋯</button>
-        </div>
-
-        {/* Compat badge — top right like image 2 */}
-        <div style={{ position:"absolute",top:16,right:60,zIndex:10,background:"rgba(12,10,8,0.72)",backdropFilter:"blur(12px)",borderRadius:20,padding:"6px 12px",display:"flex",flexDirection:"column",alignItems:"center" }}>
-          <div style={{ fontSize:15,fontWeight:800,color:C.gold,lineHeight:1 }}>{compat.score}%</div>
-          <div style={{ fontSize:9,color:C.textMuted,letterSpacing:.3 }}>匹配度</div>
+        {/* Top nav */}
+        <div style={{ position:"absolute",top:0,left:0,right:0,padding:"16px 16px 0",display:"flex",justifyContent:"space-between",zIndex:10 }}>
+          <button onClick={onClose} style={{ width:36,height:36,borderRadius:"50%",background:"rgba(12,10,8,0.55)",backdropFilter:"blur(12px)",border:"none",color:"#fff",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>‹</button>
+          <button style={{ width:36,height:36,borderRadius:"50%",background:"rgba(12,10,8,0.55)",backdropFilter:"blur(12px)",border:"none",color:"rgba(255,255,255,0.7)",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>⋯</button>
         </div>
 
         <div style={{ flex:1,overflowY:"auto" }}>
-          {/* Hero photo — taller, like image 2 */}
-          <div style={{ height:"58vh",minHeight:340,position:"relative",background:allPhotos[photoIdx]?`url(${allPhotos[photoIdx]}) center/cover no-repeat`:`linear-gradient(145deg,#2A2218,#1C1610)`,cursor:"pointer" }}
+          {/* Photo — tappable, dots navigation */}
+          <div style={{ height:"52vh",minHeight:300,position:"relative",background:allPhotos[photoIdx]?`url(${allPhotos[photoIdx]}) center/cover no-repeat`:`linear-gradient(145deg,#2A2218,#1C1610)`,cursor:"pointer",flexShrink:0 }}
             onClick={()=>setLbIdx(photoIdx)}>
             {allPhotos.length>1&&<>
-              <div style={{ position:"absolute",top:12,left:0,right:0,display:"flex",justifyContent:"center",gap:4,zIndex:2 }}>
-                {allPhotos.map((_,i)=><div key={i} style={{ height:3,width:i===photoIdx?22:10,borderRadius:2,background:i===photoIdx?"#fff":"rgba(255,255,255,0.35)",transition:"all .25s" }}/>)}
+              <div style={{ position:"absolute",top:54,left:0,right:0,display:"flex",justifyContent:"center",gap:5,zIndex:2 }}>
+                {allPhotos.map((_,i)=><div key={i} style={{ height:3,width:i===photoIdx?20:8,borderRadius:2,background:i===photoIdx?"#fff":"rgba(255,255,255,0.4)",transition:"all .25s" }}/>)}
               </div>
               <div style={{ position:"absolute",left:0,top:0,width:"40%",height:"100%",zIndex:3 }} onClick={e=>{e.stopPropagation();setPhotoIdx(i=>Math.max(0,i-1));}}/>
               <div style={{ position:"absolute",right:0,top:0,width:"40%",height:"100%",zIndex:3 }} onClick={e=>{e.stopPropagation();setPhotoIdx(i=>Math.min(allPhotos.length-1,i+1));}}/>
             </>}
-            {/* Strong gradient like image 2 */}
-            <div style={{ position:"absolute",bottom:0,left:0,right:0,height:"60%",background:"linear-gradient(transparent,rgba(12,10,8,1))",pointerEvents:"none" }}/>
-            {/* Name / profession overlay at bottom — image 2 style */}
-            <div style={{ position:"absolute",bottom:20,left:20,right:20,pointerEvents:"none" }}>
-              <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:4 }}>
-                <div style={{ fontSize:28,fontWeight:800,color:"#fff",letterSpacing:"-0.01em" }}>{p.name}</div>
-                {p.age&&<div style={{ fontSize:20,color:"rgba(255,255,255,0.75)",fontWeight:400 }}>{p.age}</div>}
-                {p.verified&&<span style={{ fontSize:15,color:C.mint }}>✓</span>}
+          </div>
+
+          {/* Info section — below photo, not overlaid */}
+          <div style={{ padding:"18px 20px 0" }}>
+            {/* Name row + compat badge */}
+            <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:4 }}>
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:2 }}>
+                  <div style={{ fontSize:26,fontWeight:800,color:C.text,letterSpacing:"-0.01em" }}>{p.name}</div>
+                  {p.age&&<div style={{ fontSize:22,color:C.textSub,fontWeight:400 }}>{p.age}</div>}
+                  {p.verified&&<span style={{ fontSize:16,color:"#4A90D9" }}>✓</span>}
+                </div>
+                {/* Profession + location */}
+                {p.location&&<div style={{ fontSize:14,color:C.textMuted,marginBottom:2 }}>設計師・{p.location}</div>}
+                {/* University row — use second hobby line or a placeholder */}
+                <div style={{ fontSize:13.5,color:C.textMuted }}>
+                  {p.hobbies.length>0 ? `${p.hobbies[0]}・${p.hobbies[1]||""}`.replace(/・$/,"") : p.mbti}
+                </div>
               </div>
-              {/* Profession + location — like image 2 */}
-              {p.location&&<div style={{ fontSize:13.5,color:"rgba(255,255,255,0.6)",marginBottom:2 }}>{p.location}</div>}
+              {/* Compat badge */}
+              <div style={{ background:"rgba(12,10,8,0.08)",border:`1px solid ${C.border}`,borderRadius:14,padding:"10px 12px",textAlign:"center" as const,flexShrink:0,marginLeft:12,minWidth:64 }}>
+                <div style={{ fontSize:18,fontWeight:800,color:C.gold }}>{compat.score}%</div>
+                <div style={{ fontSize:10,color:C.textMuted,marginTop:1,letterSpacing:".3px" }}>匹配度</div>
+              </div>
             </div>
           </div>
 
-          {/* Info */}
-          <div style={{ padding:"20px 20px 140px" }}>
-            {/* MBTI + compat row */}
-            <div style={{ display:"flex",gap:8,flexWrap:"wrap" as const,marginBottom:20 }}>
-              <span style={{ background:C.goldSoft,border:`1px solid ${C.gold}33`,borderRadius:20,padding:"5px 14px",fontSize:13,color:C.gold,fontWeight:600 }}>✦ {p.mbti}</span>
-              <span style={{ background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:20,padding:"5px 14px",fontSize:13,color:C.textSub }}>{compat.label}</span>
-            </div>
+          {/* Divider */}
+          <div style={{ height:1,background:C.border,margin:"14px 0" }}/>
 
+          {/* Content */}
+          <div style={{ padding:"0 20px 140px" }}>
             {/* Bio */}
             {p.bio&&<div style={{ marginBottom:22 }}>
-              <div style={{ fontSize:11,fontWeight:700,color:C.textMuted,letterSpacing:"0.08em",textTransform:"uppercase" as const,marginBottom:10 }}>關於我</div>
+              <div style={{ fontSize:13,fontWeight:700,color:C.textMuted,marginBottom:10 }}>關於我</div>
               <div style={{ fontSize:14.5,color:C.textSub,lineHeight:1.75 }}>{p.bio}</div>
             </div>}
 
-            {/* Hobbies — pill style like image 2 */}
+            {/* Hobbies */}
             {p.hobbies.length>0&&<div style={{ marginBottom:22 }}>
-              <div style={{ fontSize:11,fontWeight:700,color:C.textMuted,letterSpacing:"0.08em",textTransform:"uppercase" as const,marginBottom:10 }}>興趣愛好</div>
+              <div style={{ fontSize:13,fontWeight:700,color:C.textMuted,marginBottom:10 }}>興趣愛好</div>
               <div style={{ display:"flex",flexWrap:"wrap" as const,gap:8 }}>
-                {p.hobbies.map(h=><span key={h} style={{ background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:20,padding:"6px 14px",fontSize:13,color:C.textSub }}>{h}</span>)}
+                {p.hobbies.map(h=>(
+                  <span key={h} style={{ background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:20,padding:"6px 16px",fontSize:13.5,color:C.textSub }}>{h}</span>
+                ))}
               </div>
             </div>}
 
-            {/* Photos */}
+            {/* Life badges */}
+            {(() => {
+              const edu: Record<string,string> = { high_school:"高中",college:"大專",bachelor:"本科",master:"碩士",phd:"博士" };
+              const drink: Record<string,string> = { never:"不喝酒",sometimes:"偶爾喝酒",often:"常喝酒" };
+              const smoke: Record<string,string> = { never:"不抽煙",sometimes:"偶爾抽煙",often:"常抽煙" };
+              const exer: Record<string,string> = { never:"從不運動",sometimes:"偶爾運動",weekly:"每週運動",daily:"每天運動" };
+              const pet: Record<string,string> = { none:"無寵物",cat:"養貓",dog:"養狗",other:"有寵物" };
+              const goal: Record<string,string> = { serious:"認真交往",friends_first:"先朋友再說",casual:"隨緣",open:"開放態度" };
+              const child: Record<string,string> = { yes:"想要孩子",no:"不想要孩子",undecided:"孩子未決定" };
+              const love: Record<string,string> = { words:"肯定言語",time:"精心時刻",acts:"服務行為",touch:"肢體接觸",gifts:"送禮" };
+              const pr = p as any;
+              const badges = [
+                pr.occupation && { icon:"💼", text: pr.occupation },
+                pr.education && { icon:"🎓", text: edu[pr.education]||pr.education },
+                pr.height_cm && { icon:"📏", text: `${pr.height_cm} cm` },
+                pr.income && { icon:"💰", text: pr.income==="<20"?"年收20萬以下":pr.income===">100"?"年收100萬+":  `年收${pr.income}萬` },
+                pr.relationship_goal && { icon:"💑", text: goal[pr.relationship_goal] },
+                pr.drinking && pr.drinking!=="never" && { icon:"🍷", text: drink[pr.drinking] },
+                pr.smoking && pr.smoking!=="never" && { icon:"🚬", text: smoke[pr.smoking] },
+                pr.exercise && pr.exercise!=="never" && { icon:"🏃", text: exer[pr.exercise] },
+                pr.has_pets && pr.has_pets!=="none" && { icon:"🐾", text: pet[pr.has_pets] },
+                pr.want_children && { icon:"👶", text: child[pr.want_children] },
+                pr.love_language && { icon:"💝", text: love[pr.love_language] },
+              ].filter(Boolean);
+              if (!badges.length) return null;
+              return (
+                <div style={{ marginBottom:22 }}>
+                  <div style={{ fontSize:13,fontWeight:700,color:C.textMuted,marginBottom:10 }}>基本資訊</div>
+                  <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+                    {badges.map((b:any,i:number)=>(
+                      <div key={i} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:12 }}>
+                        <span style={{ fontSize:16 }}>{b.icon}</span>
+                        <span style={{ fontSize:14,color:C.textSub }}>{b.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Photo grid */}
             {allPhotos.length>1&&<div>
-              <div style={{ fontSize:11,fontWeight:700,color:C.textMuted,letterSpacing:"0.08em",textTransform:"uppercase" as const,marginBottom:10 }}>生活照片</div>
+              <div style={{ fontSize:13,fontWeight:700,color:C.textMuted,marginBottom:10 }}>相片</div>
               <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6 }}>
-                {allPhotos.slice(1).map((ph,i)=>
+                {allPhotos.slice(1).map((ph,i)=>(
                   <div key={i} style={{ aspectRatio:"1",borderRadius:12,overflow:"hidden",cursor:"zoom-in" }} onClick={()=>setLbIdx(i+1)}>
                     <img src={ph} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" as const }}/>
                   </div>
-                )}
+                ))}
               </div>
             </div>}
           </div>
         </div>
 
-        {/* Fixed action bar — image 2: ✕ ♥ 💬 */}
-        <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"14px 24px 36px",background:`linear-gradient(transparent,${C.bg} 28%)`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
-          <button onClick={onClose} style={{ width:52,height:52,borderRadius:"50%",background:C.bgCard,border:`1px solid ${C.border}`,color:C.rose,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s" }} onMouseEnter={e=>(e.currentTarget.style.background="rgba(232,54,93,0.1)")} onMouseLeave={e=>(e.currentTarget.style.background=C.bgCard)}>✕</button>
-          <button onClick={onLike} style={{ width:68,height:68,borderRadius:"50%",background:C.gradRose,border:"none",color:"#fff",fontSize:28,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 6px 24px ${C.roseGlow}` }}>♥</button>
-          <button onClick={onChat} style={{ width:52,height:52,borderRadius:"50%",background:C.bgGold,border:`1px solid ${C.gold}44`,color:C.gold,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+        {/* Fixed bottom action bar — ✕ ♥ 💬 */}
+        <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"16px 32px 36px",background:`linear-gradient(transparent,${C.bg} 30%)`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+          <button onClick={onClose} style={{ width:52,height:52,borderRadius:"50%",background:C.bgCard,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>✕</button>
+          <button onClick={onLike} style={{ width:66,height:66,borderRadius:"50%",background:C.grad,border:"none",color:C.bg,fontSize:28,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 6px 24px ${C.goldGlow}` }}>♥</button>
+          <button onClick={onChat} style={{ width:52,height:52,borderRadius:"50%",background:C.bgCard,border:`1px solid ${C.border}`,color:C.textMuted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </button>
         </div>
@@ -180,7 +223,7 @@ function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
   );
 }
 
-/* ─── Swipe Card ─────────────────────────────────────── */
+
 function SwipeCard({ p, isTop, myMbti, onSwipe, onOpenProfile }: { p: ExploreProfile; isTop: boolean; myMbti: string; onSwipe: (d: "like"|"pass"|"superlike") => void; onOpenProfile: () => void }) {
   const [pos,setPos]=useState({x:0,y:0});
   const [drag,setDrag]=useState(false);

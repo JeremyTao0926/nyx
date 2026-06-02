@@ -146,8 +146,7 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
           <button onClick={send} disabled={typing} style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0, background: `linear-gradient(145deg,${ac},${isSim ? "#ff6b6b" : C.violet})`, border: "none", color: "#fff", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 3px 14px ${ac}70`, transition: "all .2s", opacity: typing ? .5 : 1, fontFamily: "inherit" }}>{typing ? <span style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "#fff", borderRadius: "50%", display: "inline-block", animation: "spin .7s linear infinite" }} /> : <span style={{ marginLeft: 2 }}>➤</span>}</button>
         </div>
       </div>
-      <div style={{ textAlign: "center", marginTop: 6, fontSize: 10, color: "rgba(180,165,215,0.2)" }}>Enter 送出 · Shift+Enter 換行 · ⊕ 最多 10 張</div>
-    </div>
+      </div>
     {showMbti && <MbtiSheet mbti={mbti} onSelect={m => { setMbti(m); updateProfile(userId, { mbti: m }); }} onClose={() => setShowMbti(false)} />}
     {showSim && <SimulateModal onEnter={enterSim} onClose={() => setShowSim(false)} />}
     {lb && <Lightbox lb={lb} onClose={() => setLb(null)} />}

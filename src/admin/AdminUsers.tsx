@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getUsers, banUser, unbanUser, markTestAccount, deleteTestData, canDo } from "./adminUtils";
+import { getUsers, banUser, unbanUser, markTestAccount, deleteTestData, canDo, getUserStats, disableUser, restoreUser, softDeleteUser } from "./adminUtils";
 import type { UserRow, AdminRole } from "./adminUtils";
 
 interface Props { tab: "users" | "test_data"; role: AdminRole; C: any; }
@@ -9,6 +9,7 @@ export function AdminUsers({ tab, role, C }: Props) {
   const [search, setSearch]     = useState("");
   const [loading, setLoading]   = useState(false);
   const [selected, setSelected] = useState<UserRow | null>(null);
+  const [userStats, setUserStats] = useState<any>(null);
   const [banReason, setBanReason] = useState("");
   const [testLabel, setTestLabel] = useState("");
   const [msg, setMsg] = useState("");
@@ -93,7 +94,7 @@ export function AdminUsers({ tab, role, C }: Props) {
                 : <span style={{ fontSize:11, background:"rgba(0,201,167,0.12)", color:C.mint, padding:"2px 8px", borderRadius:10 }}>正常</span>}
             </div>
             <div style={{ display:"flex", gap:6, flexWrap:"wrap" as const }}>
-              <button onClick={() => setSelected(u)}
+              <button onClick={async () => { setSelected(u); const stats = await getUserStats(u.id); setUserStats(stats); }}
                 style={{ fontSize:11, padding:"4px 10px", borderRadius:8, background:"transparent", border:`1px solid ${C.border}`, color:C.textSub, cursor:"pointer", fontFamily:"inherit" }}>
                 詳情
               </button>
@@ -108,6 +109,32 @@ export function AdminUsers({ tab, role, C }: Props) {
           <div onClick={e=>e.stopPropagation()} style={{ width:480, background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:"28px", maxHeight:"80vh", overflowY:"auto" }}>
             <div style={{ fontSize:18, fontWeight:700, color:C.text, marginBottom:4 }}>{selected.display_name || selected.username}</div>
             <div style={{ fontSize:12.5, color:C.textMuted, marginBottom:20 }}>ID: {selected.id}</div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>
+              <div style={{ padding:"10px", border:`1px solid ${C.border}`, borderRadius:10 }}>
+                <div style={{ fontSize:11, color:C.textMuted }}>Email</div>
+                <div style={{ fontSize:12, color:C.text }}>{selected.email}</div>
+              </div>
+              <div style={{ padding:"10px", border:`1px solid ${C.border}`, borderRadius:10 }}>
+                <div style={{ fontSize:11, color:C.textMuted }}>註冊時間</div>
+                <div style={{ fontSize:12, color:C.text }}>{new Date(selected.created_at).toLocaleDateString("zh-TW")}</div>
+              </div>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:20 }}>
+              <div style={{ padding:"10px", border:`1px solid ${C.border}`, borderRadius:10 }}>
+                <div style={{ fontSize:11, color:C.textMuted }}>配對數</div>
+                <div style={{ fontSize:22, fontWeight:700, color:C.gold }}>{userStats?.matches ?? 0}</div>
+              </div>
+              <div style={{ padding:"10px", border:`1px solid ${C.border}`, borderRadius:10 }}>
+                <div style={{ fontSize:11, color:C.textMuted }}>訊息數</div>
+                <div style={{ fontSize:22, fontWeight:700, color:C.mint }}>{userStats?.messages ?? 0}</div>
+              </div>
+              <div style={{ padding:"10px", border:`1px solid ${C.border}`, borderRadius:10 }}>
+                <div style={{ fontSize:11, color:C.textMuted }}>被檢舉</div>
+                <div style={{ fontSize:22, fontWeight:700, color:C.rose }}>{userStats?.reports ?? 0}</div>
+              </div>
+            </div>
 
             {selected.is_banned && (
               <div style={{ background:"rgba(232,54,93,0.1)", border:"1px solid rgba(232,54,93,0.25)", borderRadius:10, padding:"10px 14px", marginBottom:16 }}>
@@ -133,6 +160,53 @@ export function AdminUsers({ tab, role, C }: Props) {
                       <button onClick={()=>handleDeleteTestData(selected)} style={{ padding:"6px 12px", borderRadius:8, background:"rgba(232,54,93,0.1)", border:"1px solid rgba(232,54,93,0.25)", color:C.rose, fontFamily:"inherit", fontSize:11, cursor:"pointer" }}>清除數據</button>
                     </div>
                   )}
+                </div>
+              )}
+
+
+              {/* Account tools */}
+              {role === "super_admin" && (
+                <div style={{ padding:"14px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:`1px solid ${C.border}` }}>
+                  <div style={{ fontSize:12, color:C.textMuted, marginBottom:8, fontWeight:600 }}>
+                    帳號管理
+                  </div>
+
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                    <button
+                      onClick={async () => {
+                        await disableUser(selected.id);
+                        setMsg("✓ 帳號已停用");
+                        load();
+                      }}
+                      style={{ padding:"8px 12px", borderRadius:8, background:"rgba(245,166,35,0.15)", border:"1px solid rgba(245,166,35,0.3)", color:"#F5A623", cursor:"pointer", fontFamily:"inherit" }}
+                    >
+                      停用帳號
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        await restoreUser(selected.id);
+                        setMsg("✓ 帳號已恢復");
+                        load();
+                      }}
+                      style={{ padding:"8px 12px", borderRadius:8, background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.25)", color:C.mint, cursor:"pointer", fontFamily:"inherit" }}
+                    >
+                      恢復帳號
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        if (!confirm("確定軟刪除此帳號？")) return;
+                        await softDeleteUser(selected.id);
+                        setMsg("✓ 帳號已軟刪除");
+                        setSelected(null);
+                        load();
+                      }}
+                      style={{ padding:"8px 12px", borderRadius:8, background:"rgba(232,54,93,0.12)", border:"1px solid rgba(232,54,93,0.25)", color:C.rose, cursor:"pointer", fontFamily:"inherit" }}
+                    >
+                      軟刪除
+                    </button>
+                  </div>
                 </div>
               )}
 

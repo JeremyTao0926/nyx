@@ -5,28 +5,26 @@ import { LoginScreen, SplashScreen } from "./screens/AuthScreens";
 import { ChatListScreen, RealChatScreen } from "./screens/ChatScreens";
 import { NyxChatScreen } from "./screens/NyxChatScreen";
 import { ExploreScreen } from "./screens/ExploreScreen";
-import { SparkScreen } from "./screens/SparkScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { OnboardingScreen } from "./screens/OnboardingScreen";
 
-type Tab = "explore" | "spark" | "chat" | "profile";
+type Tab = "explore" | "chat" | "profile";
 
 /* ─── SVG Icons ──────────────────────────────────────── */
 function TabIcon({ tab, active }: { tab: Tab; active: boolean }) {
   const c = active ? C.gold : "rgba(245,237,214,0.30)";
   const w = "1.7";
   if (tab === "explore") return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
-  if (tab === "spark")   return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>;
   if (tab === "chat")    return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
   if (tab === "profile") return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
   return null;
 }
 
-const TAB_LABELS: Record<Tab, string> = { explore:"探索", spark:"真心話", chat:"消息", profile:"我的" };
+const TAB_LABELS: Record<Tab, string> = { explore:"探索", chat:"消息", profile:"我的" };
 
 /* ─── Bottom Tab Bar ─────────────────────────────────── */
 function BottomTabBar({ tab, setTab, unread }: { tab: Tab; setTab: (t: Tab) => void; unread: number }) {
-  const tabs: Tab[] = ["explore", "spark", "chat", "profile"];
+  const tabs: Tab[] = ["explore", "chat", "profile"];
   return (
     <div style={{ display:"flex", background:"rgba(12,10,8,0.98)", backdropFilter:"blur(24px)", borderTop:`1px solid ${C.border}`, paddingBottom:"env(safe-area-inset-bottom,0px)", flexShrink:0 }}>
       {tabs.map(id => (
@@ -158,8 +156,6 @@ export default function App() {
           {/* EXPLORE */}
           {tab==="explore" && userId && profile &&
             <ExploreScreen userId={userId} profile={profile} onUpdate={updateLocal} onOpenMatch={openMatch}/>}
-          {/* SPARK */}
-          {tab==="spark" && <SparkScreen/>}
           {/* CHAT */}
           {tab==="chat" && !inChat && profile &&
             <ChatListScreen profile={profile} matches={matches} unreadPerMatch={unreadPerMatch} onOpenNyx={() => setInChat(true)} onOpenMatch={openMatch}/>}
