@@ -103,6 +103,7 @@ function AnalysisSheet({ msg, isMe, context, gender, mbti, matchDaysSince, other
   async function analyze() {
     // ── Other person profile — declare first (used throughout) ──
     const op = otherProfile || {};
+    const otherMbti = (op.mbti || "").toUpperCase();
     const otherGender = op.gender === "male" ? "男" : op.gender === "female" ? "女" : "對方";
     const otherHe = op.gender === "male" ? "他" : op.gender === "female" ? "她" : "對方";
     const otherName = op.name || "對方";
@@ -118,7 +119,6 @@ function AnalysisSheet({ msg, isMe, context, gender, mbti, matchDaysSince, other
       otherHobbies && `興趣：${otherHobbies}`,
       otherBio && `自我介紹：${otherBio}`,
     ].filter(Boolean).join("｜");
-    const otherMbti = (op.mbti || "").toUpperCase();
 
     const msgIdx = context.findIndex(m => m.id === msg.id);
     const before = msgIdx > 0
