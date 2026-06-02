@@ -158,17 +158,18 @@ export default function App() {
             <ExploreScreen userId={userId} profile={profile} onUpdate={updateLocal} onOpenMatch={openMatch}/>}
           {/* CHAT */}
           {tab==="chat" && userId && profile && <>
-            {/* ChatList always rendered underneath */}
-            <div style={{ position:"absolute", inset:0 }}>
-              <ChatListScreen profile={profile} matches={matches} unreadPerMatch={unreadPerMatch} onOpenNyx={() => setInChat(true)} onOpenMatch={openMatch}/>
+            {/* position:relative container so absolute children stay within bounds */}
+            <div style={{ position:"relative", flex:1, overflow:"hidden" }}>
+              <div style={{ position:"absolute", inset:0 }}>
+                <ChatListScreen profile={profile} matches={matches} unreadPerMatch={unreadPerMatch} onOpenNyx={() => setInChat(true)} onOpenMatch={openMatch}/>
+              </div>
+              {inChat && <div style={{ position:"absolute", inset:0, zIndex:10 }}>
+                {!activeMatch
+                  ? <NyxChatScreen userId={userId} profile={profile} onBack={() => setInChat(false)}/>
+                  : <RealChatScreen matchId={activeMatch.matchId} myUserId={userId} myProfile={profile} other={activeMatch} onBack={() => { setInChat(false); setActiveMatch(null); loadUnread(); getMatches(userId!).then(setMatches); }}/>
+                }
+              </div>}
             </div>
-            {/* RealChat / NyxChat slides over it */}
-            {inChat && <div style={{ position:"absolute", inset:0, zIndex:10 }}>
-              {!activeMatch
-                ? <NyxChatScreen userId={userId} profile={profile} onBack={() => setInChat(false)}/>
-                : <RealChatScreen matchId={activeMatch.matchId} myUserId={userId} myProfile={profile} other={activeMatch} onBack={() => { setInChat(false); setActiveMatch(null); loadUnread(); getMatches(userId!).then(setMatches); }}/>
-              }
-            </div>}
           </>}
           {/* PROFILE */}
           {tab==="profile" && profile && userId &&

@@ -99,7 +99,7 @@ function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
 
         <div style={{ flex:1,overflowY:"auto" }}>
           {/* Photo — tappable, dots navigation */}
-          <div style={{ height:"52vh",minHeight:300,position:"relative",background:allPhotos[photoIdx]?`url(${allPhotos[photoIdx]}) center/cover no-repeat`:`linear-gradient(145deg,#2A2218,#1C1610)`,cursor:"pointer",flexShrink:0 }}
+          <div style={{ height:"56vh",minHeight:320,position:"relative",background:allPhotos[photoIdx]?`url(${allPhotos[photoIdx]}) center/cover no-repeat`:`linear-gradient(145deg,#2A2218,#1C1610)`,cursor:"pointer",flexShrink:0 }}
             onClick={()=>setLbIdx(photoIdx)}>
             {allPhotos.length>1&&<>
               <div style={{ position:"absolute",top:54,left:0,right:0,display:"flex",justifyContent:"center",gap:5,zIndex:2 }}>

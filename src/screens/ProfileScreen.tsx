@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { C, sound, updateProfile, uploadAvatar, uploadCover, uploadPhoto, deleteAccount, calcAge, calcCompletion, ETHNICITY, HOBBIES, reverseGeocode, searchCities, sb, exportUserData } from "../utils";
+import { C, sound, sb, updateProfile, uploadAvatar, uploadCover, uploadPhoto, deleteAccount, calcAge, calcCompletion, ETHNICITY, HOBBIES, reverseGeocode, searchCities, exportUserData } from "../utils";
 import { Av } from "../components/Atoms";
 import { ImageCropper } from "../components/ImageCropper";
 import { MbtiSheet, MultiSelect, BottomSheet } from "../components/Modals";
@@ -127,7 +127,11 @@ export function ProfileScreen({ profile,userId,onLogout,onUpdate }:{ profile:Use
   async function save(){
     setSaving(true);
     const patch:Partial<UserProfile>={display_name:name,bio:bio||null,birthday:birthday||null,location_text:loc||null,ethnicity,hobbies,mbti,gender,looking_for_gender:lookingFor,avatar_url:avatarUrl||null,photos,...({occupation:occupation||null,education:education||null,income:income||null,height_cm:heightCm||null,drinking:drinking||null,smoking:smoking||null,exercise:exercise||null,has_pets:hasPets||null,want_children:wantChildren||null,relationship_goal:relGoal||null,love_language:loveLanguage||null} as any)};
-    await updateProfile(userId,patch);onUpdate(patch);setActiveTab("view");setSaving(false);sound.pop();
+    await updateProfile(userId,patch);
+    // Reload full profile from DB so extended fields populate correctly
+    const { data: refreshed } = await sb.from("profiles").select("*").eq("id", userId).single();
+    if (refreshed) onUpdate(refreshed as any);
+    setActiveTab("view");setSaving(false);sound.pop();
   }
   async function handleLocate(){
     if(!navigator.geolocation){alert("你的瀏覽器不支援定位");return;}
