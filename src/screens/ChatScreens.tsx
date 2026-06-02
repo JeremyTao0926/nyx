@@ -101,6 +101,25 @@ function AnalysisSheet({ msg, isMe, context, gender, mbti, matchDaysSince, other
   }, []);
 
   async function analyze() {
+    // ── Other person profile — declare first (used throughout) ──
+    const op = otherProfile || {};
+    const otherGender = op.gender === "male" ? "男" : op.gender === "female" ? "女" : "對方";
+    const otherHe = op.gender === "male" ? "他" : op.gender === "female" ? "她" : "對方";
+    const otherName = op.name || "對方";
+    const otherAge = op.age ? `${op.age}歲` : "";
+    const otherJob = op.occupation || "";
+    const otherHobbies = (op.hobbies || []).slice(0, 5).join("、");
+    const otherBio = op.bio ? op.bio.slice(0, 60) : "";
+    const otherProfileStr = [
+      otherName && `姓名：${otherName}`,
+      otherAge && `年齡：${otherAge}`,
+      otherJob && `職業：${otherJob}`,
+      otherMbti && `MBTI：${otherMbti}`,
+      otherHobbies && `興趣：${otherHobbies}`,
+      otherBio && `自我介紹：${otherBio}`,
+    ].filter(Boolean).join("｜");
+    const otherMbti = (op.mbti || "").toUpperCase();
+
     const msgIdx = context.findIndex(m => m.id === msg.id);
     const before = msgIdx > 0
       ? context.slice(Math.max(0, msgIdx - 30), msgIdx)
@@ -265,25 +284,7 @@ function AnalysisSheet({ msg, isMe, context, gender, mbti, matchDaysSince, other
 - 主動可以，但要給他追回來的空間
 - 讚美他的能力比讚美他的外表更讓男人上癮`;
 
-    // Build rich other-person profile
-    const op = otherProfile || {};
-    const otherMbti = (op.mbti || "").toUpperCase();
-    const otherGender = op.gender === "male" ? "男" : op.gender === "female" ? "女" : "對方";
-    const otherHe = op.gender === "male" ? "他" : op.gender === "female" ? "她" : "對方";
-    const otherName = op.name || "對方";
-    const otherAge = op.age ? `${op.age}歲` : "";
-    const otherJob = op.occupation || "";
-    const otherHobbies = (op.hobbies || []).slice(0, 5).join("、");
-    const otherBio = op.bio ? op.bio.slice(0, 60) : "";
-
-    const otherProfileStr = [
-      otherName && `姓名：${otherName}`,
-      otherAge && `年齡：${otherAge}`,
-      otherJob && `職業：${otherJob}`,
-      otherMbti && `MBTI：${otherMbti}`,
-      otherHobbies && `興趣：${otherHobbies}`,
-      otherBio && `自我介紹：${otherBio}`,
-    ].filter(Boolean).join("｜");
+    // (otherProfile vars declared at top of function)
 
     const mbtiInsight = (() => {
       const o = otherMbti;
