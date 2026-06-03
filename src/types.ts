@@ -71,6 +71,18 @@ export type ExploreProfile = {
   hobbies: string[];
   verified: boolean;
   distance?: number;
+  // Extended fields
+  occupation?: string | null;
+  education?: string | null;
+  income?: string | null;
+  height_cm?: string | null;
+  drinking?: string | null;
+  smoking?: string | null;
+  exercise?: string | null;
+  has_pets?: string | null;
+  want_children?: string | null;
+  relationship_goal?: string | null;
+  love_language?: string | null;
 };
 
 export type MatchItem = {

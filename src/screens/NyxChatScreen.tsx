@@ -23,6 +23,19 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
   const textRef = useRef<HTMLTextAreaElement>(null); const inputRef = useRef<HTMLDivElement>(null);
   const isSim = appMode === "simulate"; const curMsgs = isSim ? simMsgs : msgs;
 
+  // Swipe-back (same as RealChat)
+  const swipeStartX = useRef(0);
+  const swipeStartY = useRef(0);
+  const [swipeDx, setSwipeDx] = useState(0);
+  const isSwiping = useRef(false);
+  function onSwipeTouchStart(e: React.TouchEvent) { swipeStartX.current = e.touches[0].clientX; swipeStartY.current = e.touches[0].clientY; isSwiping.current = false; }
+  function onSwipeTouchMove(e: React.TouchEvent) {
+    const dx = e.touches[0].clientX - swipeStartX.current;
+    const dy = Math.abs(e.touches[0].clientY - swipeStartY.current);
+    if (swipeStartX.current < 40 && dx > 0 && dy < 60) { isSwiping.current = true; setSwipeDx(Math.min(dx, 220)); }
+  }
+  function onSwipeTouchEnd() { if (isSwiping.current && swipeDx > 100) { onBack(); } setSwipeDx(0); isSwiping.current = false; }
+
   useEffect(() => {
     (async () => {
       const cid = await getOrCreateConv(userId); setConvId(cid);
@@ -89,7 +102,15 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
 
   const ac = isSim ? "#ff9a3c" : C.pink;
 
-  return <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, position: "relative", overflow: "hidden" }}>
+  return <div
+    onTouchStart={onSwipeTouchStart}
+    onTouchMove={onSwipeTouchMove}
+    onTouchEnd={onSwipeTouchEnd}
+    style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, position: "relative", overflow: "hidden",
+      touchAction: "pan-y",
+      transform: `translateX(${swipeDx}px)`,
+      transition: swipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
+      boxShadow: swipeDx > 10 ? "-8px 0 24px rgba(0,0,0,0.5)" : "none" }}>
     <div style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", background: isSim ? "radial-gradient(ellipse 70% 40% at 50% 0%,rgba(255,154,60,0.06) 0%,transparent 70%)" : "radial-gradient(ellipse 70% 40% at 50% 0%,rgba(155,114,207,0.07) 0%,transparent 70%)", transition: "background .5s" }} />
     {/* Header - centered */}
     <div style={{ position: "relative", zIndex: 10, padding: "14px 16px", background: "rgba(8,6,20,0.95)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${isSim ? "rgba(255,154,60,0.2)" : C.border}`, display: "flex", alignItems: "center", gap: 10 }}>

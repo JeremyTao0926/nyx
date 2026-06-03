@@ -440,46 +440,106 @@ ${ctxStr}
 /* ─── Other User Profile Modal ───────────────────────── */
 function OtherProfileModal({ profile, onClose }: { profile: any; onClose: () => void }) {
   const [lb, setLb] = useState<{images:string[];index:number}|null>(null);
+  const [photoIdx, setPhotoIdx] = useState(0);
   const status = onlineStatus(profile.lastActive, false);
-  return <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column", background: "rgba(4,3,14,0.98)", animation: "fadeIn .25s ease" }}>
-    <div style={{ ...MAX_W, display: "flex", flexDirection: "column", height: "100%", background: C.bg, margin: "0 auto" }}>
-      <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, borderBottom: `1px solid ${C.border}`, background: "rgba(9,9,15,0.95)", backdropFilter: "blur(20px)" }}>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
-        <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{profile.name}</div>
-        {status.dot && <span style={{ width: 8, height: 8, borderRadius: "50%", background: status.color, boxShadow: `0 0 6px ${status.color}` }} />}
-      </div>
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        <div style={{ height: 240, background: profile.avatar ? `url(${profile.avatar}) center/cover` : `linear-gradient(145deg,rgba(255,56,92,0.3),rgba(201,24,74,0.2))`, position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {!profile.avatar && <div style={{ fontSize: 64, opacity: .3 }}>👤</div>}
-          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 100, background: "linear-gradient(transparent,rgba(9,9,15,0.97))" }} />
-          <div style={{ position: "absolute", bottom: 16, left: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{profile.name}{profile.age && <span style={{ fontSize: 16, fontWeight: 400, opacity: .8 }}> {profile.age}</span>}</div>
-              {status.dot && <span style={{ width: 9, height: 9, borderRadius: "50%", background: C.teal, boxShadow: `0 0 8px ${C.teal}` }} />}
+  const allPhotos = [profile.avatar, ...(profile.photos||[]).filter((x:string)=>x!==profile.avatar)].filter(Boolean);
+
+  if (lb) return <Lightbox lb={lb} onClose={() => setLb(null)} />;
+
+  const edu: Record<string,string> = { high_school:"高中",college:"大專",bachelor:"本科",master:"碩士",phd:"博士" };
+  const drink: Record<string,string> = { sometimes:"偶爾喝酒",often:"常喝酒" };
+  const smoke: Record<string,string> = { sometimes:"偶爾抽煙",often:"常抽煙" };
+  const exer: Record<string,string> = { sometimes:"偶爾運動",weekly:"每週運動",daily:"每天運動" };
+  const pet: Record<string,string> = { cat:"養貓",dog:"養狗",other:"有寵物" };
+  const goal: Record<string,string> = { serious:"認真交往",friends_first:"先朋友再說",casual:"隨緣",open:"開放態度" };
+  const child: Record<string,string> = { yes:"想要孩子",no:"不想要孩子",undecided:"未決定" };
+  const love: Record<string,string> = { words:"肯定言語",time:"精心時刻",acts:"服務行為",touch:"肢體接觸",gifts:"送禮" };
+  const lifeBadges = [
+    profile.occupation && { icon:"💼", text: profile.occupation },
+    profile.education && edu[profile.education] && { icon:"🎓", text: edu[profile.education] },
+    profile.height_cm && { icon:"📏", text: `${profile.height_cm} cm` },
+    profile.income && { icon:"💰", text: profile.income==="<20"?"年收20萬以下":profile.income===">100"?"年收100萬+":`年收${profile.income}萬` },
+    profile.relationship_goal && goal[profile.relationship_goal] && { icon:"💑", text: goal[profile.relationship_goal] },
+    profile.drinking && drink[profile.drinking] && { icon:"🍷", text: drink[profile.drinking] },
+    profile.smoking && smoke[profile.smoking] && { icon:"🚬", text: smoke[profile.smoking] },
+    profile.exercise && exer[profile.exercise] && { icon:"🏃", text: exer[profile.exercise] },
+    profile.has_pets && pet[profile.has_pets] && { icon:"🐾", text: pet[profile.has_pets] },
+    profile.want_children && child[profile.want_children] && { icon:"👶", text: child[profile.want_children] },
+    profile.love_language && love[profile.love_language] && { icon:"💝", text: love[profile.love_language] },
+  ].filter(Boolean) as { icon: string; text: string }[];
+
+  return (
+    <div style={{ position:"fixed",inset:0,zIndex:200,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.5)" }}>
+      <div style={{ ...MAX_W,background:C.bg,display:"flex",flexDirection:"column",height:"100%",position:"relative",margin:"0 auto",animation:"slideUp .28s cubic-bezier(.32,.72,0,1)" }}>
+
+        {/* FULL-SCREEN PHOTO */}
+        <div style={{ position:"relative",height:"62vh",minHeight:360,flexShrink:0,background:allPhotos[photoIdx]?`url(${allPhotos[photoIdx]}) center/cover no-repeat`:"linear-gradient(145deg,#2A2218,#1C1610)" }}>
+          {allPhotos.length>1&&<>
+            <div style={{ position:"absolute",top:52,left:0,right:0,display:"flex",justifyContent:"center",gap:5,zIndex:4 }}>
+              {allPhotos.map((_:any,i:number)=><div key={i} style={{ height:3,width:i===photoIdx?22:8,borderRadius:2,background:i===photoIdx?"#fff":"rgba(255,255,255,0.35)",transition:"all .25s" }}/>)}
             </div>
-            {profile.location && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>📍 {profile.location}</div>}
-            {!status.dot && status.label && <div style={{ fontSize: 11, color: status.color, marginTop: 2 }}>{status.label}</div>}
+            <div style={{ position:"absolute",left:0,top:0,width:"40%",height:"100%",zIndex:3 }} onClick={e=>{e.stopPropagation();setPhotoIdx(i=>Math.max(0,i-1));}}/>
+            <div style={{ position:"absolute",right:0,top:0,width:"40%",height:"100%",zIndex:3 }} onClick={e=>{e.stopPropagation();setPhotoIdx(i=>Math.min(allPhotos.length-1,i+1));}}/>
+          </>}
+          {/* Top nav */}
+          <div style={{ position:"absolute",top:0,left:0,right:0,padding:"16px 16px 0",display:"flex",justifyContent:"space-between",zIndex:10 }}>
+            <button onClick={onClose} style={{ width:36,height:36,borderRadius:"50%",background:"rgba(12,10,8,0.55)",backdropFilter:"blur(12px)",border:"none",color:"#fff",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>‹</button>
+            {status.dot&&<span style={{ width:10,height:10,borderRadius:"50%",background:C.teal,boxShadow:`0 0 8px ${C.teal}`,alignSelf:"center" }}/>}
+          </div>
+          {/* Bottom gradient overlay */}
+          <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"60px 20px 20px",background:"linear-gradient(transparent,rgba(8,6,4,0.92))",zIndex:5 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:4 }}>
+              <span style={{ fontSize:30,fontWeight:800,color:"#fff",letterSpacing:"-0.01em",textShadow:"0 2px 8px rgba(0,0,0,0.5)" }}>{profile.name}</span>
+              {profile.age&&<span style={{ fontSize:26,color:"rgba(255,255,255,0.85)",fontWeight:400 }}>{profile.age}</span>}
+            </div>
+            {profile.location&&<div style={{ fontSize:13.5,color:"rgba(255,255,255,0.65)",display:"flex",alignItems:"center",gap:4,marginBottom:8 }}><span>📍</span><span>{profile.location}</span></div>}
+            {!status.dot&&status.label&&<div style={{ fontSize:11.5,color:status.color,marginBottom:8 }}>{status.label}</div>}
+            <div style={{ display:"flex",gap:7,flexWrap:"wrap" as const }}>
+              {profile.mbti&&<span style={{ padding:"4px 12px",borderRadius:20,background:"rgba(232,54,93,0.2)",border:"1px solid rgba(232,54,93,0.35)",fontSize:12,color:"#f07",fontWeight:600 }}>✦ {profile.mbti}</span>}
+              {profile.country&&<span style={{ padding:"4px 12px",borderRadius:20,background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.18)",fontSize:12,color:"rgba(255,255,255,0.7)" }}>🌐 {profile.country}</span>}
+            </div>
           </div>
         </div>
-        <div style={{ padding: "20px" }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginBottom: 16 }}>
-            {profile.mbti && <span style={{ background: "rgba(255,56,92,0.15)", border: `1px solid rgba(255,56,92,0.3)`, borderRadius: 20, padding: "4px 12px", fontSize: 12, color: C.pink }}>✦ {profile.mbti}</span>}
-            {profile.country && <span style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, borderRadius: 20, padding: "4px 12px", fontSize: 12, color: C.textMuted }}>🌏 {profile.country}</span>}
+
+        {/* SCROLLABLE CONTENT */}
+        <div style={{ flex:1,overflowY:"auto" }}>
+          <div style={{ padding:"20px 20px 40px" }}>
+            {profile.bio&&<div style={{ marginBottom:22 }}>
+              <div style={{ fontSize:12,fontWeight:700,color:C.textMuted,letterSpacing:".08em",textTransform:"uppercase" as const,marginBottom:10 }}>關於我</div>
+              <div style={{ fontSize:14.5,color:C.textSub,lineHeight:1.8 }}>{profile.bio}</div>
+            </div>}
+            {profile.hobbies?.length>0&&<div style={{ marginBottom:22 }}>
+              <div style={{ fontSize:12,fontWeight:700,color:C.textMuted,letterSpacing:".08em",textTransform:"uppercase" as const,marginBottom:10 }}>興趣愛好</div>
+              <div style={{ display:"flex",flexWrap:"wrap" as const,gap:8 }}>
+                {profile.hobbies.map((h:string)=><span key={h} style={{ background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:20,padding:"6px 16px",fontSize:13.5,color:C.textSub }}>{h}</span>)}
+              </div>
+            </div>}
+            {lifeBadges.length>0&&<div style={{ marginBottom:22 }}>
+              <div style={{ fontSize:12,fontWeight:700,color:C.textMuted,letterSpacing:".08em",textTransform:"uppercase" as const,marginBottom:10 }}>基本資訊</div>
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
+                {lifeBadges.map((b,i)=>(
+                  <div key={i} style={{ display:"flex",alignItems:"center",gap:9,padding:"10px 14px",background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:12 }}>
+                    <span style={{ fontSize:15 }}>{b.icon}</span>
+                    <span style={{ fontSize:13,color:C.textSub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const }}>{b.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>}
+            {allPhotos.length>1&&<div>
+              <div style={{ fontSize:12,fontWeight:700,color:C.textMuted,letterSpacing:".08em",textTransform:"uppercase" as const,marginBottom:10 }}>生活照片</div>
+              <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:5 }}>
+                {allPhotos.slice(1).map((ph:string,i:number)=>(
+                  <div key={i} style={{ aspectRatio:"1",borderRadius:10,overflow:"hidden",cursor:"zoom-in" }} onClick={()=>setLb({images:allPhotos,index:i+1})}>
+                    <img src={ph} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" as const }}/>
+                  </div>
+                ))}
+              </div>
+            </div>}
           </div>
-          {profile.bio && <div style={{ fontSize: 14, color: "rgba(248,244,255,0.75)", lineHeight: 1.7, marginBottom: 16 }}>{profile.bio}</div>}
-          {profile.hobbies?.length > 0 && <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 10, color: C.textMuted, letterSpacing: 1.5, fontWeight: 700, textTransform: "uppercase" as const, marginBottom: 10 }}>興趣</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const }}>{profile.hobbies.map((h: string) => <span key={h} style={{ background: "rgba(6,214,160,0.1)", border: `1px solid rgba(6,214,160,0.2)`, borderRadius: 20, padding: "4px 12px", fontSize: 12, color: C.teal }}>{h}</span>)}</div>
-          </div>}
-          {profile.photos?.length > 0 && <div>
-            <div style={{ fontSize: 10, color: C.textMuted, letterSpacing: 1.5, fontWeight: 700, textTransform: "uppercase" as const, marginBottom: 10 }}>相片</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>{profile.photos.map((p: string, i: number) => <img key={i} src={p} alt="" style={{ width: "100%", aspectRatio: "1", objectFit: "cover" as const, borderRadius: 10, border: `1px solid ${C.border}` }} />)}</div>
-          </div>}
         </div>
       </div>
-    {lb && <Lightbox lb={lb} onClose={() => setLb(null)} />}
     </div>
-  </div>;
+  );
 }
 
 /* ─── Msg Context Menu ───────────────────────────────── */
@@ -701,6 +761,12 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           avatar: data.avatar_url, cover: (data as any).cover_url || null, bio: data.bio, mbti: data.mbti, location: data.location_text,
           country: data.country, hobbies: data.hobbies || [], photos: data.photos || [],
           lastActive: data.last_active, hideOnline: data.hide_online_status,
+          occupation: data.occupation || null, education: data.education || null,
+          income: data.income || null, height_cm: data.height_cm || null,
+          drinking: data.drinking || null, smoking: data.smoking || null,
+          exercise: data.exercise || null, has_pets: data.has_pets || null,
+          want_children: data.want_children || null, relationship_goal: data.relationship_goal || null,
+          love_language: data.love_language || null,
         });
       }
     });

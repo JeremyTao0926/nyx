@@ -357,37 +357,41 @@ function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => vo
   async function finalize(hobbies: string[]) {
     data.current.hobbies = hobbies;
     const d = data.current;
-    // Register with Supabase Auth
     try {
+      // 1. Sign up
       const { data: authData, error } = await sb.auth.signUp({
         email: d.email, password: d.pass,
-        options: { data: { username: d.username, display_name: d.name, birthday: d.birthday } }
+        options: { data: { username: d.username, display_name: d.name } }
       });
       if (error) throw error;
       const uid = authData.user?.id;
-      if (uid) {
-        // Re-upload avatar with real uid
-        let finalAvatarUrl = d.avatarUrl || null;
-        if (d.avatarBlob) {
-          try {
-            const f = new File([d.avatarBlob], "avatar.jpg", { type: "image/jpeg" });
-            finalAvatarUrl = await uploadAvatar(f, uid);
-          } catch { /* keep original url */ }
-        }
-        // Upsert full profile
-        await sb.from("profiles").upsert({
-          id: uid, username: d.username, display_name: d.name, email: d.email,
-          birthday: d.birthday, gender: d.gender, looking_for_gender: d.lookingFor,
-          avatar_url: finalAvatarUrl, location_text: d.city || null,
-          mbti: d.mbti, hobbies: d.hobbies, onboarding_done: true,
-        }, { onConflict: "id" });
-        // Separate update to guarantee birthday is saved (in case trigger overwrote it)
-        if (d.birthday) {
-          await sb.from("profiles").update({
-            birthday: d.birthday, avatar_url: finalAvatarUrl, onboarding_done: true
-          }).eq("id", uid);
-        }
+      if (!uid) throw new Error("無法取得用戶 ID，請重試");
+
+      // 2. Upload avatar with real uid
+      let finalAvatarUrl: string | null = null;
+      if (d.avatarBlob) {
+        try {
+          const f = new File([d.avatarBlob], "avatar.jpg", { type: "image/jpeg" });
+          finalAvatarUrl = await uploadAvatar(f, uid);
+        } catch { /* proceed without avatar */ }
       }
+
+      // 3. Wait for Supabase trigger to create base profile row
+      await new Promise(r => setTimeout(r, 800));
+
+      // 4. Update profile (trigger already created the row)
+      const profilePayload = {
+        username: d.username, display_name: d.name, email: d.email,
+        birthday: d.birthday || null, gender: d.gender, looking_for_gender: d.lookingFor,
+        avatar_url: finalAvatarUrl, location_text: d.city || null,
+        mbti: d.mbti, hobbies: d.hobbies, onboarding_done: true,
+      };
+      const { error: updateErr } = await sb.from("profiles").update(profilePayload).eq("id", uid);
+      if (updateErr) {
+        // Trigger may not have run yet — fall back to upsert
+        await sb.from("profiles").upsert({ id: uid, ...profilePayload }, { onConflict: "id" });
+      }
+
       setSent(true);
     } catch (e: any) { alert(e.message || "註冊失敗，請重試"); }
   }

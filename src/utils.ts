@@ -325,6 +325,12 @@ export async function getExploreProfiles(uid: string, p: UserProfile): Promise<E
       ethnicity: r.ethnicity || [], hobbies: r.hobbies || [], verified: r.is_verified || false,
       distance: p.latitude && p.longitude && r.latitude && r.longitude
         ? haversine(p.latitude, p.longitude, r.latitude, r.longitude) : undefined,
+      occupation: r.occupation || null, education: r.education || null,
+      income: r.income || null, height_cm: r.height_cm || null,
+      drinking: r.drinking || null, smoking: r.smoking || null,
+      exercise: r.exercise || null, has_pets: r.has_pets || null,
+      want_children: r.want_children || null, relationship_goal: r.relationship_goal || null,
+      love_language: r.love_language || null,
     }));
   return scored;
 }

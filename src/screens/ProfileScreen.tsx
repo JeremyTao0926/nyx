@@ -149,99 +149,188 @@ export function ProfileScreen({ profile,userId,onLogout,onUpdate }:{ profile:Use
   }
 
   return <div style={{ display:"flex",flexDirection:"column",height:"100%",background:C.bg,overflowY:"auto",animation:"tabSwitch .3s ease" }}>
-    {/* ── COVER + AVATAR ── */}
+
+    {/* ── COVER + AVATAR HEADER ── */}
     <div style={{ position:"relative",flexShrink:0 }}>
       {/* Cover */}
       <input ref={coverRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{if(e.target.files?.[0])handleCover(e.target.files[0]);}}/>
-      <div style={{ height:190,background:coverUrl?`url(${coverUrl}) center/cover`:`linear-gradient(135deg,rgba(232,54,93,0.25) 0%,rgba(108,99,255,0.18) 50%,rgba(0,201,167,0.12) 100%)`,position:"relative",cursor:"pointer" }} onClick={()=>coverRef.current?.click()}>
-        {!coverUrl&&<div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center" }}>
-          <div style={{ background:"rgba(255,255,255,0.07)",backdropFilter:"blur(12px)",borderRadius:12,padding:"8px 18px",fontSize:12.5,color:C.textSub,border:`1px solid ${C.border}` }}>+ 上傳封面照片</div>
+      <div style={{ height:220,background:coverUrl?`url(${coverUrl}) center/cover`:`linear-gradient(135deg,rgba(201,168,76,0.18) 0%,rgba(12,10,8,1) 100%)`,position:"relative",cursor:"pointer" }} onClick={()=>activeTab==="edit"&&coverRef.current?.click()}>
+        <div style={{ position:"absolute",inset:0,background:"linear-gradient(to bottom, rgba(12,10,8,0) 0%, rgba(12,10,8,0) 40%, rgba(12,10,8,0.6) 70%, rgba(12,10,8,1) 100%)" }}/>
+        {/* Top-right buttons */}
+        {activeTab==="view"&&<div style={{ position:"absolute",top:14,right:14,display:"flex",gap:8,zIndex:5 }}>
+          <button onClick={()=>setActiveTab("edit")} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(12,10,8,0.65)",backdropFilter:"blur(12px)",border:`1px solid rgba(255,255,255,0.12)`,color:C.text,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+          </button>
+          <button onClick={()=>setActiveTab("settings")} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(12,10,8,0.65)",backdropFilter:"blur(12px)",border:`1px solid rgba(255,255,255,0.12)`,color:C.text,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
         </div>}
-        {coverUrl&&<div style={{ position:"absolute",bottom:10,right:12,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(8px)",borderRadius:8,padding:"5px 11px",fontSize:11.5,color:C.textSub,cursor:"pointer" }}>更換封面 ✎</div>}
-        {/* Progress bar */}
-        <div style={{ position:"absolute",bottom:0,left:0,right:0,height:2,background:"rgba(255,255,255,0.07)" }}>
-          <div style={{ height:"100%",width:`${comp}%`,background:C.grad,transition:"width .8s" }}/>
-        </div>
       </div>
-      {/* Avatar */}
-      <div style={{ position:"absolute",bottom:-42,left:20 }}>
+
+      {/* Avatar — overlapping cover bottom */}
+      <div style={{ position:"absolute",bottom:-38,left:18 }}>
         <input ref={avatarRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{if(e.target.files?.[0])handleAvatar(e.target.files[0]);}}/>
         <div style={{ position:"relative",cursor:"pointer" }} onClick={()=>avatarRef.current?.click()}>
-          <Av url={avatarUrl} name={name} size={82}/>
-          <div style={{ position:"absolute",bottom:0,right:0,width:24,height:24,borderRadius:"50%",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center" }}>
-            <div style={{ width:20,height:20,borderRadius:"50%",background:C.rose,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10 }}>📷</div>
+          <div style={{ width:88,height:88,borderRadius:"50%",border:`3px solid ${C.gold}`,overflow:"hidden",background:C.bgCard }}>
+            {avatarUrl?<img src={avatarUrl} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" as const }}/>:<div style={{ width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,color:C.textMuted }}>👤</div>}
           </div>
-          {uploading&&<div style={{ position:"absolute",inset:0,borderRadius:"50%",background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center" }}><div style={{ width:18,height:18,border:`2px solid rgba(255,255,255,0.3)`,borderTopColor:"#fff",borderRadius:"50%",animation:"spin .7s linear infinite" }}/></div>}
+          <div style={{ position:"absolute",bottom:2,right:2,width:26,height:26,borderRadius:"50%",background:C.bgCard,border:`2px solid ${C.bg}`,display:"flex",alignItems:"center",justifyContent:"center" }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </div>
+          {uploading&&<div style={{ position:"absolute",inset:0,borderRadius:"50%",background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center" }}><div style={{ width:18,height:18,border:"2px solid rgba(255,255,255,0.3)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin .7s linear infinite" }}/></div>}
         </div>
       </div>
-      {/* Tab pills — top right */}
-      {activeTab==="view"&&<div style={{ position:"absolute",bottom:-42,right:16,display:"flex",gap:8 }}>
-        <button onClick={()=>setActiveTab("edit")} style={{ padding:"8px 18px",borderRadius:20,background:C.surf,border:`1px solid ${C.border}`,color:C.textSub,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(12px)",transition:"all .2s" }} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.borderHigh;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;}}>編輯</button>
-        <button onClick={()=>setActiveTab("settings")} style={{ padding:"8px 12px",borderRadius:20,background:C.surf,border:`1px solid ${C.border}`,color:C.textSub,fontSize:16,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(12px)",transition:"all .2s" }} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.borderHigh;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;}}>⚙️</button>
-      </div>}
     </div>
 
-    <div style={{ marginTop:60,padding:"0 20px 48px" }}>
+    {/* ── NAME + INFO ── */}
+    <div style={{ marginTop:54,padding:"0 18px 0" }}>
+      <div style={{ display:"flex",alignItems:"center",gap:7,marginBottom:3 }}>
+        <span style={{ fontSize:22,fontWeight:800,color:C.text }}>{name}</span>
+        {profile.is_verified&&<svg width="18" height="18" viewBox="0 0 24 24" fill={C.gold}><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 0 1.946-.806 3.42 3.42 0 0 1 4.438 0 3.42 3.42 0 0 0 1.946.806 3.42 3.42 0 0 1 3.138 3.138 3.42 3.42 0 0 0 .806 1.946 3.42 3.42 0 0 1 0 4.438 3.42 3.42 0 0 0-.806 1.946 3.42 3.42 0 0 1-3.138 3.138 3.42 3.42 0 0 0-1.946.806 3.42 3.42 0 0 1-4.438 0 3.42 3.42 0 0 0-1.946-.806 3.42 3.42 0 0 1-3.138-3.138 3.42 3.42 0 0 0-.806-1.946 3.42 3.42 0 0 1 0-4.438 3.42 3.42 0 0 0 .806-1.946 3.42 3.42 0 0 1 3.138-3.138z"/></svg>}
+      </div>
+      {/* Age · occupation · city */}
+      {(age||occupation||loc)&&<div style={{ fontSize:13.5,color:C.textMuted,marginBottom:4 }}>
+        {[age?`${age} 歲`:null, occupation||null, loc||null].filter(Boolean).join(" · ")}
+      </div>}
+      {loc&&<div style={{ fontSize:13,color:C.textMuted,marginBottom:12,display:"flex",alignItems:"center",gap:4 }}>
+        <span>📍</span><span>{loc}</span>
+      </div>}
+      {/* MBTI / gender / premium chips */}
+      <div style={{ display:"flex",gap:7,marginBottom:18,flexWrap:"wrap" as const }}>
+        <span style={{ padding:"5px 13px",borderRadius:20,background:"rgba(232,54,93,0.13)",border:"1px solid rgba(232,54,93,0.3)",fontSize:12.5,color:C.rose,fontWeight:600 }}>✦ {mbti}</span>
+        <span style={{ padding:"5px 13px",borderRadius:20,background:C.surf,border:`1px solid ${C.border}`,fontSize:12.5,color:C.textSub }}>{gender==="male"?"♂ 男性":"♀ 女性"}</span>
+        <span style={{ padding:"5px 13px",borderRadius:20,background:C.goldSoft,border:`1px solid ${C.borderHigh}`,fontSize:12.5,color:C.gold,fontWeight:600 }}>👑 Premium</span>
+      </div>
+    </div>
+    <div style={{ padding:"0 18px 48px" }}>
       {/* ── VIEW ── */}
       {activeTab==="view"&&<>
-        <div style={{ marginBottom:24 }}>
-          <div style={{ display:"flex",alignItems:"baseline",gap:8,marginBottom:4,flexWrap:"wrap" as const }}>
-            <div style={{ fontSize:26,fontWeight:700,color:C.text }}>{name}</div>
-            {age&&<div style={{ fontSize:17,color:C.textSub,fontWeight:400 }}>{age}</div>}
-            {profile.is_verified&&<div style={{ background:C.mintSoft,borderRadius:8,padding:"2px 9px",fontSize:11,color:C.mint,fontWeight:600 }}>✓ 認證</div>}
-          </div>
-          {/* User ID */}
-          <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:8 }}>
-            <span style={{ fontSize:11.5,color:C.textDim }}>ID:</span>
-            <span style={{ fontSize:11.5,color:C.textMuted,fontFamily:"monospace",letterSpacing:".5px" }}>{userId.slice(0,8).toUpperCase()}</span>
-            <button onClick={()=>{navigator.clipboard?.writeText(userId);}} style={{ background:"none",border:"none",color:C.textDim,fontSize:10,cursor:"pointer",fontFamily:"inherit",padding:"1px 5px" }} title="複製完整ID">複製</button>
-          </div>
-          {loc&&<div style={{ fontSize:14,color:C.textMuted,marginBottom:8 }}>📍 {loc}</div>}
-          {bio&&<div style={{ fontSize:14,color:C.textSub,lineHeight:1.7,marginBottom:14 }}>{bio}</div>}
-          <div style={{ display:"flex",flexWrap:"wrap" as const,gap:6 }}>
-            <span style={{ padding:"4px 13px",borderRadius:20,background:C.roseSoft,border:`1px solid rgba(232,54,93,0.22)`,fontSize:12.5,color:C.rose,fontWeight:600 }}>✦ {mbti}</span>
-            <span style={{ padding:"4px 13px",borderRadius:20,background:C.surf,border:`1px solid ${C.border}`,fontSize:12.5,color:C.textSub }}>{gender==="male"?"♂ 男性":"♀ 女性"}</span>
-          </div>
-        </div>
-        {/* Stats row */}
-        <div style={{ display:"flex", borderTop:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`, marginBottom:20, paddingTop:16, paddingBottom:16 }}>
-          {[{label:"喜歡我",value:stats.likesReceived,color:C.rose},{label:"我喜歡",value:stats.likesGiven,color:C.textSub},{label:"我的配對",value:stats.matches,color:C.gold}].map((s,i)=>(
-            <div key={s.label} style={{ flex:1, textAlign:"center" as const, borderRight:i<2?`1px solid ${C.border}`:"none" }}>
-              <div style={{ fontSize:24, fontWeight:800, color:s.color }}>{s.value}</div>
-              <div style={{ fontSize:11.5, color:C.textMuted, marginTop:2 }}>{s.label}</div>
+        {/* ─ About Me card ─ */}
+        {(() => {
+          const edu: Record<string,string> = { high_school:"高中",college:"大專",bachelor:"本科",master:"碩士",phd:"博士" };
+          const incomeLabel = income==="<20"?"20萬以下":income===">100"?"100萬+":income?`${income}萬`:"不透露";
+          const aboutItems = [
+            birthday && { icon:"🎂", label: birthday },
+            heightCm && { icon:"📐", label: `${heightCm} cm` },
+            occupation && { icon:"💼", label: occupation },
+            education && { icon:"🎓", label: edu[education]||education },
+            income && { icon:"💵", label: incomeLabel },
+          ].filter(Boolean) as {icon:string;label:string}[];
+          const lifeItems = [
+            drinking && drinking!=="never" && { icon:"🍷", label: drinking==="sometimes"?"偶爾喝酒":"常喝酒" },
+            smoking && smoking!=="never" && { icon:"🚭", label: smoking==="sometimes"?"偶爾抽菸":"常抽菸" },
+            smoking && smoking==="never" && { icon:"🚭", label: "不抽菸" },
+            exercise && exercise!=="never" && { icon:"🏃", label: exercise==="sometimes"?"偶爾運動":exercise==="weekly"?"每週運動":"每天運動" },
+            hasPets && hasPets!=="none" && { icon:"🐾", label: hasPets==="cat"?"有養貓":hasPets==="dog"?"有養狗":"有寵物" },
+          ].filter(Boolean) as {icon:string;label:string}[];
+          const hobbyBg: Record<string,string> = {
+            "旅行":"https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=200&q=60",
+            "音樂":"https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&q=60",
+            "電影":"https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=200&q=60",
+            "閱讀":"https://images.unsplash.com/photo-1512820790803-83ca734da794?w=200&q=60",
+            "運動":"https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=200&q=60",
+            "美食":"https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=200&q=60",
+            "遊戲":"https://images.unsplash.com/photo-1542751371-adc38448a05e?w=200&q=60",
+            "攝影":"https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=200&q=60",
+            "藝術":"https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=200&q=60",
+            "健身":"https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&q=60",
+            "瑜伽":"https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=200&q=60",
+            "舞蹈":"https://images.unsplash.com/photo-1547153760-18fc86324498?w=200&q=60",
+            "寵物":"https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&q=60",
+            "烹飪":"https://images.unsplash.com/photo-1466637574441-749b8f19452f?w=200&q=60",
+            "戶外":"https://images.unsplash.com/photo-1533240332313-0db49b459ad6?w=200&q=60",
+            "咖啡":"https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=200&q=60",
+            "科技":"https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&q=60",
+            "時尚":"https://images.unsplash.com/photo-1445205170230-053b83016050?w=200&q=60",
+            "語言":"https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=200&q=60",
+            "電競":"https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=200&q=60",
+          };
+          return <>
+            {/* Stats card */}
+            <div style={{ background:C.bgCard,borderRadius:16,border:`1px solid ${C.border}`,display:"flex",marginBottom:14,overflow:"hidden" }}>
+              {[
+                {icon:"❤️",val:stats.likesReceived,label:"喜歡我"},
+                {icon:"💬",val:stats.likesGiven,label:"我喜歡"},
+                {icon:"👥",val:stats.matches,label:"我的配對"},
+              ].map((s,i)=>(
+                <div key={s.label} style={{ flex:1,textAlign:"center" as const,padding:"18px 0",borderRight:i<2?`1px solid ${C.border}`:"none" }}>
+                  <div style={{ fontSize:22,fontWeight:800,color:C.text,display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
+                    <span style={{ fontSize:16 }}>{s.icon}</span>{s.val}
+                  </div>
+                  <div style={{ fontSize:11.5,color:C.textMuted,marginTop:3 }}>{s.label}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        {/* Completion card */}
-        <div style={{ background:C.bgCard,borderRadius:16,padding:"16px 18px",marginBottom:24,border:`1px solid ${C.border}` }}>
-          <div style={{ display:"flex",justifyContent:"space-between",marginBottom:10 }}>
-            <span style={{ fontSize:13,color:C.textSub,fontWeight:500 }}>資料完整度</span>
-            <span style={{ fontSize:13,color:comp>=80?C.mint:C.rose,fontWeight:700 }}>{comp}%</span>
-          </div>
-          <div style={{ height:5,background:"rgba(255,255,255,0.06)",borderRadius:3 }}>
-            <div style={{ height:"100%",width:`${comp}%`,background:comp>=80?C.gradMint:C.grad,borderRadius:3,transition:"width .8s" }}/>
-          </div>
-          {comp<80&&<div style={{ fontSize:12,color:C.textMuted,marginTop:10 }}>補充簡介、興趣和相片可提高配對率</div>}
-        </div>
-        {/* Hobbies */}
-        {hobbies.length>0&&<div style={{ marginBottom:22 }}>
-          <SLabel>興趣</SLabel>
-          <div style={{ display:"flex",flexWrap:"wrap" as const,gap:7 }}>
-            {hobbies.map(h=><span key={h} style={{ padding:"5px 14px",borderRadius:20,background:C.mintSoft,border:`1px solid rgba(0,201,167,0.18)`,fontSize:13,color:C.mint }}>{h}</span>)}
-          </div>
-        </div>}
-        {/* Photos */}
-        {photos.length>0&&<div style={{ marginBottom:24 }}>
-          <SLabel>相片</SLabel>
-          <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7 }}>
-            {photos.map((p,i)=><img key={i} src={p} alt="" style={{ width:"100%",aspectRatio:"1",objectFit:"cover" as const,borderRadius:12,border:`1px solid ${C.border}` }}/>)}
-          </div>
-        </div>}
-        <div style={{ height:1,background:C.border,marginBottom:18 }}/>
-        <button onClick={onLogout} style={{ width:"100%",padding:"13px",borderRadius:14,background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontFamily:"inherit",fontSize:14,cursor:"pointer",marginBottom:8,transition:"all .2s" }} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.borderHigh;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;}}>登出</button>
-        <button onClick={()=>setShowDelete(true)} style={{ width:"100%",padding:"11px",borderRadius:14,background:"transparent",border:"none",color:C.textDim,fontFamily:"inherit",fontSize:13,cursor:"pointer" }}>刪除帳號</button>
-      </>}
 
+            {/* Completion card */}
+            <div style={{ background:C.bgCard,borderRadius:16,border:`1px solid ${C.border}`,padding:"16px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:14,cursor:"pointer" }} onClick={()=>setActiveTab("edit")}>
+              <div style={{ flex:1 }}>
+                <div style={{ display:"flex",justifyContent:"space-between",marginBottom:8 }}>
+                  <span style={{ fontSize:14,color:C.text,fontWeight:600 }}>資料完整度</span>
+                  <span style={{ fontSize:14,color:comp>=80?C.mint:C.gold,fontWeight:700 }}>{comp}%</span>
+                </div>
+                <div style={{ height:5,background:"rgba(255,255,255,0.06)",borderRadius:3 }}>
+                  <div style={{ height:"100%",width:`${comp}%`,background:comp>=80?C.gradMint:C.grad,borderRadius:3,transition:"width .8s" }}/>
+                </div>
+                {comp<80&&<div style={{ fontSize:12,color:C.textMuted,marginTop:8 }}>補充更多資料，讓你更容易被喜歡！</div>}
+              </div>
+              <span style={{ fontSize:18,color:C.textMuted }}>›</span>
+            </div>
+
+            {/* About me card */}
+            {aboutItems.length>0&&<div style={{ background:C.bgCard,borderRadius:16,border:`1px solid ${C.border}`,padding:"16px 18px",marginBottom:14 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+                <span style={{ fontSize:15,fontWeight:700,color:C.text }}>關於我</span>
+                <button onClick={()=>setActiveTab("edit")} style={{ background:"none",border:"none",color:C.gold,fontSize:13,cursor:"pointer",fontFamily:"inherit",fontWeight:600 }}>編輯</button>
+              </div>
+              <div style={{ display:"flex",gap:0,overflowX:"auto" as const }}>
+                {aboutItems.map((item,i)=>(
+                  <div key={i} style={{ flex:"0 0 auto",textAlign:"center" as const,padding:"0 14px",borderRight:i<aboutItems.length-1?`1px solid ${C.border}`:"none",minWidth:0 }}>
+                    <div style={{ fontSize:22,marginBottom:6 }}>{item.icon}</div>
+                    <div style={{ fontSize:12,color:C.textSub,whiteSpace:"nowrap" as const,maxWidth:72,overflow:"hidden",textOverflow:"ellipsis" }}>{item.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>}
+
+            {/* Life style card */}
+            {lifeItems.length>0&&<div style={{ background:C.bgCard,borderRadius:16,border:`1px solid ${C.border}`,padding:"16px 18px",marginBottom:14 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+                <span style={{ fontSize:15,fontWeight:700,color:C.text }}>我的生活方式</span>
+                <button onClick={()=>setActiveTab("edit")} style={{ background:"none",border:"none",color:C.gold,fontSize:13,cursor:"pointer",fontFamily:"inherit",fontWeight:600 }}>編輯</button>
+              </div>
+              <div style={{ display:"flex",flexWrap:"wrap" as const,gap:14 }}>
+                {lifeItems.map((item,i)=>(
+                  <div key={i} style={{ display:"flex",alignItems:"center",gap:6 }}>
+                    <span style={{ fontSize:16 }}>{item.icon}</span>
+                    <span style={{ fontSize:13,color:C.textSub }}>{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>}
+
+            {/* Hobbies card */}
+            {hobbies.length>0&&<div style={{ background:C.bgCard,borderRadius:16,border:`1px solid ${C.border}`,padding:"16px 18px",marginBottom:14 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+                <span style={{ fontSize:15,fontWeight:700,color:C.text }}>興趣愛好</span>
+                <button onClick={()=>setActiveTab("edit")} style={{ background:"none",border:"none",color:C.gold,fontSize:13,cursor:"pointer",fontFamily:"inherit",fontWeight:600 }}>編輯</button>
+              </div>
+              <div style={{ display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6 }}>
+                {hobbies.slice(0,5).map(h=>(
+                  <div key={h} style={{ position:"relative",aspectRatio:"1",borderRadius:10,overflow:"hidden",background:`url(${hobbyBg[h]||""}) center/cover`,backgroundColor:"#2A2218" }}>
+                    <div style={{ position:"absolute",inset:0,background:"linear-gradient(transparent 40%,rgba(0,0,0,0.72))" }}/>
+                    <div style={{ position:"absolute",bottom:5,left:0,right:0,textAlign:"center" as const,fontSize:11,color:"#fff",fontWeight:600,letterSpacing:".2px" }}>{h}</div>
+                  </div>
+                ))}
+              </div>
+            </div>}
+
+            {/* Logout + Delete */}
+            <button onClick={onLogout} style={{ width:"100%",padding:"15px",borderRadius:14,background:"transparent",border:`1px solid rgba(232,54,93,0.35)`,color:C.rose,fontFamily:"inherit",fontSize:15,fontWeight:600,cursor:"pointer",marginTop:8,transition:"all .2s" }} onMouseEnter={e=>{e.currentTarget.style.background="rgba(232,54,93,0.07)";}} onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>登出帳號</button>
+            <button onClick={()=>setShowDelete(true)} style={{ width:"100%",padding:"11px",borderRadius:14,background:"transparent",border:"none",color:C.textDim,fontFamily:"inherit",fontSize:13,cursor:"pointer",marginTop:4 }}>刪除帳號</button>
+          </>;
+        })()}
+      </>}
       {/* ── EDIT ── */}
       {activeTab==="edit"&&<>
         <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:28 }}>
@@ -392,7 +481,7 @@ export function ProfileScreen({ profile,userId,onLogout,onUpdate }:{ profile:Use
           <SettingRow icon="📦" label="導出我的數據" sub="下載你的所有資料（JSON）" right={<span style={{ fontSize:14,color:C.textMuted }}>›</span>} onClick={async()=>{await exportUserData(userId);}}/>
           <SettingRow icon="✦" label="關於 NYX" right={<span style={{ fontSize:12,color:C.textMuted }}>v1.0.0</span>} last/>
         </div>
-        <button onClick={onLogout} style={{ width:"100%",padding:"13px",borderRadius:14,background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontFamily:"inherit",fontSize:14,cursor:"pointer",marginBottom:8,transition:"border-color .2s" }} onMouseEnter={e=>(e.currentTarget.style.borderColor=C.borderHigh)} onMouseLeave={e=>(e.currentTarget.style.borderColor=C.border)}>登出</button>
+        <button onClick={onLogout} style={{ width:"100%",padding:"15px",borderRadius:14,background:"transparent",border:`1px solid rgba(232,54,93,0.35)`,color:C.rose,fontFamily:"inherit",fontSize:15,fontWeight:600,cursor:"pointer",marginBottom:8,transition:"all .2s" }} onMouseEnter={e=>{e.currentTarget.style.background="rgba(232,54,93,0.07)";}} onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>登出帳號</button>
         <button onClick={()=>setShowDelete(true)} style={{ width:"100%",padding:"11px",borderRadius:14,background:"transparent",border:"none",color:C.textDim,fontFamily:"inherit",fontSize:13,cursor:"pointer" }}>刪除帳號</button>
       </>}
     </div>

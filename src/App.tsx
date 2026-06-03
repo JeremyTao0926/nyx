@@ -163,12 +163,12 @@ export default function App() {
               <div style={{ position:"absolute", inset:0 }}>
                 <ChatListScreen profile={profile} matches={matches} unreadPerMatch={unreadPerMatch} onOpenNyx={() => setInChat(true)} onOpenMatch={openMatch}/>
               </div>
-              {inChat && <div style={{ position:"absolute", inset:0, zIndex:10 }}>
+              {inChat && <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", justifyContent:"center" }}><div style={{ width:"100%", maxWidth:480, height:"100%", position:"relative" }}>
                 {!activeMatch
                   ? <NyxChatScreen userId={userId} profile={profile} onBack={() => setInChat(false)}/>
                   : <RealChatScreen matchId={activeMatch.matchId} myUserId={userId} myProfile={profile} other={activeMatch} onBack={() => { setInChat(false); setActiveMatch(null); loadUnread(); getMatches(userId!).then(setMatches); }}/>
                 }
-              </div>}
+              </div></div>}
             </div>
           </>}
           {/* PROFILE */}
