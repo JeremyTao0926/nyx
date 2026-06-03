@@ -802,7 +802,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           style={{ display:"flex", flexDirection:isMe?"row-reverse":"row", alignItems:"flex-end", gap:8, marginBottom:10, animation:"fadeUp .3s ease" }}>
             {/* Avatar — only render for other person */}
             {!isMe && (
-              <div style={{ width:32, flexShrink:0 }}>
+              <div style={{ width:32, flexShrink:0, cursor:"pointer" }} onClick={()=>setShowOtherProfile(true)}>
                 <Av url={other.avatar} name={other.name} size={30} grad="linear-gradient(145deg,#ff9a3c,#ff6b6b)" />
               </div>
             )}
@@ -834,7 +834,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           onTouchMove={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }}>
           {/* Avatar — only render div for other person's messages */}
           {!isMe && (
-            <div style={{ width: 32, flexShrink: 0 }}>
+            <div style={{ width: 32, flexShrink: 0, cursor:"pointer" }} onClick={()=>setShowOtherProfile(true)}>
               {showAvatar && <Av url={other.avatar} name={other.name} size={30} grad="linear-gradient(145deg,#ff9a3c,#ff6b6b)" />}
             </div>
           )}

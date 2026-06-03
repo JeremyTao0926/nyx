@@ -86,7 +86,6 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
   const photoSwipeX = useRef(0);
   const [photoDx, setPhotoDx] = useState(0);
   const photoSwiping = useRef(false);
-  const photoContainerRef = useRef<HTMLDivElement>(null);
   function onSwipeStart(e: React.TouchEvent) { swipeStartX.current=e.touches[0].clientX; swipeStartY.current=e.touches[0].clientY; isSwiping.current=false; }
   function onSwipeMove(e: React.TouchEvent) {
     const dx=e.touches[0].clientX-swipeStartX.current, dy=Math.abs(e.touches[0].clientY-swipeStartY.current);
@@ -199,11 +198,14 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
 
 
   return (
-    <div style={{ position:"fixed",inset:0,zIndex:150,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.55)" }}>
+    <div style={{ position:"fixed",inset:0,zIndex:150,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.55)" }}
+      onTouchStart={e=>e.stopPropagation()}
+      onTouchMove={e=>e.stopPropagation()}
+      onTouchEnd={e=>e.stopPropagation()}>
       <div onTouchStart={onSwipeStart} onTouchMove={onSwipeMove} onTouchEnd={onSwipeEnd}
         style={{ width:"100%",maxWidth:480,height:"100%",background:C.bg,display:"flex",flexDirection:"column" as const,position:"relative",
           transform:`translateX(${swipeDx}px)`,transition:swipeDx===0?"transform .3s cubic-bezier(.32,.72,0,1)":"none",
-          boxShadow:swipeDx>10?"-10px 0 30px rgba(0,0,0,0.6)":"none",animation:"slideUp .28s cubic-bezier(.32,.72,0,1)" }}>
+          boxShadow:swipeDx>10?"-10px 0 30px rgba(0,0,0,0.6)":"none",animation:"profileZoomIn .3s cubic-bezier(.32,.72,0,1)" }}>
 
         {/* ONE scrollable area — photo sticky on top, content below */}
         <div style={{ flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch" as any }}>
@@ -214,26 +216,28 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
             onTouchMove={e=>{ const dx=e.touches[0].clientX-photoSwipeX.current; if(Math.abs(dx)>8){photoSwiping.current=true; setPhotoDx(dx);} }}
             onTouchEnd={()=>{
               if(photoSwiping.current){
-                const w = photoContainerRef.current?.offsetWidth||375;
-                if(photoDx < -(w*0.25) && photoIdx<allPhotos.length-1) setPhotoIdx(i=>i+1);
-                else if(photoDx > (w*0.25) && photoIdx>0) setPhotoIdx(i=>i-1);
+                if(photoDx < -60 && photoIdx<allPhotos.length-1) setPhotoIdx(i=>i+1);
+                else if(photoDx > 60 && photoIdx>0) setPhotoIdx(i=>i-1);
               }
               setPhotoDx(0); photoSwiping.current=false;
             }}>
-            {/* Pixel-based photo strip */}
-            <div ref={photoContainerRef} style={{ position:"absolute",inset:0,overflow:"hidden" }}>
+            {/* CSS-% photo strip — no pixel width dependency */}
+            <div style={{ position:"absolute",inset:0,overflow:"hidden" }}>
               <div style={{
                 display:"flex", height:"100%", willChange:"transform",
-                transform:`translateX(${-(photoIdx * (photoContainerRef.current?.offsetWidth||375)) + photoDx}px)`,
+                width:`${Math.max(allPhotos.length,1) * 100}%`,
+                transform:`translateX(calc(${-photoIdx * (100/Math.max(allPhotos.length,1))}% + ${photoDx / Math.max(allPhotos.length,1)}%))`,
                 transition:photoDx===0?"transform .35s cubic-bezier(.32,.72,0,1)":"none"
               }}>
                 {(allPhotos.length>0?allPhotos:['']).map((ph,i)=>(
-                  <div key={i} style={{ flexShrink:0,width:photoContainerRef.current?.offsetWidth||375,height:"100%",background:ph?`url(${ph}) center/cover no-repeat`:"linear-gradient(145deg,#2A2218,#1C1610)" }}/>
+                  <div key={i} style={{ flex:`0 0 ${100/Math.max(allPhotos.length,1)}%`,height:"100%",backgroundImage:ph?`url(${ph})`:"linear-gradient(145deg,#2A2218,#1C1610)",backgroundSize:"cover",backgroundPosition:"center center",backgroundRepeat:"no-repeat" }}/>
                 ))}
               </div>
             </div>
-            {/* dot indicators */}
-            {allPhotos.length>1&&<div style={{ position:"absolute",top:14,left:14,right:14,display:"flex",gap:4,zIndex:5 }}>
+            {/* Back button */}
+            <button onClick={onClose} style={{ position:"absolute",top:14,left:14,zIndex:10,width:36,height:36,borderRadius:"50%",background:"rgba(12,10,8,0.55)",backdropFilter:"blur(12px)",border:"none",color:"#fff",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1 }}>‹</button>
+          {/* dot indicators */}
+            {allPhotos.length>1&&<div style={{ position:"absolute",top:14,left:58,right:14,display:"flex",gap:4,zIndex:5 }}>
               {allPhotos.map((_,i)=><div key={i} style={{ flex:1,height:3,borderRadius:2,background:i===photoIdx?"rgba(255,255,255,0.95)":"rgba(255,255,255,0.28)",transition:"all .22s" }}/>)}
             </div>}
 
@@ -378,9 +382,11 @@ function SwipeCard({ p, isTop, myMbti, onSwipe, onOpenProfile }: { p: ExplorePro
   const passO=Math.min(1,Math.max(0,-pos.x/60));
 
   return (
-    <div onMouseDown={e=>onS(e.clientX,e.clientY)} onMouseMove={e=>{if(drag)onM(e.clientX,e.clientY);}} onMouseUp={onE} onMouseLeave={onE}
-      onTouchStart={e=>onS(e.touches[0].clientX,e.touches[0].clientY)} onTouchMove={e=>onM(e.touches[0].clientX,e.touches[0].clientY)} onTouchEnd={onE}
-      style={{ position:"absolute",width:"100%",transform:`translate(${pos.x}px,${pos.y}px) rotate(${pos.x*.05}deg)`,transition:drag?"none":"transform .4s cubic-bezier(.34,1.56,.64,1)",cursor:isTop?"grab":"default",userSelect:"none" as const }}>
+    <div onMouseDown={e=>{if(isTop)onS(e.clientX,e.clientY);}} onMouseMove={e=>{if(drag)onM(e.clientX,e.clientY);}} onMouseUp={e=>{if(!drag&&isTop&&Math.abs(pos.x)<5)onOpenProfile();else onE();}} onMouseLeave={onE}
+      onTouchStart={e=>{onS(e.touches[0].clientX,e.touches[0].clientY);}}
+      onTouchMove={e=>onM(e.touches[0].clientX,e.touches[0].clientY)}
+      onTouchEnd={e=>{const moved=Math.abs(pos.x)>8||Math.abs(pos.y)>8;if(!moved&&isTop)onOpenProfile();else onE();}}
+      style={{ position:"absolute",width:"100%",transform:`translate(${pos.x}px,${pos.y}px) rotate(${pos.x*.05}deg)`,transition:drag?"none":"transform .4s cubic-bezier(.34,1.56,.64,1)",cursor:isTop?"pointer":"default",userSelect:"none" as const }}>
       <div style={{ borderRadius:20,overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.6)",background:C.bgCard }}>
         {/* Photo */}
         <div style={{ height:440,position:"relative",background:allPhotos[photoIdx]?`url(${allPhotos[photoIdx]}) center/cover no-repeat`:`linear-gradient(145deg,#2A2218,#1C1610)` }}>
@@ -571,11 +577,27 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
       {/* Action buttons */}
       {viewMode==="swipe" && idx<profiles.length && !loading && (
         <div style={{ display:"flex",gap:20,padding:"14px 0 28px",justifyContent:"center",alignItems:"center",background:C.bg }}>
-          <button onClick={()=>doSwipe("pass")} style={{ width:52,height:52,borderRadius:"50%",background:"rgba(255,255,255,0.04)",border:`1px solid ${C.border}`,color:C.rose,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s" }} onMouseEnter={e=>(e.currentTarget.style.background="rgba(232,54,93,0.08)")} onMouseLeave={e=>(e.currentTarget.style.background="rgba(255,255,255,0.04)")}>✕</button>
-          <button onClick={()=>doSwipe("like")} style={{ width:64,height:64,borderRadius:"50%",background:C.gradRose,border:"none",color:"#fff",fontSize:26,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 6px 24px ${C.roseGlow}`,transition:"transform .15s" }} onMouseEnter={e=>(e.currentTarget.style.transform="scale(1.08)")} onMouseLeave={e=>(e.currentTarget.style.transform="scale(1)")}>♥</button>
-          <button onClick={()=>showProfile!==null?undefined:setShowProfile(profiles[idx])} style={{ width:52,height:52,borderRadius:"50%",background:C.bgCard,border:`1px solid ${C.border}`,color:C.gold,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          </button>
+          {/* Pass */}
+          <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:5 }}>
+            <button onClick={()=>doSwipe("pass")} style={{ width:52,height:52,borderRadius:"50%",background:"rgba(255,255,255,0.04)",border:`1px solid ${C.border}`,color:"rgba(255,255,255,0.42)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .18s" }} onMouseEnter={e=>{e.currentTarget.style.background="rgba(232,54,93,0.08)";e.currentTarget.style.color=C.rose;}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.04)";e.currentTarget.style.color="rgba(255,255,255,0.42)";}}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <span style={{ fontSize:10.5,color:"rgba(255,255,255,0.26)",letterSpacing:".3px" }}>略過</span>
+          </div>
+          {/* Like */}
+          <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:5 }}>
+            <button onClick={()=>doSwipe("like")} style={{ width:66,height:66,borderRadius:"50%",background:"linear-gradient(135deg,#C9A84C,#E2C068)",border:"none",color:"#12100C",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 6px 24px rgba(201,168,76,0.38)",transition:"transform .15s" }} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.07)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            </button>
+            <span style={{ fontSize:10.5,color:"#E2C068",fontWeight:600,letterSpacing:".3px" }}>喜歡</span>
+          </div>
+          {/* Priority */}
+          <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:5 }}>
+            <button onClick={()=>doSwipe("superlike")} style={{ width:52,height:52,borderRadius:"50%",background:"linear-gradient(145deg,#1A1608,#231E0A)",border:"1.5px solid rgba(201,168,76,0.5)",color:C.gold,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 16px rgba(201,168,76,0.2)",transition:"all .18s" }} onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 0 0 6px rgba(201,168,76,0.1),0 6px 20px rgba(201,168,76,0.35)";}} onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 4px 16px rgba(201,168,76,0.2)";}}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            </button>
+            <span style={{ fontSize:10.5,color:C.gold,fontWeight:700,letterSpacing:".4px" }}>優先認識</span>
+          </div>
         </div>
       )}
 
