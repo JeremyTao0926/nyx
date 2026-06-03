@@ -677,6 +677,19 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           setMsgs(p => [...p, { id: m.id, senderId: m.sender_id, content: m.content, timestamp: new Date(m.created_at), isImage: isImg }]);
           sound.send();
           markMsgsRead(matchId, myUserId);
+          // Trigger push if tab is not visible
+          if (document.visibilityState !== "visible") {
+            const previewText = isImg ? "📷 發送了一張圖片" : (m.content || "").slice(0, 60);
+            sb.functions.invoke("send-push", {
+              body: {
+                recipient_id: myUserId,
+                title: other.name,
+                body: previewText,
+                url: "/?tab=chat",
+                sender_avatar: other.avatar,
+              },
+            }).catch(() => {});
+          }
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages", filter: `match_id=eq.${matchId}` }, payload => {

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { sb, C, WRAP, GLOBAL_CSS, getProfile, getMatches, getUnreadCount } from "./utils";
 import type { UserProfile, MatchItem } from "./types";
 import { LoginScreen, SplashScreen } from "./screens/AuthScreens";
+import { initPush, removePush, onNotificationClick } from "./pushNotifications";
 import { ChatListScreen, RealChatScreen } from "./screens/ChatScreens";
 import { NyxChatScreen } from "./screens/NyxChatScreen";
 import { ExploreScreen } from "./screens/ExploreScreen";
@@ -86,6 +87,13 @@ export default function App() {
         filter:`user_id=eq.${userId}` }, () => loadAll())
       .subscribe();
 
+    // Init Web Push
+    initPush(userId).catch(() => {});
+    onNotificationClick((url) => {
+      // Navigate to chat tab when notification is clicked
+      setTab("chat");
+    });
+
     // Reload matches when tab becomes visible again (user returns to app)
     const onVisible = () => {
       if (document.visibilityState === "visible") {
@@ -135,7 +143,11 @@ export default function App() {
     getMatches(userId!).then(setMatches);
   }
 
-  async function logout() { await sb.auth.signOut(); setSplashSeen(false); setInChat(false); setActiveMatch(null); }
+  async function logout() {
+    if (userId) await removePush(userId).catch(() => {});
+    await sb.auth.signOut();
+    setSplashSeen(false); setInChat(false); setActiveMatch(null);
+  }
   function updateLocal(patch: Partial<UserProfile>) { setProfile(p => p ? {...p,...patch} : p); }
 
   // Tab swipe refs — declared before any early returns (Rules of Hooks)

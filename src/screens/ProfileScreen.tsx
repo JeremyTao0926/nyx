@@ -155,8 +155,6 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate }: { profile
   const [showTerms, setShowTerms] = useState<"terms" | "privacy" | null>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
   const coverRef = useRef<HTMLInputElement>(null);
-  const [editField, setEditField] = useState<string|null>(null);
-  const [editText, setEditText] = useState("");
   const age = calcAge(birthday);
   const comp = calcCompletion({ ...profile, display_name: name, bio, birthday: birthday || null, location_text: loc || null, avatar_url: avatarUrl || null, hobbies, photos });
 
@@ -448,13 +446,13 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate }: { profile
           {/* 基本資料 section */}
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: "20px 0 4px" }}>基本資料</div>
           <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 20 }}>
-            <EditRow icon="user" label="顯示名稱" value={name} onClick={() => { setEditText(name); setEditField("name"); }} />
-            <EditRow icon="calendar" label="生日" value={birthday} onClick={() => { setEditText(birthday); setEditField("birthday"); }} />
-            <EditRow icon="globe" label="所在地" value={loc} onClick={() => { setEditText(loc); setEditField("location"); }} />
-            <EditRow icon="ruler" label="身高" value={heightCm ? `${heightCm} cm` : ""} onClick={() => { setEditText(heightCm); setEditField("height"); }} />
-            <EditRow icon="briefcase" label="職業" value={occupation} onClick={() => { setEditText(occupation); setEditField("occupation"); }} />
-            <EditRow icon="graduation" label="學歷" value={edu[education] || ""} onClick={() => setEditField("education")} />
-            <EditRow icon="wallet" label="年收入" value={incomeLabel} onClick={() => setEditField("income")} last />
+            <EditRow icon="user" label="顯示名稱" value={name} onClick={() => { const v = prompt("顯示名稱", name); if (v) setName(v); }} />
+            <EditRow icon="calendar" label="生日" value={birthday} onClick={() => { const v = prompt("生日 (YYYY-MM-DD)", birthday); if (v) setBirthday(v); }} />
+            <EditRow icon="globe" label="所在地" value={loc} onClick={() => { /* handled in sheet */ }} />
+            <EditRow icon="ruler" label="身高" value={heightCm ? `${heightCm} cm` : ""} onClick={() => { const v = prompt("身高 (cm)", heightCm); if (v) setHeightCm(v); }} />
+            <EditRow icon="briefcase" label="職業" value={occupation} onClick={() => { const v = prompt("職業", occupation); if (v !== null) setOccupation(v); }} />
+            <EditRow icon="graduation" label="學歷" value={edu[education] || ""} onClick={() => { }} />
+            <EditRow icon="wallet" label="年收入" value={incomeLabel} onClick={() => { }} last />
           </div>
 
           {/* 關於我 section */}
@@ -475,10 +473,14 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate }: { profile
           {/* 我的生活方式 section */}
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>我的生活方式</div>
           <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 20 }}>
-            <EditRow icon="nosmoking" label="抽菸習慣" value={smoking === "never" ? "不抽菸" : smoking === "sometimes" ? "偶爾抽菸" : smoking === "often" ? "常抽菸" : ""} onClick={() => setEditField("smoking")} />
-            <EditRow icon="paw" label="寵物" value={hasPets === "none" ? "無寵物" : hasPets === "cat" ? "有養貓" : hasPets === "dog" ? "有養狗" : hasPets === "other" ? "有養其他" : ""} onClick={() => setEditField("pets")} />
-            <EditRow icon="wine" label="飲酒習慣" value={drinking === "never" ? "不喝酒" : drinking === "sometimes" ? "偶爾喝酒" : drinking === "often" ? "常喝酒" : ""} onClick={() => setEditField("drinking")} />
-            <EditRow icon="dumbbell" label="運動習慣" value={exercise === "never" ? "從不運動" : exercise === "sometimes" ? "偶爾運動" : exercise === "weekly" ? "每週運動" : exercise === "daily" ? "每天運動" : ""} onClick={() => setEditField("exercise")} />
+            {[
+              { ico: "nosmoking", label: "抽菸習慣", val: smoking === "never" ? "不抽菸" : smoking === "sometimes" ? "偶爾抽菸" : smoking === "often" ? "常抽菸" : "" },
+              { ico: "paw", label: "寵物", val: hasPets === "none" ? "無寵物" : hasPets === "cat" ? "有養貓" : hasPets === "dog" ? "有養狗" : "" },
+              { ico: "wine", label: "飲酒習慣", val: drinking === "never" ? "不喝酒" : drinking === "sometimes" ? "偶爾喝酒" : drinking === "often" ? "常喝酒" : "" },
+              { ico: "dumbbell", label: "運動習慣", val: exercise === "never" ? "從不運動" : exercise === "sometimes" ? "偶爾運動" : exercise === "weekly" ? "每週運動" : exercise === "daily" ? "每天運動" : "" },
+            ].map((row, i, arr) => (
+              <EditRow key={row.label} icon={row.ico} label={row.label} value={row.val} onClick={() => { }} />
+            ))}
           </div>
 
           {/* 興趣愛好 section */}
@@ -540,153 +542,6 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate }: { profile
 
       {cropFile && <ImageCropper file={cropFile.file} aspectRatio={cropFile.type === "cover" ? 2.5 : 1} shape={cropFile.type === "avatar" ? "circle" : "rect"} onConfirm={blob => { if (cropFile.type === "avatar") doUploadAvatar(blob); else if (cropFile.type === "cover") doUploadCover(blob); }} onCancel={() => setCropFile(null)} />}
       {showMbti && <MbtiSheet mbti={mbti} onSelect={m => setMbti(m)} onClose={() => setShowMbti(false)} />}
-
-      {/* ── Field pickers ── */}
-      {(editField === "name" || editField === "occupation" || editField === "height") && (
-        <BottomSheet onClose={() => setEditField(null)}>
-          <div style={{ padding: "8px 20px 40px" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>
-              {{ name: "顯示名稱", occupation: "職業", height: "身高 (cm)" }[editField]}
-            </div>
-            <input
-              autoFocus
-              value={editText}
-              onChange={e => setEditText(e.target.value)}
-              type={editField === "height" ? "number" : "text"}
-              placeholder={editField === "height" ? "例：170" : editField === "occupation" ? "設計師、工程師、學生..." : "輸入名稱"}
-              style={{ width: "100%", padding: "14px 16px", background: "rgba(255,255,255,0.05)", border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 16, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 16 }}
-              onFocus={e => e.target.style.borderColor = C.gold}
-              onBlur={e => e.target.style.borderColor = C.border}
-              onKeyDown={e => { if (e.key === "Enter") { if (editField === "name") setName(editText); else if (editField === "occupation") setOccupation(editText); else if (editField === "height") setHeightCm(editText); setEditField(null); } }}
-            />
-            <button onClick={() => {
-              if (editField === "name") setName(editText);
-              else if (editField === "occupation") setOccupation(editText);
-              else if (editField === "height") setHeightCm(editText);
-              setEditField(null);
-            }} style={{ width: "100%", padding: "15px", borderRadius: 14, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>確認</button>
-          </div>
-        </BottomSheet>
-      )}
-
-      {editField === "birthday" && (
-        <BottomSheet onClose={() => setEditField(null)}>
-          <div style={{ padding: "8px 20px 40px" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>生日</div>
-            <input
-              autoFocus
-              value={editText}
-              onChange={e => setEditText(e.target.value)}
-              type="date"
-              style={{ width: "100%", padding: "14px 16px", background: "rgba(255,255,255,0.05)", border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 16, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 16, colorScheme: "dark" } as any}
-              onFocus={e => e.target.style.borderColor = C.gold}
-              onBlur={e => e.target.style.borderColor = C.border}
-            />
-            <button onClick={() => { setBirthday(editText); setEditField(null); }} style={{ width: "100%", padding: "15px", borderRadius: 14, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>確認</button>
-          </div>
-        </BottomSheet>
-      )}
-
-      {editField === "location" && (
-        <BottomSheet onClose={() => setEditField(null)}>
-          <div style={{ padding: "8px 20px 40px" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>所在地</div>
-            <CityInput value={editText} onChange={setEditText} onSelect={(city, lat, lon) => { setLoc(city); setEditText(city); updateProfile(userId, { latitude: lat, longitude: lon }); setEditField(null); }} />
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button onClick={handleLocate} disabled={locating} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(232,54,93,0.08)", border: `1px solid rgba(232,54,93,0.25)`, color: C.rose, fontFamily: "inherit", fontSize: 14, cursor: "pointer", opacity: locating ? .6 : 1 }}>
-                {locating ? "定位中..." : "📍 GPS 定位"}
-              </button>
-              <button onClick={() => { setLoc(editText); setEditField(null); }} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>確認</button>
-            </div>
-          </div>
-        </BottomSheet>
-      )}
-
-      {editField === "education" && (
-        <BottomSheet onClose={() => setEditField(null)}>
-          <div style={{ padding: "8px 20px 40px" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>學歷</div>
-            {[["high_school","高中 / 中專"],["college","大專"],["bachelor","本科"],["master","碩士"],["phd","博士"]].map(([v,l]) => (
-              <button key={v} onClick={() => { setEducation(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: education === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${education === v ? C.gold : C.border}`, color: education === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: education === v ? 600 : 400 }}>
-                <span>{l}</span>
-                {education === v && <span style={{ fontSize: 16 }}>✓</span>}
-              </button>
-            ))}
-          </div>
-        </BottomSheet>
-      )}
-
-      {editField === "income" && (
-        <BottomSheet onClose={() => setEditField(null)}>
-          <div style={{ padding: "8px 20px 40px" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>年收入</div>
-            {[["","不透露"],["<20","20萬以下"],["20-50","20–50萬"],["50-100","50–100萬"],[">100","100萬以上"]].map(([v,l]) => (
-              <button key={v} onClick={() => { setIncome(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: income === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${income === v ? C.gold : C.border}`, color: income === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: income === v ? 600 : 400 }}>
-                <span>{l}</span>
-                {income === v && <span style={{ fontSize: 16 }}>✓</span>}
-              </button>
-            ))}
-          </div>
-        </BottomSheet>
-      )}
-
-      {editField === "smoking" && (
-        <BottomSheet onClose={() => setEditField(null)}>
-          <div style={{ padding: "8px 20px 40px" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>抽菸習慣</div>
-            {[["never","不抽菸"],["sometimes","偶爾抽菸"],["often","常抽菸"]].map(([v,l]) => (
-              <button key={v} onClick={() => { setSmoking(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: smoking === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${smoking === v ? C.gold : C.border}`, color: smoking === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: smoking === v ? 600 : 400 }}>
-                <span>{l}</span>{smoking === v && <span>✓</span>}
-              </button>
-            ))}
-          </div>
-        </BottomSheet>
-      )}
-
-      {editField === "drinking" && (
-        <BottomSheet onClose={() => setEditField(null)}>
-          <div style={{ padding: "8px 20px 40px" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>飲酒習慣</div>
-            {[["never","不喝酒"],["sometimes","偶爾喝酒"],["often","常喝酒"]].map(([v,l]) => (
-              <button key={v} onClick={() => { setDrinking(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: drinking === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${drinking === v ? C.gold : C.border}`, color: drinking === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: drinking === v ? 600 : 400 }}>
-                <span>{l}</span>{drinking === v && <span>✓</span>}
-              </button>
-            ))}
-          </div>
-        </BottomSheet>
-      )}
-
-      {editField === "exercise" && (
-        <BottomSheet onClose={() => setEditField(null)}>
-          <div style={{ padding: "8px 20px 40px" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>運動習慣</div>
-            {[["never","從不運動"],["sometimes","偶爾運動"],["weekly","每週運動"],["daily","每天運動"]].map(([v,l]) => (
-              <button key={v} onClick={() => { setExercise(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: exercise === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${exercise === v ? C.gold : C.border}`, color: exercise === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: exercise === v ? 600 : 400 }}>
-                <span>{l}</span>{exercise === v && <span>✓</span>}
-              </button>
-            ))}
-          </div>
-        </BottomSheet>
-      )}
-
-      {editField === "pets" && (
-        <BottomSheet onClose={() => setEditField(null)}>
-          <div style={{ padding: "8px 20px 40px" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>寵物</div>
-            {[["none","無寵物"],["cat","有養貓"],["dog","有養狗"],["other","有養其他"]].map(([v,l]) => (
-              <button key={v} onClick={() => { setHasPets(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: hasPets === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${hasPets === v ? C.gold : C.border}`, color: hasPets === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: hasPets === v ? 600 : 400 }}>
-                <span>{l}</span>{hasPets === v && <span>✓</span>}
-              </button>
-            ))}
-          </div>
-        </BottomSheet>
-      )}
     </div>
   );
 
