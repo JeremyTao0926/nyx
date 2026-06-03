@@ -67,9 +67,10 @@ function IcebreakerSheet({ them, myMbti, onClose, onUse }: { them: ExploreProfil
 }
 
 /* ─── Profile Detail Sheet (Image 2 style — full screen) ─ */
-function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlike, onChat }: {
+export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlike, onChat, mode }: {
   p: ExploreProfile; myMbti: string; myProfile: any;
   onClose: () => void; onLike: () => void; onSuperlike: () => void; onChat: () => void;
+  mode?: "discover" | "matched";
 }) {
   const [photoIdx, setPhotoIdx] = useState(0);
   const [lbIdx, setLbIdx] = useState<number|null>(null);
@@ -354,8 +355,8 @@ function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlike, onCh
           </div>
         </div>
 
-        {/* ── BOTTOM ACTION BAR ── */}
-        <ActionBar/>
+        {/* ── BOTTOM ACTION BAR — discover only ── */}
+        {(mode ?? "discover") === "discover" && <ActionBar/>}
       </div>
     </div>
   );

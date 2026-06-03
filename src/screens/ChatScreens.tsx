@@ -8,6 +8,7 @@ import { EmojiPanel } from "../components/Modals";
 import { MemoryWall } from "./MemoryWall";
 import { CloneScreen } from "./CloneScreen";
 import type { UserProfile, MatchItem, ChatMsg, ImgItem } from "../types";
+import { ProfileSheet } from './ExploreScreen';
 
 const MAX_W = { maxWidth: 480, margin: "0 auto", width: "100%" };
 
@@ -438,110 +439,6 @@ ${ctxStr}
 }
 
 /* ─── Other User Profile Modal ───────────────────────── */
-function OtherProfileModal({ profile, onClose }: { profile: any; onClose: () => void }) {
-  const [lb, setLb] = useState<{images:string[];index:number}|null>(null);
-  const [photoIdx, setPhotoIdx] = useState(0);
-  const status = onlineStatus(profile.lastActive, false);
-  const allPhotos = [profile.avatar, ...(profile.photos||[]).filter((x:string)=>x!==profile.avatar)].filter(Boolean);
-
-  if (lb) return <Lightbox lb={lb} onClose={() => setLb(null)} />;
-
-  const edu: Record<string,string> = { high_school:"高中",college:"大專",bachelor:"本科",master:"碩士",phd:"博士" };
-  const drink: Record<string,string> = { sometimes:"偶爾喝酒",often:"常喝酒" };
-  const smoke: Record<string,string> = { sometimes:"偶爾抽煙",often:"常抽煙" };
-  const exer: Record<string,string> = { sometimes:"偶爾運動",weekly:"每週運動",daily:"每天運動" };
-  const pet: Record<string,string> = { cat:"養貓",dog:"養狗",other:"有寵物" };
-  const goal: Record<string,string> = { serious:"認真交往",friends_first:"先朋友再說",casual:"隨緣",open:"開放態度" };
-  const child: Record<string,string> = { yes:"想要孩子",no:"不想要孩子",undecided:"未決定" };
-  const love: Record<string,string> = { words:"肯定言語",time:"精心時刻",acts:"服務行為",touch:"肢體接觸",gifts:"送禮" };
-  const lifeBadges = [
-    profile.occupation && { icon:"💼", text: profile.occupation },
-    profile.education && edu[profile.education] && { icon:"🎓", text: edu[profile.education] },
-    profile.height_cm && { icon:"📏", text: `${profile.height_cm} cm` },
-    profile.income && { icon:"💰", text: profile.income==="<20"?"年收20萬以下":profile.income===">100"?"年收100萬+":`年收${profile.income}萬` },
-    profile.relationship_goal && goal[profile.relationship_goal] && { icon:"💑", text: goal[profile.relationship_goal] },
-    profile.drinking && drink[profile.drinking] && { icon:"🍷", text: drink[profile.drinking] },
-    profile.smoking && smoke[profile.smoking] && { icon:"🚬", text: smoke[profile.smoking] },
-    profile.exercise && exer[profile.exercise] && { icon:"🏃", text: exer[profile.exercise] },
-    profile.has_pets && pet[profile.has_pets] && { icon:"🐾", text: pet[profile.has_pets] },
-    profile.want_children && child[profile.want_children] && { icon:"👶", text: child[profile.want_children] },
-    profile.love_language && love[profile.love_language] && { icon:"💝", text: love[profile.love_language] },
-  ].filter(Boolean) as { icon: string; text: string }[];
-
-  return (
-    <div style={{ position:"fixed",inset:0,zIndex:200,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.5)" }}>
-      <div style={{ ...MAX_W,background:C.bg,display:"flex",flexDirection:"column",height:"100%",position:"relative",margin:"0 auto",animation:"slideUp .28s cubic-bezier(.32,.72,0,1)" }}>
-
-        {/* FULL-SCREEN PHOTO */}
-        <div style={{ position:"relative",height:"62vh",minHeight:360,flexShrink:0,background:allPhotos[photoIdx]?`url(${allPhotos[photoIdx]}) center/cover no-repeat`:"linear-gradient(145deg,#2A2218,#1C1610)" }}>
-          {allPhotos.length>1&&<>
-            <div style={{ position:"absolute",top:52,left:0,right:0,display:"flex",justifyContent:"center",gap:5,zIndex:4 }}>
-              {allPhotos.map((_:any,i:number)=><div key={i} style={{ height:3,width:i===photoIdx?22:8,borderRadius:2,background:i===photoIdx?"#fff":"rgba(255,255,255,0.35)",transition:"all .25s" }}/>)}
-            </div>
-            <div style={{ position:"absolute",left:0,top:0,width:"40%",height:"100%",zIndex:3 }} onClick={e=>{e.stopPropagation();setPhotoIdx(i=>Math.max(0,i-1));}}/>
-            <div style={{ position:"absolute",right:0,top:0,width:"40%",height:"100%",zIndex:3 }} onClick={e=>{e.stopPropagation();setPhotoIdx(i=>Math.min(allPhotos.length-1,i+1));}}/>
-          </>}
-          {/* Top nav */}
-          <div style={{ position:"absolute",top:0,left:0,right:0,padding:"16px 16px 0",display:"flex",justifyContent:"space-between",zIndex:10 }}>
-            <button onClick={onClose} style={{ width:36,height:36,borderRadius:"50%",background:"rgba(12,10,8,0.55)",backdropFilter:"blur(12px)",border:"none",color:"#fff",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>‹</button>
-            {status.dot&&<span style={{ width:10,height:10,borderRadius:"50%",background:C.teal,boxShadow:`0 0 8px ${C.teal}`,alignSelf:"center" }}/>}
-          </div>
-          {/* Bottom gradient overlay */}
-          <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"60px 20px 20px",background:"linear-gradient(transparent,rgba(8,6,4,0.92))",zIndex:5 }}>
-            <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:4 }}>
-              <span style={{ fontSize:30,fontWeight:800,color:"#fff",letterSpacing:"-0.01em",textShadow:"0 2px 8px rgba(0,0,0,0.5)" }}>{profile.name}</span>
-              {profile.age&&<span style={{ fontSize:26,color:"rgba(255,255,255,0.85)",fontWeight:400 }}>{profile.age}</span>}
-            </div>
-            {profile.location&&<div style={{ fontSize:13.5,color:"rgba(255,255,255,0.65)",display:"flex",alignItems:"center",gap:4,marginBottom:8 }}><span>📍</span><span>{profile.location}</span></div>}
-            {!status.dot&&status.label&&<div style={{ fontSize:11.5,color:status.color,marginBottom:8 }}>{status.label}</div>}
-            <div style={{ display:"flex",gap:7,flexWrap:"wrap" as const }}>
-              {profile.mbti&&<span style={{ padding:"4px 12px",borderRadius:20,background:"rgba(232,54,93,0.2)",border:"1px solid rgba(232,54,93,0.35)",fontSize:12,color:"#f07",fontWeight:600 }}>✦ {profile.mbti}</span>}
-              {profile.country&&<span style={{ padding:"4px 12px",borderRadius:20,background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.18)",fontSize:12,color:"rgba(255,255,255,0.7)" }}>🌐 {profile.country}</span>}
-            </div>
-          </div>
-        </div>
-
-        {/* SCROLLABLE CONTENT */}
-        <div style={{ flex:1,overflowY:"auto" }}>
-          <div style={{ padding:"20px 20px 40px" }}>
-            {profile.bio&&<div style={{ marginBottom:22 }}>
-              <div style={{ fontSize:12,fontWeight:700,color:C.textMuted,letterSpacing:".08em",textTransform:"uppercase" as const,marginBottom:10 }}>關於我</div>
-              <div style={{ fontSize:14.5,color:C.textSub,lineHeight:1.8 }}>{profile.bio}</div>
-            </div>}
-            {profile.hobbies?.length>0&&<div style={{ marginBottom:22 }}>
-              <div style={{ fontSize:12,fontWeight:700,color:C.textMuted,letterSpacing:".08em",textTransform:"uppercase" as const,marginBottom:10 }}>興趣愛好</div>
-              <div style={{ display:"flex",flexWrap:"wrap" as const,gap:8 }}>
-                {profile.hobbies.map((h:string)=><span key={h} style={{ background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:20,padding:"6px 16px",fontSize:13.5,color:C.textSub }}>{h}</span>)}
-              </div>
-            </div>}
-            {lifeBadges.length>0&&<div style={{ marginBottom:22 }}>
-              <div style={{ fontSize:12,fontWeight:700,color:C.textMuted,letterSpacing:".08em",textTransform:"uppercase" as const,marginBottom:10 }}>基本資訊</div>
-              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
-                {lifeBadges.map((b,i)=>(
-                  <div key={i} style={{ display:"flex",alignItems:"center",gap:9,padding:"10px 14px",background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:12 }}>
-                    <span style={{ fontSize:15 }}>{b.icon}</span>
-                    <span style={{ fontSize:13,color:C.textSub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const }}>{b.text}</span>
-                  </div>
-                ))}
-              </div>
-            </div>}
-            {allPhotos.length>1&&<div>
-              <div style={{ fontSize:12,fontWeight:700,color:C.textMuted,letterSpacing:".08em",textTransform:"uppercase" as const,marginBottom:10 }}>生活照片</div>
-              <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:5 }}>
-                {allPhotos.slice(1).map((ph:string,i:number)=>(
-                  <div key={i} style={{ aspectRatio:"1",borderRadius:10,overflow:"hidden",cursor:"zoom-in" }} onClick={()=>setLb({images:allPhotos,index:i+1})}>
-                    <img src={ph} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" as const }}/>
-                  </div>
-                ))}
-              </div>
-            </div>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ─── Msg Context Menu ───────────────────────────────── */
 function MsgMenu({ msg, isMe, onCopy, onDelete, onHide, onRecall, onReply, onAnalyze, onClose, menuY }:
   { msg: ChatMsg; isMe: boolean; onCopy: () => void;
@@ -1081,7 +978,38 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
 
     {/* Other profile */}
     {lightboxImg && <Lightbox lb={{ images:[lightboxImg], index:0 }} onClose={() => setLightboxImg(null)} />}
-    {showOtherProfile && otherProfileData && <OtherProfileModal profile={otherProfileData} onClose={() => setShowOtherProfile(false)} />}
+    {showOtherProfile && otherProfileData && <ProfileSheet
+        p={{
+          id: otherProfileData.id||"",
+          name: otherProfileData.name||"",
+          age: otherProfileData.age||null,
+          mbti: otherProfileData.mbti||"",
+          bio: otherProfileData.bio||"",
+          avatar: otherProfileData.avatar||"",
+          photos: otherProfileData.photos||[],
+          location: otherProfileData.location||"",
+          country: otherProfileData.country||"",
+          ethnicity: [],
+          hobbies: otherProfileData.hobbies||[],
+          verified: false,
+          occupation: otherProfileData.occupation||null,
+          education: otherProfileData.education||null,
+          income: otherProfileData.income||null,
+          height_cm: otherProfileData.height_cm||null,
+          drinking: otherProfileData.drinking||null,
+          smoking: otherProfileData.smoking||null,
+          exercise: otherProfileData.exercise||null,
+          has_pets: otherProfileData.has_pets||null,
+          want_children: otherProfileData.want_children||null,
+          relationship_goal: otherProfileData.relationship_goal||null,
+          love_language: otherProfileData.love_language||null,
+        }}
+        myMbti=""
+        myProfile={null}
+        mode="matched"
+        onClose={() => setShowOtherProfile(false)}
+        onLike={()=>{}} onSuperlike={()=>{}} onChat={()=>{}}
+      />}
     {showMemory && <MemoryWall matchId={matchId} otherName={other.name} onClose={() => setShowMemory(false)} />}
     {showClone && <CloneScreen matchId={matchId} myUserId={myUserId} myProfile={myProfile} other={other} onClose={() => setShowClone(false)} />}
 
