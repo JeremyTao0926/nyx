@@ -85,6 +85,7 @@ function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlike, onCh
   const photoSwipeX = useRef(0);
   const [photoDx, setPhotoDx] = useState(0);
   const photoSwiping = useRef(false);
+  const photoContainerRef = useRef<HTMLDivElement>(null);
   function onSwipeStart(e: React.TouchEvent) { swipeStartX.current=e.touches[0].clientX; swipeStartY.current=e.touches[0].clientY; isSwiping.current=false; }
   function onSwipeMove(e: React.TouchEvent) {
     const dx=e.touches[0].clientX-swipeStartX.current, dy=Math.abs(e.touches[0].clientY-swipeStartY.current);
@@ -150,18 +151,23 @@ function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlike, onCh
             onTouchMove={e=>{ const dx=e.touches[0].clientX-photoSwipeX.current; if(Math.abs(dx)>8){photoSwiping.current=true; setPhotoDx(dx);} }}
             onTouchEnd={()=>{
               if(photoSwiping.current){
-                if(photoDx<-50&&photoIdx<allPhotos.length-1) setPhotoIdx(i=>i+1);
-                else if(photoDx>50&&photoIdx>0) setPhotoIdx(i=>i-1);
+                const w = photoContainerRef.current?.offsetWidth||375;
+                if(photoDx < -(w*0.25) && photoIdx<allPhotos.length-1) setPhotoIdx(i=>i+1);
+                else if(photoDx > (w*0.25) && photoIdx>0) setPhotoIdx(i=>i-1);
               }
               setPhotoDx(0); photoSwiping.current=false;
             }}>
-            <div style={{ position:"absolute",inset:0,display:"flex",
-              transform:`translateX(calc(${-photoIdx*100}% + ${photoDx}px))`,
-              transition:photoDx===0?"transform .35s cubic-bezier(.32,.72,0,1)":"none",
-              width:`${Math.max(allPhotos.length,1)*100}%` }}>
-              {allPhotos.length>0?allPhotos.map((ph,i)=>(
-                <div key={i} style={{ width:`${100/allPhotos.length}%`,height:"58vh",minHeight:340,background:ph?`url(${ph}) center/cover no-repeat`:"linear-gradient(145deg,#2A2218,#1C1610)",flexShrink:0 }}/>
-              )):<div style={{ width:"100%",height:"58vh",background:"linear-gradient(145deg,#2A2218,#1C1610)" }}/>}
+            {/* Pixel-based photo strip */}
+            <div ref={photoContainerRef} style={{ position:"absolute",inset:0,overflow:"hidden" }}>
+              <div style={{
+                display:"flex", height:"100%", willChange:"transform",
+                transform:`translateX(${-(photoIdx * (photoContainerRef.current?.offsetWidth||375)) + photoDx}px)`,
+                transition:photoDx===0?"transform .35s cubic-bezier(.32,.72,0,1)":"none"
+              }}>
+                {(allPhotos.length>0?allPhotos:['']).map((ph,i)=>(
+                  <div key={i} style={{ flexShrink:0,width:photoContainerRef.current?.offsetWidth||375,height:"100%",background:ph?`url(${ph}) center/cover no-repeat`:"linear-gradient(145deg,#2A2218,#1C1610)" }}/>
+                ))}
+              </div>
             </div>
             {/* dot indicators */}
             {allPhotos.length>1&&<div style={{ position:"absolute",top:14,left:14,right:14,display:"flex",gap:4,zIndex:5 }}>
