@@ -67,40 +67,32 @@ function IcebreakerSheet({ them, myMbti, onClose, onUse }: { them: ExploreProfil
 }
 
 /* ─── Profile Detail Sheet (Image 2 style — full screen) ─ */
-function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
-  p: ExploreProfile; myMbti: string;
+function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlike, onChat }: {
+  p: ExploreProfile; myMbti: string; myProfile: any;
   onClose: () => void; onLike: () => void; onSuperlike: () => void; onChat: () => void;
 }) {
   const [photoIdx, setPhotoIdx] = useState(0);
-  const [page, setPage] = useState<"card"|"detail">("card");
   const [lbIdx, setLbIdx] = useState<number|null>(null);
   const compat = mbtiCompatibility(myMbti, p.mbti);
   const allPhotos = [p.avatar, ...p.photos.filter(x => x !== p.avatar)].filter(Boolean);
 
-  // ── swipe-down to close ──
-  const touchStartY = useRef(0);
-  const [dragY, setDragY] = useState(0);
-  const isDragging = useRef(false);
-  function onDragStart(e: React.TouchEvent) { touchStartY.current = e.touches[0].clientY; isDragging.current = false; }
-  function onDragMove(e: React.TouchEvent) {
-    const dy = e.touches[0].clientY - touchStartY.current;
-    if (dy > 10) { isDragging.current = true; setDragY(Math.min(dy, 300)); }
-  }
-  function onDragEnd() {
-    if (dragY > 120) { onClose(); } else { setDragY(0); }
-    isDragging.current = false;
-  }
-
-  // ── swipe-right to close (detail page) ──
+  // swipe-right to close
   const swipeStartX = useRef(0);
+  const swipeStartY = useRef(0);
   const [swipeDx, setSwipeDx] = useState(0);
-  function onSwipeStart(e: React.TouchEvent) { swipeStartX.current = e.touches[0].clientX; }
+  const isSwiping = useRef(false);
+  // Photo swipe
+  const photoSwipeX = useRef(0);
+  const [photoDx, setPhotoDx] = useState(0);
+  const photoSwiping = useRef(false);
+  function onSwipeStart(e: React.TouchEvent) { swipeStartX.current=e.touches[0].clientX; swipeStartY.current=e.touches[0].clientY; isSwiping.current=false; }
   function onSwipeMove(e: React.TouchEvent) {
-    const dx = e.touches[0].clientX - swipeStartX.current;
-    if (swipeStartX.current < 40 && dx > 0) setSwipeDx(Math.min(dx, 220));
+    const dx=e.touches[0].clientX-swipeStartX.current, dy=Math.abs(e.touches[0].clientY-swipeStartY.current);
+    if (swipeStartX.current<40&&dx>0&&dy<60) { isSwiping.current=true; setSwipeDx(Math.min(dx,260)); }
   }
   function onSwipeEnd() {
-    if (swipeDx > 100) setPage("card"); else setSwipeDx(0);
+    if (isSwiping.current&&swipeDx>100) onClose();
+    setSwipeDx(0); isSwiping.current=false;
   }
 
   const edu: Record<string,string> = { high_school:"高中",college:"大專",bachelor:"本科",master:"碩士",phd:"博士" };
@@ -108,202 +100,129 @@ function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
   const goalFull: Record<string,string> = { serious:"認真交往，想要長期穩定的關係",friends_first:"先成為朋友，再慢慢發展",casual:"隨緣，順其自然",open:"開放態度" };
   const hobbyIcon: Record<string,string> = { "旅行":"✈️","音樂":"🎵","電影":"🎬","閱讀":"📖","運動":"🏃","美食":"🍜","遊戲":"🎮","攝影":"📷","藝術":"🎨","健身":"💪","瑜伽":"🧘","舞蹈":"💃","寵物":"🐾","烹飪":"🍳","戶外":"⛰️","咖啡":"☕","科技":"💻","時尚":"👗","語言":"🗣️","電競":"🎯" };
 
-  // common points — dark bg + outline icon style matching reference
-  const commonRaw: {label:string; svg:string}[] = [
-    ...p.hobbies.slice(0,2).map(h=>({ label:`都喜歡${h}`, svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>` })),
-    p.has_pets && p.has_pets!=="none" ? { label:"都養寵物", svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10l-1 7 4 2 4-2-1-7"/><path d="M2 19c0-3 1.5-5 5-5"/></svg>` } : null,
-    p.relationship_goal ? { label:"關係目標一致", svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>` } : null,
-    p.exercise && p.exercise!=="never" ? { label:"生活習慣相近", svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11M6.5 17.5h11M3 10l3.5-3.5M3 14l3.5 3.5M21 10l-3.5-3.5M21 14l-3.5 3.5"/></svg>` } : null,
-  ].filter(Boolean).slice(0,4) as {label:string;svg:string}[];
+  // Real common points
+  const sharedHobbies = (myProfile?.hobbies||[]).filter((h:string)=>(p.hobbies||[]).includes(h));
+  const commonPoints: {icon:string;label:string}[] = [];
+  sharedHobbies.slice(0,2).forEach((h:string)=>commonPoints.push({ icon:hobbyIcon[h]||"⭐", label:`都喜歡${h}` }));
+  if (myProfile?.has_pets&&myProfile.has_pets!=="none"&&p.has_pets&&p.has_pets!=="none") commonPoints.push({ icon:"🐾", label:"都養寵物" });
+  if (myProfile?.relationship_goal&&p.relationship_goal&&myProfile.relationship_goal===p.relationship_goal) commonPoints.push({ icon:"💑", label:"關係目標一致" });
+  if (myProfile?.exercise&&myProfile.exercise!=="never"&&p.exercise&&p.exercise!=="never") commonPoints.push({ icon:"🏃", label:"生活習慣相近" });
+  const finalCommon = commonPoints.slice(0,4);
 
-  // Lightbox
-  if (lbIdx !== null) return (
-    <div style={{ position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.97)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center" }}>
-      <button onClick={()=>setLbIdx(null)} style={{ position:"absolute",top:16,left:16,width:38,height:38,borderRadius:"50%",background:"rgba(255,255,255,0.1)",border:"none",color:"#fff",fontSize:22,cursor:"pointer" }}>‹</button>
+  const lifeItems = [
+    p.drinking&&p.drinking!=="never"?{ icon:"🍷", label:p.drinking==="sometimes"?"偶爾喝酒":"常喝酒" }:null,
+    p.smoking==="never"?{ icon:"🚭", label:"不抽菸" }:(p.smoking&&p.smoking!=="never"?{ icon:"🚬", label:"偶爾抽菸" }:null),
+    p.exercise&&p.exercise!=="never"?{ icon:"🏋️", label:p.exercise==="weekly"?"每週運動":"每天運動" }:null,
+    p.has_pets&&p.has_pets!=="none"?{ icon:"🐾", label:p.has_pets==="cat"?"有養貓":"有養狗" }:null,
+  ].filter(Boolean) as {icon:string;label:string}[];
+
+  const basicItems = [
+    p.height_cm?{ icon:"📐", label:`${p.height_cm} cm`, sub:"身高" }:null,
+    p.occupation?{ icon:"💼", label:p.occupation, sub:"職業" }:null,
+    p.education&&edu[p.education]?{ icon:"🎓", label:edu[p.education], sub:"學歷" }:null,
+    p.income?{ icon:"💰", label:p.income==="<20"?"20萬以下":p.income===">100"?"100萬+":"年收"+p.income+"萬", sub:"收入" }:null,
+  ].filter(Boolean) as {icon:string;label:string;sub:string}[];
+
+  if (lbIdx!==null) return (
+    <div style={{ position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.97)",display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <button onClick={()=>setLbIdx(null)} style={{ position:"absolute",top:16,left:16,width:38,height:38,borderRadius:"50%",background:"rgba(255,255,255,0.12)",border:"none",color:"#fff",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>‹</button>
       <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-        {allPhotos.length>1&&<button onClick={()=>setLbIdx(i=>Math.max(0,i!-1))} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.1)",border:"none",color:"#fff",fontSize:22,cursor:"pointer" }}>‹</button>}
+        {allPhotos.length>1&&<button onClick={()=>setLbIdx(i=>Math.max(0,i!-1))} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.12)",border:"none",color:"#fff",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>‹</button>}
         <img src={allPhotos[lbIdx]} alt="" style={{ maxWidth:"84vw",maxHeight:"84vh",objectFit:"contain" as const,borderRadius:12 }}/>
-        {allPhotos.length>1&&<button onClick={()=>setLbIdx(i=>Math.min(allPhotos.length-1,i!+1))} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.1)",border:"none",color:"#fff",fontSize:22,cursor:"pointer" }}>›</button>}
+        {allPhotos.length>1&&<button onClick={()=>setLbIdx(i=>Math.min(allPhotos.length-1,i!+1))} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.12)",border:"none",color:"#fff",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>›</button>}
       </div>
     </div>
   );
-
-  // ── Shared bottom action bar ──
-  const ActionBar = () => (
-    <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"10px 48px 28px",background:`linear-gradient(transparent,${C.bg} 32%)`,display:"flex",alignItems:"center",justifyContent:"space-between",zIndex:20 }}>
-      <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:3 }}>
-        <button onClick={onClose} style={{ width:56,height:56,borderRadius:"50%",background:"rgba(28,25,22,0.95)",border:`1px solid rgba(255,255,255,0.1)`,color:"rgba(255,255,255,0.7)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-        <span style={{ fontSize:11,color:"rgba(255,255,255,0.4)" }}>略過</span>
-      </div>
-      <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:3 }}>
-        <button onClick={onLike} style={{ width:70,height:70,borderRadius:"50%",background:"linear-gradient(135deg,#C9A84C,#E2C068)",border:"none",color:"#1C1610",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 32px rgba(201,168,76,0.4)" }}>
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-        </button>
-        <span style={{ fontSize:11,color:C.gold,fontWeight:600 }}>喜歡</span>
-      </div>
-      <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:3 }}>
-        <button onClick={onChat} style={{ width:56,height:56,borderRadius:"50%",background:"rgba(28,25,22,0.95)",border:`1px solid rgba(255,255,255,0.1)`,color:"rgba(255,255,255,0.7)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </button>
-        <span style={{ fontSize:11,color:"rgba(255,255,255,0.4)" }}>打招呼</span>
-      </div>
-    </div>
-  );
-
-  // ══════════════════════════════════════════
-  // PAGE 1 — CARD (full-screen photo + info)
-  // ══════════════════════════════════════════
-  if (page === "card") return (
-    <div style={{ position:"fixed",inset:0,zIndex:150,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.6)" }}
-      onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}>
-      <div style={{ width:"100%",maxWidth:480,height:"100%",position:"relative",background:C.bg,
-        transform:`translateY(${dragY}px)`,
-        transition: dragY===0?"transform .32s cubic-bezier(.32,.72,0,1)":"none",
-        animation: dragY===0?"slideUp .3s cubic-bezier(.32,.72,0,1)":"none" }}>
-
-        {/* ── Full-screen photo ── */}
-        <div style={{ position:"absolute",inset:0,overflow:"hidden" }}>
-          <div style={{ position:"absolute",inset:0,background:allPhotos[photoIdx]?`url(${allPhotos[photoIdx]}) center/cover no-repeat`:"linear-gradient(145deg,#2A2218,#1C1610)" }}/>
-          {/* tap zones for photo nav */}
-          {allPhotos.length>1&&<>
-            <div style={{ position:"absolute",left:0,top:0,width:"35%",height:"60%",zIndex:3 }} onClick={e=>{e.stopPropagation();setPhotoIdx(i=>Math.max(0,i-1));}}/>
-            <div style={{ position:"absolute",right:0,top:0,width:"35%",height:"60%",zIndex:3 }} onClick={e=>{e.stopPropagation();setPhotoIdx(i=>Math.min(allPhotos.length-1,i+1));}}/>
-          </>}
-          {/* dot indicators */}
-          {allPhotos.length>1&&<div style={{ position:"absolute",top:14,left:14,right:52,display:"flex",gap:4,zIndex:5 }}>
-            {allPhotos.map((_,i)=><div key={i} style={{ flex:1,height:3,borderRadius:2,background:i===photoIdx?"rgba(255,255,255,0.95)":"rgba(255,255,255,0.3)",transition:"all .25s" }}/>)}
-          </div>}
-          {/* ⋯ top-right */}
-          <div style={{ position:"absolute",top:10,right:12,zIndex:6 }}>
-            <button style={{ width:36,height:36,borderRadius:"50%",background:"rgba(0,0,0,0.4)",backdropFilter:"blur(8px)",border:"none",color:"#fff",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>⋯</button>
-          </div>
-          {/* Bottom gradient — heavy, matches reference */}
-          <div style={{ position:"absolute",bottom:0,left:0,right:0,height:"55%",background:"linear-gradient(transparent,rgba(12,10,8,0.92) 60%,rgba(12,10,8,1) 100%)",zIndex:4 }}/>
-          {/* Name / info overlay */}
-          <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"0 20px 188px",zIndex:5 }}>
-            <div style={{ display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:4 }}>
-              <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:2 }}>
-                  <span style={{ fontSize:30,fontWeight:800,color:"#fff",letterSpacing:"-0.02em" }}>{p.name}</span>
-                  {p.verified&&<svg width="20" height="20" viewBox="0 0 24 24" fill={C.gold}><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 0 1.946-.806 3.42 3.42 0 0 1 4.438 0 3.42 3.42 0 0 0 1.946.806 3.42 3.42 0 0 1 3.138 3.138 3.42 3.42 0 0 0 .806 1.946 3.42 3.42 0 0 1 0 4.438 3.42 3.42 0 0 0-.806 1.946 3.42 3.42 0 0 1-3.138 3.138 3.42 3.42 0 0 0-1.946.806 3.42 3.42 0 0 1-4.438 0 3.42 3.42 0 0 0-1.946-.806 3.42 3.42 0 0 1-3.138-3.138 3.42 3.42 0 0 0-.806-1.946 3.42 3.42 0 0 1 0-4.438 3.42 3.42 0 0 0 .806-1.946 3.42 3.42 0 0 1 3.138-3.138z"/></svg>}
-                </div>
-                <div style={{ fontSize:15,color:"rgba(255,255,255,0.72)",marginBottom:2 }}>
-                  {[p.age?`${p.age} 歲`:null, p.location||null].filter(Boolean).join(" · ")}
-                </div>
-                {(p.occupation||p.education)&&<div style={{ fontSize:13.5,color:"rgba(255,255,255,0.5)",marginBottom:10 }}>
-                  {[p.occupation||null, p.education&&edu[p.education]||null].filter(Boolean).join(" · ")}
-                </div>}
-                {p.relationship_goal&&goalShort[p.relationship_goal]&&<div style={{ display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:20,background:"rgba(201,168,76,0.18)",border:`1px solid rgba(201,168,76,0.35)` }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill={C.gold}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                  <span style={{ fontSize:13,color:C.gold,fontWeight:600 }}>{goalShort[p.relationship_goal]}</span>
-                </div>}
-              </div>
-              {/* Compat circle */}
-              <div style={{ width:76,height:76,borderRadius:"50%",background:"rgba(12,10,8,0.7)",backdropFilter:"blur(12px)",border:`2.5px solid ${C.gold}`,display:"flex",flexDirection:"column" as const,alignItems:"center",justifyContent:"center",flexShrink:0,marginLeft:12,marginBottom:4 }}>
-                <span style={{ fontSize:19,fontWeight:800,color:C.gold,lineHeight:1 }}>{compat.score}%</span>
-                <span style={{ fontSize:8.5,color:"rgba(255,255,255,0.5)",marginTop:2,textAlign:"center" as const,lineHeight:1.3 }}>相配度很高✨</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Scrollable bottom sheet area ── */}
-        <div style={{ position:"absolute",bottom:0,left:0,right:0,zIndex:10 }}>
-          {/* Common points card */}
-          {commonRaw.length>0&&<div style={{ margin:"0 14px",background:"rgba(22,19,16,0.96)",backdropFilter:"blur(16px)",borderRadius:16,border:`1px solid rgba(255,255,255,0.07)`,padding:"14px 16px",marginBottom:12 }}>
-            <div style={{ fontSize:13,fontWeight:700,color:C.text,marginBottom:12 }}>你們有 {commonRaw.length} 個共同點</div>
-            <div style={{ display:"flex",gap:0,justifyContent:"space-around" }}>
-              {commonRaw.map((pt,i)=>(
-                <div key={i} style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:6,flex:1 }}>
-                  <div style={{ width:46,height:46,borderRadius:14,background:"rgba(255,255,255,0.06)",display:"flex",alignItems:"center",justifyContent:"center",color:"rgba(255,255,255,0.8)" }} dangerouslySetInnerHTML={{ __html: pt.svg.replace(/stroke-width/g,'strokeWidth').replace(/stroke-linecap/g,'strokeLinecap').replace(/stroke-linejoin/g,'strokeLinejoin').replace(/fill="none"/g,'fill="none"') }}/>
-                  <span style={{ fontSize:10,color:"rgba(255,255,255,0.45)",textAlign:"center" as const,lineHeight:1.3,maxWidth:56 }}>{pt.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>}
-
-          {/* Bio preview */}
-          {p.bio&&<div style={{ margin:"0 14px",marginBottom:12 }}>
-            <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:6 }}>
-              <span style={{ fontSize:20,color:C.gold,fontFamily:"Georgia,serif",lineHeight:.8 }}>"</span>
-              <span style={{ fontSize:13,fontWeight:700,color:C.text }}>關於我</span>
-            </div>
-            <div style={{ fontSize:13.5,color:"rgba(255,255,255,0.55)",lineHeight:1.75,paddingLeft:4 }}>{p.bio.slice(0,120)}{p.bio.length>120?"...":""}</div>
-          </div>}
-
-          {/* Photo strip */}
-          {allPhotos.length>0&&<div style={{ margin:"0 14px",marginBottom:10 }}>
-            <div style={{ fontSize:12.5,color:"rgba(255,255,255,0.38)",marginBottom:7 }}>照片 {photoIdx+1}/{allPhotos.length}</div>
-            <div style={{ display:"flex",gap:6,overflowX:"auto" as const }}>
-              {allPhotos.map((ph,i)=>(
-                <div key={i} onClick={()=>setPage("detail")} style={{ width:78,height:96,borderRadius:10,overflow:"hidden",flexShrink:0,border:i===photoIdx?`2px solid ${C.gold}`:"2px solid transparent",cursor:"pointer" }}>
-                  <img src={ph} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" as const }}/>
-                </div>
-              ))}
-            </div>
-          </div>}
-        </div>
-
-        <ActionBar/>
-      </div>
-    </div>
-  );
-
-  // ══════════════════════════════════════════
-  // PAGE 2 — DETAIL
-  // ══════════════════════════════════════════
-  const lifeItems: {svg:string;label:string}[] = [
-    p.drinking&&p.drinking!=="never" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M8 22h8M7 10h10M12 15v7M17 2H7l-2 8a5 5 0 0 0 10 0l-2-8"/></svg>`, label:p.drinking==="sometimes"?"偶爾喝酒":"常喝酒" } : null,
-    p.smoking==="never" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M9 9H3v6h6M12 12h9v3M16.5 9c0 0 1.5-2 1.5-3.5a2 2 0 0 0-4 0"/></svg>`, label:"不抽菸" } :
-    p.smoking&&p.smoking!=="never" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h9v3H3z"/><path d="M15 12h3v3h-3z"/><path d="M18 15v-2M17 7c0 0 1-1 1-2a2 2 0 0 0-4 0"/></svg>`, label:"偶爾抽菸" } : null,
-    p.exercise&&p.exercise!=="never" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5h11M6.5 17.5h11M3 10l3.5-3.5M3 14l3.5 3.5M21 10l-3.5-3.5M21 14l-3.5 3.5"/></svg>`, label:p.exercise==="weekly"?"每週運動":"每天運動" } : null,
-    p.has_pets&&p.has_pets!=="none" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10l-1 7 4 2 4-2-1-7"/><path d="M2 19c0-3 1.5-5 5-5"/></svg>`, label:p.has_pets==="cat"?"有養貓":"有養狗" } : null,
-  ].filter(Boolean) as {svg:string;label:string}[];
-  const basicItems: {svg:string;label:string;sub:string}[] = [
-    p.height_cm ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M9 5l3-3 3 3M9 19l3 3 3-3"/></svg>`, label:`${p.height_cm} cm`, sub:"身高" } : null,
-    p.occupation ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>`, label:p.occupation, sub:"職業" } : null,
-    p.education&&edu[p.education] ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>`, label:edu[p.education], sub:"學歷" } : null,
-    p.income ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M9 9h4.5a2 2 0 0 1 0 4H9"/></svg>`, label:p.income==="<20"?"20萬以下":p.income===">100"?"年收100萬+":"年收"+p.income+"萬", sub:"收入" } : null,
-  ].filter(Boolean) as {svg:string;label:string;sub:string}[];
 
   return (
-    <div style={{ position:"fixed",inset:0,zIndex:150,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.6)" }}>
-      <div
-        onTouchStart={onSwipeStart} onTouchMove={onSwipeMove} onTouchEnd={onSwipeEnd}
-        style={{ width:"100%",maxWidth:480,height:"100%",position:"relative",background:C.bg,
-          transform:`translateX(${swipeDx}px)`,
-          transition:swipeDx===0?"transform .3s cubic-bezier(.32,.72,0,1)":"none",
-          animation:swipeDx===0?"slideUp .25s cubic-bezier(.32,.72,0,1)":"none",
-          boxShadow:swipeDx>10?"-8px 0 24px rgba(0,0,0,0.5)":"none",
-          display:"flex",flexDirection:"column" as const }}>
+    <div style={{ position:"fixed",inset:0,zIndex:150,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.55)" }}>
+      <div onTouchStart={onSwipeStart} onTouchMove={onSwipeMove} onTouchEnd={onSwipeEnd}
+        style={{ width:"100%",maxWidth:480,height:"100%",background:C.bg,display:"flex",flexDirection:"column" as const,position:"relative",
+          transform:`translateX(${swipeDx}px)`,transition:swipeDx===0?"transform .3s cubic-bezier(.32,.72,0,1)":"none",
+          boxShadow:swipeDx>10?"-10px 0 30px rgba(0,0,0,0.6)":"none",animation:"slideUp .28s cubic-bezier(.32,.72,0,1)" }}>
 
-        {/* Navbar */}
-        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 16px 12px",borderBottom:`1px solid rgba(255,255,255,0.06)`,flexShrink:0 }}>
-          <button onClick={()=>setPage("card")} style={{ width:36,height:36,borderRadius:"50%",background:"none",border:"none",color:C.text,fontSize:24,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1 }}>‹</button>
-          <span style={{ fontSize:16,fontWeight:700,color:C.text }}>{p.name}</span>
-          <button style={{ width:36,height:36,borderRadius:"50%",background:"none",border:"none",color:C.textMuted,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>⋯</button>
-        </div>
+        {/* ONE scrollable area — photo sticky on top, content below */}
+        <div style={{ flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch" as any }}>
 
-        <div style={{ flex:1,overflowY:"auto",paddingBottom:120 }}>
-          <div style={{ padding:"20px 20px 0" }}>
+          {/* ── PHOTO hero ── */}
+          <div style={{ position:"relative",height:"58vh",minHeight:340,flexShrink:0,overflow:"hidden" }}
+            onTouchStart={e=>{ photoSwipeX.current=e.touches[0].clientX; photoSwiping.current=false; }}
+            onTouchMove={e=>{ const dx=e.touches[0].clientX-photoSwipeX.current; if(Math.abs(dx)>8){photoSwiping.current=true; setPhotoDx(dx);} }}
+            onTouchEnd={()=>{
+              if(photoSwiping.current){
+                if(photoDx<-50&&photoIdx<allPhotos.length-1) setPhotoIdx(i=>i+1);
+                else if(photoDx>50&&photoIdx>0) setPhotoIdx(i=>i-1);
+              }
+              setPhotoDx(0); photoSwiping.current=false;
+            }}>
+            <div style={{ position:"absolute",inset:0,display:"flex",
+              transform:`translateX(calc(${-photoIdx*100}% + ${photoDx}px))`,
+              transition:photoDx===0?"transform .35s cubic-bezier(.32,.72,0,1)":"none",
+              width:`${Math.max(allPhotos.length,1)*100}%` }}>
+              {allPhotos.length>0?allPhotos.map((ph,i)=>(
+                <div key={i} style={{ width:`${100/allPhotos.length}%`,height:"58vh",minHeight:340,background:ph?`url(${ph}) center/cover no-repeat`:"linear-gradient(145deg,#2A2218,#1C1610)",flexShrink:0 }}/>
+              )):<div style={{ width:"100%",height:"58vh",background:"linear-gradient(145deg,#2A2218,#1C1610)" }}/>}
+            </div>
+            {/* dot indicators */}
+            {allPhotos.length>1&&<div style={{ position:"absolute",top:14,left:14,right:14,display:"flex",gap:4,zIndex:5 }}>
+              {allPhotos.map((_,i)=><div key={i} style={{ flex:1,height:3,borderRadius:2,background:i===photoIdx?"rgba(255,255,255,0.95)":"rgba(255,255,255,0.28)",transition:"all .22s" }}/>)}
+            </div>}
 
-            {/* Bio */}
-            {p.bio&&<div style={{ marginBottom:26 }}>
-              <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
-                <span style={{ fontSize:24,color:C.gold,fontFamily:"Georgia,serif",lineHeight:.7 }}>"</span>
-                <span style={{ fontSize:15,fontWeight:700,color:C.text }}>關於我</span>
+
+            {/* gradient */}
+            <div style={{ position:"absolute",bottom:0,left:0,right:0,height:"70%",background:"linear-gradient(transparent,rgba(12,10,8,0.9) 60%,rgba(12,10,8,1) 100%)",zIndex:4 }}/>
+            {/* NAME OVERLAY — bottom-left inside photo */}
+            <div style={{ position:"absolute",bottom:18,left:20,right:20,zIndex:5,display:"flex",alignItems:"flex-end",justifyContent:"space-between" }}>
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:3 }}>
+                  <span style={{ fontSize:28,fontWeight:800,color:"#fff",letterSpacing:"-0.02em" }}>{p.name}</span>
+                  {p.verified&&<svg width="20" height="20" viewBox="0 0 24 24" fill={C.gold}><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 0 1.946-.806 3.42 3.42 0 0 1 4.438 0 3.42 3.42 0 0 0 1.946.806 3.42 3.42 0 0 1 3.138 3.138 3.42 3.42 0 0 0 .806 1.946 3.42 3.42 0 0 1 0 4.438 3.42 3.42 0 0 0-.806 1.946 3.42 3.42 0 0 1-3.138 3.138 3.42 3.42 0 0 0-1.946.806 3.42 3.42 0 0 1-4.438 0 3.42 3.42 0 0 0-1.946-.806 3.42 3.42 0 0 1-3.138-3.138 3.42 3.42 0 0 0-.806-1.946 3.42 3.42 0 0 1 0-4.438 3.42 3.42 0 0 0 .806-1.946 3.42 3.42 0 0 1 3.138-3.138z"/></svg>}
+                </div>
+                <div style={{ fontSize:14.5,color:"rgba(255,255,255,0.68)",marginBottom:2 }}>{[p.age?`${p.age} 歲`:null,p.location||null].filter(Boolean).join(" · ")}</div>
+                {(p.occupation||p.education)&&<div style={{ fontSize:13.5,color:"rgba(255,255,255,0.5)",marginBottom:10 }}>{[p.occupation||null,p.education&&edu[p.education]||null].filter(Boolean).join(" · ")}</div>}
+                {p.relationship_goal&&goalShort[p.relationship_goal]&&<div style={{ display:"inline-flex",alignItems:"center",gap:6,padding:"5px 13px",borderRadius:20,background:"rgba(201,168,76,0.18)",border:"1px solid rgba(201,168,76,0.32)" }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill={C.gold}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                  <span style={{ fontSize:12.5,color:C.gold,fontWeight:600 }}>{goalShort[p.relationship_goal]}</span>
+                </div>}
               </div>
-              <div style={{ fontSize:14.5,color:C.textSub,lineHeight:1.85 }}>{p.bio}</div>
+              <div style={{ width:74,height:74,borderRadius:"50%",background:"rgba(12,10,8,0.75)",backdropFilter:"blur(12px)",border:`2.5px solid ${C.gold}`,display:"flex",flexDirection:"column" as const,alignItems:"center",justifyContent:"center",flexShrink:0,marginLeft:12 }}>
+                <span style={{ fontSize:18,fontWeight:800,color:C.gold,lineHeight:1 }}>{compat.score}%</span>
+                <span style={{ fontSize:8,color:"rgba(255,255,255,0.45)",marginTop:2,textAlign:"center" as const }}>相配度很高✨</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ── ALL CONTENT below photo, single scroll ── */}
+          <div style={{ padding:"14px 16px 120px",background:C.bg }}>
+
+            {/* Common points */}
+            {finalCommon.length>0&&<div style={{ background:"#141210",borderRadius:16,border:"1px solid rgba(255,255,255,0.06)",padding:"14px 16px",marginBottom:16 }}>
+              <div style={{ fontSize:13.5,fontWeight:700,color:C.text,marginBottom:14 }}>你們有 {finalCommon.length} 個共同點</div>
+              <div style={{ display:"flex",justifyContent:"space-around" }}>
+                {finalCommon.map((pt,i)=>(
+                  <div key={i} style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:7,flex:1 }}>
+                    <div style={{ width:48,height:48,borderRadius:14,background:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22 }}>{pt.icon}</div>
+                    <span style={{ fontSize:10.5,color:"rgba(255,255,255,0.42)",textAlign:"center" as const,lineHeight:1.3,maxWidth:58 }}>{pt.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>}
+
+            {/* About me */}
+            {p.bio&&<div style={{ marginBottom:20 }}>
+              <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:8 }}>
+                <span style={{ fontSize:28,color:"#E8365D",fontFamily:"Georgia,serif",fontWeight:700,lineHeight:0.75 }}>"</span>
+                <span style={{ fontSize:14,fontWeight:700,color:C.text }}>關於我</span>
+              </div>
+              <div style={{ fontSize:14,color:"rgba(245,237,214,0.6)",lineHeight:1.85 }}>{p.bio}</div>
             </div>}
 
             {/* Photo strip */}
-            {allPhotos.length>0&&<div style={{ marginBottom:26 }}>
-              <div style={{ fontSize:13.5,color:C.textMuted,marginBottom:10 }}>照片 {allPhotos.length}/5</div>
-              <div style={{ display:"flex",gap:7,overflowX:"auto" as const,paddingBottom:2 }}>
+            {allPhotos.length>0&&<div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:13,color:"rgba(245,237,214,0.36)",marginBottom:8 }}>照片 {photoIdx+1}/{allPhotos.length}</div>
+              <div style={{ display:"flex",gap:7,overflowX:"auto" as const }}>
                 {allPhotos.map((ph,i)=>(
-                  <div key={i} onClick={()=>setLbIdx(i)} style={{ width:88,height:112,borderRadius:12,overflow:"hidden",flexShrink:0,cursor:"pointer" }}>
+                  <div key={i} onClick={()=>setPhotoIdx(i)} style={{ width:80,height:96,borderRadius:10,overflow:"hidden",flexShrink:0,cursor:"pointer",border:i===photoIdx?`2.5px solid ${C.gold}`:"2.5px solid transparent",transition:"border-color .2s" }}>
                     <img src={ph} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" as const }}/>
                   </div>
                 ))}
@@ -311,28 +230,28 @@ function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
             </div>}
 
             {/* Hobbies */}
-            {p.hobbies.length>0&&<div style={{ marginBottom:26 }}>
+            {p.hobbies.length>0&&<div style={{ marginBottom:22 }}>
               <div style={{ fontSize:15,fontWeight:700,color:C.text,marginBottom:12 }}>興趣愛好</div>
               <div style={{ display:"flex",flexWrap:"wrap" as const,gap:8 }}>
-                {p.hobbies.map(h=>(
-                  <div key={h} style={{ display:"flex",alignItems:"center",gap:6,padding:"7px 15px",borderRadius:20,background:C.bgCard,border:`1px solid rgba(255,255,255,0.07)` }}>
+                {p.hobbies.slice(0,6).map(h=>(
+                  <div key={h} style={{ display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:20,background:"#141210",border:"1px solid rgba(255,255,255,0.07)" }}>
                     <span style={{ fontSize:14 }}>{hobbyIcon[h]||"⭐"}</span>
                     <span style={{ fontSize:13.5,color:C.textSub }}>{h}</span>
                   </div>
                 ))}
-                {p.hobbies.length>5&&<div style={{ display:"flex",alignItems:"center",justifyContent:"center",padding:"7px 15px",borderRadius:20,background:C.bgCard,border:`1px solid rgba(255,255,255,0.07)` }}>
+                {p.hobbies.length>6&&<div style={{ display:"flex",alignItems:"center",padding:"7px 14px",borderRadius:20,background:"#141210",border:"1px solid rgba(255,255,255,0.07)" }}>
                   <span style={{ fontSize:13.5,color:C.textMuted }}>···</span>
                 </div>}
               </div>
             </div>}
 
             {/* Life style */}
-            {lifeItems.length>0&&<div style={{ marginBottom:26 }}>
-              <div style={{ fontSize:15,fontWeight:700,color:C.text,marginBottom:16 }}>生活方式</div>
-              <div style={{ display:"flex",gap:24,flexWrap:"wrap" as const }}>
+            {lifeItems.length>0&&<div style={{ marginBottom:22 }}>
+              <div style={{ fontSize:15,fontWeight:700,color:C.text,marginBottom:18 }}>生活方式</div>
+              <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8 }}>
                 {lifeItems.map((item,i)=>(
-                  <div key={i} style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:8,minWidth:52 }}>
-                    <div style={{ width:46,height:46,display:"flex",alignItems:"center",justifyContent:"center",color:C.textSub }} dangerouslySetInnerHTML={{ __html: item.svg }}/>
+                  <div key={i} style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:7 }}>
+                    <span style={{ fontSize:28 }}>{item.icon}</span>
                     <span style={{ fontSize:12,color:C.textSub,textAlign:"center" as const }}>{item.label}</span>
                   </div>
                 ))}
@@ -340,15 +259,15 @@ function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
             </div>}
 
             {/* Basic info */}
-            {basicItems.length>0&&<div style={{ marginBottom:26 }}>
-              <div style={{ fontSize:15,fontWeight:700,color:C.text,marginBottom:16 }}>基本資料</div>
-              <div style={{ display:"flex",gap:24,flexWrap:"wrap" as const }}>
+            {basicItems.length>0&&<div style={{ marginBottom:22 }}>
+              <div style={{ fontSize:15,fontWeight:700,color:C.text,marginBottom:18 }}>基本資料</div>
+              <div style={{ display:"grid",gridTemplateColumns:`repeat(${Math.min(4,basicItems.length)},1fr)`,gap:8 }}>
                 {basicItems.map((item,i)=>(
-                  <div key={i} style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:8,minWidth:52 }}>
-                    <div style={{ width:46,height:46,display:"flex",alignItems:"center",justifyContent:"center",color:C.textSub }} dangerouslySetInnerHTML={{ __html: item.svg }}/>
+                  <div key={i} style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:7 }}>
+                    <span style={{ fontSize:28 }}>{item.icon}</span>
                     <div style={{ textAlign:"center" as const }}>
                       <div style={{ fontSize:13,color:C.text,fontWeight:600 }}>{item.label}</div>
-                      <div style={{ fontSize:11,color:C.textMuted,marginTop:1 }}>{item.sub}</div>
+                      <div style={{ fontSize:11,color:C.textMuted,marginTop:2 }}>{item.sub}</div>
                     </div>
                   </div>
                 ))}
@@ -356,18 +275,38 @@ function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
             </div>}
 
             {/* Relationship goal */}
-            {p.relationship_goal&&goalFull[p.relationship_goal]&&<div style={{ marginBottom:26 }}>
+            {p.relationship_goal&&goalFull[p.relationship_goal]&&<div>
               <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:8 }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill={C.rose}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="#E8365D"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 <span style={{ fontSize:15,fontWeight:700,color:C.text }}>關係目標</span>
               </div>
-              <div style={{ fontSize:14,color:C.textSub,lineHeight:1.7 }}>{goalFull[p.relationship_goal]}</div>
+              <div style={{ fontSize:14,color:C.textSub,lineHeight:1.75 }}>{goalFull[p.relationship_goal]}</div>
             </div>}
 
           </div>
         </div>
 
-        <ActionBar/>
+        {/* Fixed bottom action bar */}
+        <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"8px 40px 28px",background:`linear-gradient(transparent,${C.bg} 38%)`,display:"flex",alignItems:"center",justifyContent:"space-between",zIndex:20 }}>
+          <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:5 }}>
+            <button onClick={onClose} style={{ width:56,height:56,borderRadius:"50%",background:"#1C1916",border:"1px solid rgba(255,255,255,0.09)",color:"rgba(255,255,255,0.6)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <span style={{ fontSize:11.5,color:"rgba(255,255,255,0.32)" }}>略過</span>
+          </div>
+          <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:5 }}>
+            <button onClick={onLike} style={{ width:72,height:72,borderRadius:"50%",background:"linear-gradient(135deg,#C9A84C,#E8D080)",border:"none",color:"#1C1610",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 32px rgba(201,168,76,0.45)" }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            </button>
+            <span style={{ fontSize:11.5,color:C.gold,fontWeight:600 }}>喜歡</span>
+          </div>
+          <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:5 }}>
+            <button onClick={onChat} style={{ width:56,height:56,borderRadius:"50%",background:"#1C1916",border:"1px solid rgba(255,255,255,0.09)",color:"rgba(255,255,255,0.6)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </button>
+            <span style={{ fontSize:11.5,color:"rgba(255,255,255,0.32)" }}>打招呼</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -591,7 +530,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
       )}
 
       {/* Profile detail sheet */}
-      {showProfile && <ProfileSheet p={showProfile} myMbti={myMbti} onClose={()=>setShowProfile(null)}
+      {showProfile && <ProfileSheet p={showProfile} myMbti={myMbti} myProfile={profile} onClose={()=>setShowProfile(null)}
         onLike={()=>{doSwipe("like");setShowProfile(null);}}
         onSuperlike={()=>{doSwipe("superlike");setShowProfile(null);}}
         onChat={()=>{ setShowProfile(null); }}
