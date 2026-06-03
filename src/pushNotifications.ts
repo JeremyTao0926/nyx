@@ -1,7 +1,7 @@
 // NYX Web Push — Client side
 
 // Your VAPID public key (generated)
-const VAPID_PUBLIC = 'CIqbxWrNOz86y1kCS3Kwppt3UCu8cPSGXPynOUFNc1otiDBRarClwxCS8SL20suv4iXaENtk0paY5_kCgXrvUw';
+const VAPID_PUBLIC = 'BF2EDLbL292Wn-EuER8fWLbBFCjnoEOlqqP9d9jNNEjREmTYduDh4XtziaX3b9uvEpNMcnaDQbYTXVhe6woPxQM';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
