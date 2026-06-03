@@ -77,159 +77,173 @@ function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
   const compat = mbtiCompatibility(myMbti, p.mbti);
   const allPhotos = [p.avatar, ...p.photos.filter(x => x !== p.avatar)].filter(Boolean);
 
-  // Lightbox
-  if (lbIdx !== null) return (
-    <div style={{ position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.96)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center" }}>
-      <button onClick={()=>setLbIdx(null)} style={{ position:"absolute",top:16,left:16,width:38,height:38,borderRadius:"50%",background:"rgba(255,255,255,0.1)",border:"none",color:"#fff",fontSize:22,cursor:"pointer" }}>‹</button>
-      <div style={{ display:"flex",alignItems:"center",gap:16 }}>
-        {allPhotos.length>1 && <button onClick={()=>setLbIdx(i=>Math.max(0,i!-1))} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.1)",border:"none",color:"#fff",fontSize:22,cursor:"pointer" }}>‹</button>}
-        <img src={allPhotos[lbIdx]} alt="" style={{ maxWidth:"78vw",maxHeight:"82vh",objectFit:"contain" as const,borderRadius:12 }}/>
-        {allPhotos.length>1 && <button onClick={()=>setLbIdx(i=>Math.min(allPhotos.length-1,i!+1))} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.1)",border:"none",color:"#fff",fontSize:22,cursor:"pointer" }}>›</button>}
-      </div>
-    </div>
-  );
+  // ── swipe-down to close ──
+  const touchStartY = useRef(0);
+  const [dragY, setDragY] = useState(0);
+  const isDragging = useRef(false);
+  function onDragStart(e: React.TouchEvent) { touchStartY.current = e.touches[0].clientY; isDragging.current = false; }
+  function onDragMove(e: React.TouchEvent) {
+    const dy = e.touches[0].clientY - touchStartY.current;
+    if (dy > 10) { isDragging.current = true; setDragY(Math.min(dy, 300)); }
+  }
+  function onDragEnd() {
+    if (dragY > 120) { onClose(); } else { setDragY(0); }
+    isDragging.current = false;
+  }
 
-  // ── lookup tables ──
+  // ── swipe-right to close (detail page) ──
+  const swipeStartX = useRef(0);
+  const [swipeDx, setSwipeDx] = useState(0);
+  function onSwipeStart(e: React.TouchEvent) { swipeStartX.current = e.touches[0].clientX; }
+  function onSwipeMove(e: React.TouchEvent) {
+    const dx = e.touches[0].clientX - swipeStartX.current;
+    if (swipeStartX.current < 40 && dx > 0) setSwipeDx(Math.min(dx, 220));
+  }
+  function onSwipeEnd() {
+    if (swipeDx > 100) setPage("card"); else setSwipeDx(0);
+  }
+
   const edu: Record<string,string> = { high_school:"高中",college:"大專",bachelor:"本科",master:"碩士",phd:"博士" };
-  const goalMap: Record<string,string> = { serious:"認真交往，想要長期穩定的關係",friends_first:"先成為朋友，再慢慢發展",casual:"隨緣，順其自然",open:"開放態度" };
   const goalShort: Record<string,string> = { serious:"認真交往",friends_first:"先朋友再說",casual:"隨緣",open:"開放態度" };
+  const goalFull: Record<string,string> = { serious:"認真交往，想要長期穩定的關係",friends_first:"先成為朋友，再慢慢發展",casual:"隨緣，順其自然",open:"開放態度" };
   const hobbyIcon: Record<string,string> = { "旅行":"✈️","音樂":"🎵","電影":"🎬","閱讀":"📖","運動":"🏃","美食":"🍜","遊戲":"🎮","攝影":"📷","藝術":"🎨","健身":"💪","瑜伽":"🧘","舞蹈":"💃","寵物":"🐾","烹飪":"🍳","戶外":"⛰️","咖啡":"☕","科技":"💻","時尚":"👗","語言":"🗣️","電競":"🎯" };
 
-  // Common points (shared hobbies + lifestyle overlap)
-  const sharedHobbies = p.hobbies.slice(0,2);
-  const commonPoints: {icon:string;label:string}[] = [
-    ...sharedHobbies.map(h=>({ icon: hobbyIcon[h]||"⭐", label:`都喜歡${h}` })),
-    p.has_pets && p.has_pets!=="none" ? { icon:"🐾", label:"都養寵物" } : null,
-    p.relationship_goal ? { icon:"♥", label:"關係目標一致" } : null,
-    p.exercise && p.exercise!=="never" ? { icon:"🏃", label:"生活習慣相近" } : null,
-  ].filter(Boolean).slice(0,4) as {icon:string;label:string}[];
+  // common points — dark bg + outline icon style matching reference
+  const commonRaw: {label:string; svg:string}[] = [
+    ...p.hobbies.slice(0,2).map(h=>({ label:`都喜歡${h}`, svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>` })),
+    p.has_pets && p.has_pets!=="none" ? { label:"都養寵物", svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10l-1 7 4 2 4-2-1-7"/><path d="M2 19c0-3 1.5-5 5-5"/></svg>` } : null,
+    p.relationship_goal ? { label:"關係目標一致", svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>` } : null,
+    p.exercise && p.exercise!=="never" ? { label:"生活習慣相近", svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11M6.5 17.5h11M3 10l3.5-3.5M3 14l3.5 3.5M21 10l-3.5-3.5M21 14l-3.5 3.5"/></svg>` } : null,
+  ].filter(Boolean).slice(0,4) as {label:string;svg:string}[];
 
-  // Life style items
-  const lifeItems: {svg:string;label:string}[] = [
-    p.drinking && p.drinking!=="never" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 22h8"/><path d="M7 10h10"/><path d="M12 15v7"/><path d="M17 2H7l-2 8a5 5 0 0 0 10 0l-2-8"/></svg>`, label: p.drinking==="sometimes"?"偶爾喝酒":"常喝酒" } : null,
-    p.smoking==="never" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M9 9H3v6h6"/><path d="M12 12h9v3"/><path d="M16.5 9c0 0 1.5-2 1.5-3.5a2 2 0 0 0-4 0"/></svg>`, label:"不抽菸" } :
-    p.smoking && p.smoking!=="never" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h9v3H3z"/><path d="M15 12h3v3h-3z"/><path d="M18 15v-2"/><path d="M17 7c0 0 1-1 1-2a2 2 0 0 0-4 0"/></svg>`, label:"偶爾抽菸" } : null,
-    p.exercise && p.exercise!=="never" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11"/><path d="M6.5 17.5h11"/><path d="M3 10l3.5-3.5"/><path d="M3 14l3.5 3.5"/><path d="M21 10l-3.5-3.5"/><path d="M21 14l-3.5 3.5"/></svg>`, label: p.exercise==="weekly"?"每週運動":"每天運動" } : null,
-    p.has_pets && p.has_pets!=="none" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10l-1 7 4 2 4-2-1-7"/><path d="M2 19c0-3 1.5-5 5-5"/></svg>`, label: p.has_pets==="cat"?"有養貓":"有養狗" } : null,
-  ].filter(Boolean) as {svg:string;label:string}[];
-
-  // Basic info items
-  const basicItems: {svg:string;label:string;sub:string}[] = [
-    p.height_cm ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M9 5l3-3 3 3"/><path d="M9 19l3 3 3-3"/></svg>`, label:`${p.height_cm} cm`, sub:"身高" } : null,
-    p.occupation ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>`, label: p.occupation, sub:"職業" } : null,
-    p.education && edu[p.education] ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>`, label: edu[p.education], sub:"學歷" } : null,
-    p.income ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M8 9h8"/></svg>`, label: p.income==="<20"?"20萬以下":p.income===">100"?"年收100萬+":"年收"+p.income+"萬", sub:"收入" } : null,
-  ].filter(Boolean) as {svg:string;label:string;sub:string}[];
-
-  // ── ACTION BAR (shared) ──
-  const ActionBar = () => (
-    <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"12px 48px 32px",background:`linear-gradient(transparent,${C.bg} 28%)`,display:"flex",alignItems:"center",justifyContent:"space-between",zIndex:10 }}>
-      <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:4 }}>
-        <button onClick={()=>{onClose();}} style={{ width:54,height:54,borderRadius:"50%",background:"rgba(30,26,22,0.9)",border:`1px solid ${C.border}`,color:C.textMuted,fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>✕</button>
-        <span style={{ fontSize:11,color:C.textMuted }}>略過</span>
-      </div>
-      <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:4 }}>
-        <button onClick={onLike} style={{ width:68,height:68,borderRadius:"50%",background:C.grad,border:"none",color:C.bg,fontSize:28,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 6px 28px ${C.goldGlow}` }}>♥</button>
-        <span style={{ fontSize:11,color:C.gold,fontWeight:600 }}>喜歡</span>
-      </div>
-      <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:4 }}>
-        <button onClick={onChat} style={{ width:54,height:54,borderRadius:"50%",background:"rgba(30,26,22,0.9)",border:`1px solid ${C.border}`,color:C.textMuted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </button>
-        <span style={{ fontSize:11,color:C.textMuted }}>打招呼</span>
+  // Lightbox
+  if (lbIdx !== null) return (
+    <div style={{ position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.97)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center" }}>
+      <button onClick={()=>setLbIdx(null)} style={{ position:"absolute",top:16,left:16,width:38,height:38,borderRadius:"50%",background:"rgba(255,255,255,0.1)",border:"none",color:"#fff",fontSize:22,cursor:"pointer" }}>‹</button>
+      <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+        {allPhotos.length>1&&<button onClick={()=>setLbIdx(i=>Math.max(0,i!-1))} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.1)",border:"none",color:"#fff",fontSize:22,cursor:"pointer" }}>‹</button>}
+        <img src={allPhotos[lbIdx]} alt="" style={{ maxWidth:"84vw",maxHeight:"84vh",objectFit:"contain" as const,borderRadius:12 }}/>
+        {allPhotos.length>1&&<button onClick={()=>setLbIdx(i=>Math.min(allPhotos.length-1,i!+1))} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.1)",border:"none",color:"#fff",fontSize:22,cursor:"pointer" }}>›</button>}
       </div>
     </div>
   );
 
-  // ── PAGE 1: CARD ──
+  // ── Shared bottom action bar ──
+  const ActionBar = () => (
+    <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"10px 48px 28px",background:`linear-gradient(transparent,${C.bg} 32%)`,display:"flex",alignItems:"center",justifyContent:"space-between",zIndex:20 }}>
+      <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:3 }}>
+        <button onClick={onClose} style={{ width:56,height:56,borderRadius:"50%",background:"rgba(28,25,22,0.95)",border:`1px solid rgba(255,255,255,0.1)`,color:"rgba(255,255,255,0.7)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <span style={{ fontSize:11,color:"rgba(255,255,255,0.4)" }}>略過</span>
+      </div>
+      <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:3 }}>
+        <button onClick={onLike} style={{ width:70,height:70,borderRadius:"50%",background:"linear-gradient(135deg,#C9A84C,#E2C068)",border:"none",color:"#1C1610",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 32px rgba(201,168,76,0.4)" }}>
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        </button>
+        <span style={{ fontSize:11,color:C.gold,fontWeight:600 }}>喜歡</span>
+      </div>
+      <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:3 }}>
+        <button onClick={onChat} style={{ width:56,height:56,borderRadius:"50%",background:"rgba(28,25,22,0.95)",border:`1px solid rgba(255,255,255,0.1)`,color:"rgba(255,255,255,0.7)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </button>
+        <span style={{ fontSize:11,color:"rgba(255,255,255,0.4)" }}>打招呼</span>
+      </div>
+    </div>
+  );
+
+  // ══════════════════════════════════════════
+  // PAGE 1 — CARD (full-screen photo + info)
+  // ══════════════════════════════════════════
   if (page === "card") return (
-    <div style={{ position:"fixed",inset:0,zIndex:150,display:"flex",justifyContent:"center" }}>
-      <div style={{ width:"100%",maxWidth:480,background:C.bg,display:"flex",flexDirection:"column",height:"100%",position:"relative",animation:"slideUp .28s cubic-bezier(.32,.72,0,1)" }}>
+    <div style={{ position:"fixed",inset:0,zIndex:150,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.6)" }}
+      onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}>
+      <div style={{ width:"100%",maxWidth:480,height:"100%",position:"relative",background:C.bg,
+        transform:`translateY(${dragY}px)`,
+        transition: dragY===0?"transform .32s cubic-bezier(.32,.72,0,1)":"none",
+        animation: dragY===0?"slideUp .3s cubic-bezier(.32,.72,0,1)":"none" }}>
 
-        {/* Full-screen photo */}
-        <div style={{ flex:1,position:"relative",background:allPhotos[photoIdx]?`url(${allPhotos[photoIdx]}) center/cover no-repeat`:"linear-gradient(145deg,#2A2218,#1C1610)",overflow:"hidden" }}>
-          {/* Photo nav tap zones */}
+        {/* ── Full-screen photo ── */}
+        <div style={{ position:"absolute",inset:0,overflow:"hidden" }}>
+          <div style={{ position:"absolute",inset:0,background:allPhotos[photoIdx]?`url(${allPhotos[photoIdx]}) center/cover no-repeat`:"linear-gradient(145deg,#2A2218,#1C1610)" }}/>
+          {/* tap zones for photo nav */}
           {allPhotos.length>1&&<>
-            <div style={{ position:"absolute",left:0,top:0,width:"35%",height:"100%",zIndex:3 }} onClick={e=>{e.stopPropagation();setPhotoIdx(i=>Math.max(0,i-1));}}/>
-            <div style={{ position:"absolute",right:0,top:0,width:"35%",height:"100%",zIndex:3 }} onClick={e=>{e.stopPropagation();setPhotoIdx(i=>Math.min(allPhotos.length-1,i+1));}}/>
+            <div style={{ position:"absolute",left:0,top:0,width:"35%",height:"60%",zIndex:3 }} onClick={e=>{e.stopPropagation();setPhotoIdx(i=>Math.max(0,i-1));}}/>
+            <div style={{ position:"absolute",right:0,top:0,width:"35%",height:"60%",zIndex:3 }} onClick={e=>{e.stopPropagation();setPhotoIdx(i=>Math.min(allPhotos.length-1,i+1));}}/>
           </>}
-          {/* Dot indicators top */}
-          {allPhotos.length>1&&<div style={{ position:"absolute",top:16,left:16,right:16,display:"flex",gap:4,zIndex:4 }}>
-            {allPhotos.map((_,i)=><div key={i} style={{ flex:1,height:3,borderRadius:2,background:i===photoIdx?"rgba(255,255,255,0.9)":"rgba(255,255,255,0.28)",transition:"all .25s" }}/>)}
+          {/* dot indicators */}
+          {allPhotos.length>1&&<div style={{ position:"absolute",top:14,left:14,right:52,display:"flex",gap:4,zIndex:5 }}>
+            {allPhotos.map((_,i)=><div key={i} style={{ flex:1,height:3,borderRadius:2,background:i===photoIdx?"rgba(255,255,255,0.95)":"rgba(255,255,255,0.3)",transition:"all .25s" }}/>)}
           </div>}
-          {/* Top-right ⋯ */}
-          <div style={{ position:"absolute",top:12,right:14,zIndex:10 }}>
-            <button style={{ width:36,height:36,borderRadius:"50%",background:"rgba(0,0,0,0.35)",backdropFilter:"blur(8px)",border:"none",color:"#fff",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>⋯</button>
+          {/* ⋯ top-right */}
+          <div style={{ position:"absolute",top:10,right:12,zIndex:6 }}>
+            <button style={{ width:36,height:36,borderRadius:"50%",background:"rgba(0,0,0,0.4)",backdropFilter:"blur(8px)",border:"none",color:"#fff",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>⋯</button>
           </div>
-
-          {/* Bottom gradient overlay */}
-          <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"80px 20px 120px",background:"linear-gradient(transparent 0%,rgba(10,8,6,0.5) 40%,rgba(10,8,6,0.98) 100%)",zIndex:5 }}>
-            {/* Name + verified */}
-            <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:2 }}>
-              <span style={{ fontSize:32,fontWeight:800,color:"#fff",letterSpacing:"-0.02em" }}>{p.name}</span>
-              {p.verified&&<svg width="22" height="22" viewBox="0 0 24 24" fill={C.gold}><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 0 1.946-.806 3.42 3.42 0 0 1 4.438 0 3.42 3.42 0 0 0 1.946.806 3.42 3.42 0 0 1 3.138 3.138 3.42 3.42 0 0 0 .806 1.946 3.42 3.42 0 0 1 0 4.438 3.42 3.42 0 0 0-.806 1.946 3.42 3.42 0 0 1-3.138 3.138 3.42 3.42 0 0 0-1.946.806 3.42 3.42 0 0 1-4.438 0 3.42 3.42 0 0 0-1.946-.806 3.42 3.42 0 0 1-3.138-3.138 3.42 3.42 0 0 0-.806-1.946 3.42 3.42 0 0 1 0-4.438 3.42 3.42 0 0 0 .806-1.946 3.42 3.42 0 0 1 3.138-3.138z"/></svg>}
-              {/* Compat circle badge */}
-              <div style={{ marginLeft:"auto",display:"flex",flexDirection:"column" as const,alignItems:"center",justifyContent:"center",width:72,height:72,borderRadius:"50%",background:"rgba(10,8,6,0.65)",backdropFilter:"blur(12px)",border:`2px solid ${C.gold}`,flexShrink:0 }}>
-                <span style={{ fontSize:18,fontWeight:800,color:C.gold,lineHeight:1 }}>{compat.score}%</span>
-                <span style={{ fontSize:9,color:"rgba(255,255,255,0.55)",marginTop:1 }}>相配度很高✨</span>
+          {/* Bottom gradient — heavy, matches reference */}
+          <div style={{ position:"absolute",bottom:0,left:0,right:0,height:"55%",background:"linear-gradient(transparent,rgba(12,10,8,0.92) 60%,rgba(12,10,8,1) 100%)",zIndex:4 }}/>
+          {/* Name / info overlay */}
+          <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"0 20px 188px",zIndex:5 }}>
+            <div style={{ display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:4 }}>
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:2 }}>
+                  <span style={{ fontSize:30,fontWeight:800,color:"#fff",letterSpacing:"-0.02em" }}>{p.name}</span>
+                  {p.verified&&<svg width="20" height="20" viewBox="0 0 24 24" fill={C.gold}><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 0 1.946-.806 3.42 3.42 0 0 1 4.438 0 3.42 3.42 0 0 0 1.946.806 3.42 3.42 0 0 1 3.138 3.138 3.42 3.42 0 0 0 .806 1.946 3.42 3.42 0 0 1 0 4.438 3.42 3.42 0 0 0-.806 1.946 3.42 3.42 0 0 1-3.138 3.138 3.42 3.42 0 0 0-1.946.806 3.42 3.42 0 0 1-4.438 0 3.42 3.42 0 0 0-1.946-.806 3.42 3.42 0 0 1-3.138-3.138 3.42 3.42 0 0 0-.806-1.946 3.42 3.42 0 0 1 0-4.438 3.42 3.42 0 0 0 .806-1.946 3.42 3.42 0 0 1 3.138-3.138z"/></svg>}
+                </div>
+                <div style={{ fontSize:15,color:"rgba(255,255,255,0.72)",marginBottom:2 }}>
+                  {[p.age?`${p.age} 歲`:null, p.location||null].filter(Boolean).join(" · ")}
+                </div>
+                {(p.occupation||p.education)&&<div style={{ fontSize:13.5,color:"rgba(255,255,255,0.5)",marginBottom:10 }}>
+                  {[p.occupation||null, p.education&&edu[p.education]||null].filter(Boolean).join(" · ")}
+                </div>}
+                {p.relationship_goal&&goalShort[p.relationship_goal]&&<div style={{ display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:20,background:"rgba(201,168,76,0.18)",border:`1px solid rgba(201,168,76,0.35)` }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill={C.gold}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                  <span style={{ fontSize:13,color:C.gold,fontWeight:600 }}>{goalShort[p.relationship_goal]}</span>
+                </div>}
+              </div>
+              {/* Compat circle */}
+              <div style={{ width:76,height:76,borderRadius:"50%",background:"rgba(12,10,8,0.7)",backdropFilter:"blur(12px)",border:`2.5px solid ${C.gold}`,display:"flex",flexDirection:"column" as const,alignItems:"center",justifyContent:"center",flexShrink:0,marginLeft:12,marginBottom:4 }}>
+                <span style={{ fontSize:19,fontWeight:800,color:C.gold,lineHeight:1 }}>{compat.score}%</span>
+                <span style={{ fontSize:8.5,color:"rgba(255,255,255,0.5)",marginTop:2,textAlign:"center" as const,lineHeight:1.3 }}>相配度很高✨</span>
               </div>
             </div>
-            {/* Age · City */}
-            <div style={{ fontSize:15,color:"rgba(255,255,255,0.7)",marginBottom:3 }}>
-              {[p.age?`${p.age} 歲`:null, p.location||null].filter(Boolean).join(" · ")}
-            </div>
-            {/* Occupation · Education */}
-            {(p.occupation||p.education)&&<div style={{ fontSize:14,color:"rgba(255,255,255,0.55)",marginBottom:12 }}>
-              {[p.occupation||null, p.education&&edu[p.education]||null].filter(Boolean).join(" · ")}
-            </div>}
-            {/* Relationship goal pill */}
-            {p.relationship_goal&&goalShort[p.relationship_goal]&&<div style={{ display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:20,background:"rgba(201,168,76,0.15)",border:`1px solid rgba(201,168,76,0.3)` }}>
-              <span style={{ color:C.gold,fontSize:14 }}>♥</span>
-              <span style={{ fontSize:13,color:C.gold,fontWeight:600 }}>{goalShort[p.relationship_goal]}</span>
-            </div>}
           </div>
         </div>
 
-        {/* Scroll-up card below photo */}
-        <div style={{ background:C.bg,padding:"16px 20px 0",flexShrink:0 }}>
-          {/* Common points */}
-          {commonPoints.length>0&&<div style={{ background:C.bgCard,borderRadius:16,border:`1px solid ${C.border}`,padding:"14px 16px",marginBottom:14 }}>
-            <div style={{ fontSize:13,fontWeight:700,color:C.text,marginBottom:12 }}>你們有 {commonPoints.length} 個共同點</div>
+        {/* ── Scrollable bottom sheet area ── */}
+        <div style={{ position:"absolute",bottom:0,left:0,right:0,zIndex:10 }}>
+          {/* Common points card */}
+          {commonRaw.length>0&&<div style={{ margin:"0 14px",background:"rgba(22,19,16,0.96)",backdropFilter:"blur(16px)",borderRadius:16,border:`1px solid rgba(255,255,255,0.07)`,padding:"14px 16px",marginBottom:12 }}>
+            <div style={{ fontSize:13,fontWeight:700,color:C.text,marginBottom:12 }}>你們有 {commonRaw.length} 個共同點</div>
             <div style={{ display:"flex",gap:0,justifyContent:"space-around" }}>
-              {commonPoints.map((pt,i)=>(
+              {commonRaw.map((pt,i)=>(
                 <div key={i} style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:6,flex:1 }}>
-                  <div style={{ width:44,height:44,borderRadius:14,background:C.bgElevated,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20 }}>{pt.icon}</div>
-                  <span style={{ fontSize:10.5,color:C.textMuted,textAlign:"center" as const,lineHeight:1.3 }}>{pt.label}</span>
+                  <div style={{ width:46,height:46,borderRadius:14,background:"rgba(255,255,255,0.06)",display:"flex",alignItems:"center",justifyContent:"center",color:"rgba(255,255,255,0.8)" }} dangerouslySetInnerHTML={{ __html: pt.svg.replace(/stroke-width/g,'strokeWidth').replace(/stroke-linecap/g,'strokeLinecap').replace(/stroke-linejoin/g,'strokeLinejoin').replace(/fill="none"/g,'fill="none"') }}/>
+                  <span style={{ fontSize:10,color:"rgba(255,255,255,0.45)",textAlign:"center" as const,lineHeight:1.3,maxWidth:56 }}>{pt.label}</span>
                 </div>
               ))}
             </div>
           </div>}
 
           {/* Bio preview */}
-          {p.bio&&<div style={{ marginBottom:14 }}>
-            <div style={{ display:"flex",alignItems:"flex-start",gap:8,marginBottom:8 }}>
-              <span style={{ fontSize:22,color:C.gold,lineHeight:.8,fontFamily:"Georgia,serif",marginTop:-2 }}>"</span>
+          {p.bio&&<div style={{ margin:"0 14px",marginBottom:12 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:6 }}>
+              <span style={{ fontSize:20,color:C.gold,fontFamily:"Georgia,serif",lineHeight:.8 }}>"</span>
               <span style={{ fontSize:13,fontWeight:700,color:C.text }}>關於我</span>
             </div>
-            <div style={{ fontSize:14,color:C.textSub,lineHeight:1.75,paddingLeft:30 }}>{p.bio}</div>
+            <div style={{ fontSize:13.5,color:"rgba(255,255,255,0.55)",lineHeight:1.75,paddingLeft:4 }}>{p.bio.slice(0,120)}{p.bio.length>120?"...":""}</div>
           </div>}
 
           {/* Photo strip */}
-          {allPhotos.length>1&&<div style={{ marginBottom:14 }}>
-            <div style={{ fontSize:13,color:C.textMuted,marginBottom:8 }}>照片 {photoIdx+1}/{allPhotos.length}</div>
+          {allPhotos.length>0&&<div style={{ margin:"0 14px",marginBottom:10 }}>
+            <div style={{ fontSize:12.5,color:"rgba(255,255,255,0.38)",marginBottom:7 }}>照片 {photoIdx+1}/{allPhotos.length}</div>
             <div style={{ display:"flex",gap:6,overflowX:"auto" as const }}>
               {allPhotos.map((ph,i)=>(
-                <div key={i} onClick={()=>{setLbIdx(i);}} style={{ width:80,height:100,borderRadius:10,overflow:"hidden",flexShrink:0,border:i===photoIdx?`2px solid ${C.gold}`:"2px solid transparent",cursor:"pointer" }}>
+                <div key={i} onClick={()=>setPage("detail")} style={{ width:78,height:96,borderRadius:10,overflow:"hidden",flexShrink:0,border:i===photoIdx?`2px solid ${C.gold}`:"2px solid transparent",cursor:"pointer" }}>
                   <img src={ph} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" as const }}/>
                 </div>
               ))}
             </div>
           </div>}
-
-          {/* See more — opens detail page */}
-          <button onClick={()=>setPage("detail")} style={{ width:"100%",padding:"11px",borderRadius:12,background:C.surf,border:`1px solid ${C.border}`,color:C.textSub,fontFamily:"inherit",fontSize:13,cursor:"pointer",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
-            <span>查看完整資料</span><span style={{ fontSize:16,color:C.textMuted }}>›</span>
-          </button>
         </div>
 
         <ActionBar/>
@@ -237,37 +251,59 @@ function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
     </div>
   );
 
-  // ── PAGE 2: DETAIL ──
+  // ══════════════════════════════════════════
+  // PAGE 2 — DETAIL
+  // ══════════════════════════════════════════
+  const lifeItems: {svg:string;label:string}[] = [
+    p.drinking&&p.drinking!=="never" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M8 22h8M7 10h10M12 15v7M17 2H7l-2 8a5 5 0 0 0 10 0l-2-8"/></svg>`, label:p.drinking==="sometimes"?"偶爾喝酒":"常喝酒" } : null,
+    p.smoking==="never" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M9 9H3v6h6M12 12h9v3M16.5 9c0 0 1.5-2 1.5-3.5a2 2 0 0 0-4 0"/></svg>`, label:"不抽菸" } :
+    p.smoking&&p.smoking!=="never" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h9v3H3z"/><path d="M15 12h3v3h-3z"/><path d="M18 15v-2M17 7c0 0 1-1 1-2a2 2 0 0 0-4 0"/></svg>`, label:"偶爾抽菸" } : null,
+    p.exercise&&p.exercise!=="never" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5h11M6.5 17.5h11M3 10l3.5-3.5M3 14l3.5 3.5M21 10l-3.5-3.5M21 14l-3.5 3.5"/></svg>`, label:p.exercise==="weekly"?"每週運動":"每天運動" } : null,
+    p.has_pets&&p.has_pets!=="none" ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10l-1 7 4 2 4-2-1-7"/><path d="M2 19c0-3 1.5-5 5-5"/></svg>`, label:p.has_pets==="cat"?"有養貓":"有養狗" } : null,
+  ].filter(Boolean) as {svg:string;label:string}[];
+  const basicItems: {svg:string;label:string;sub:string}[] = [
+    p.height_cm ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M9 5l3-3 3 3M9 19l3 3 3-3"/></svg>`, label:`${p.height_cm} cm`, sub:"身高" } : null,
+    p.occupation ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>`, label:p.occupation, sub:"職業" } : null,
+    p.education&&edu[p.education] ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>`, label:edu[p.education], sub:"學歷" } : null,
+    p.income ? { svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M9 9h4.5a2 2 0 0 1 0 4H9"/></svg>`, label:p.income==="<20"?"20萬以下":p.income===">100"?"年收100萬+":"年收"+p.income+"萬", sub:"收入" } : null,
+  ].filter(Boolean) as {svg:string;label:string;sub:string}[];
+
   return (
-    <div style={{ position:"fixed",inset:0,zIndex:150,display:"flex",justifyContent:"center" }}>
-      <div style={{ width:"100%",maxWidth:480,background:C.bg,display:"flex",flexDirection:"column",height:"100%",position:"relative",animation:"slideUp .2s cubic-bezier(.32,.72,0,1)" }}>
+    <div style={{ position:"fixed",inset:0,zIndex:150,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.6)" }}>
+      <div
+        onTouchStart={onSwipeStart} onTouchMove={onSwipeMove} onTouchEnd={onSwipeEnd}
+        style={{ width:"100%",maxWidth:480,height:"100%",position:"relative",background:C.bg,
+          transform:`translateX(${swipeDx}px)`,
+          transition:swipeDx===0?"transform .3s cubic-bezier(.32,.72,0,1)":"none",
+          animation:swipeDx===0?"slideUp .25s cubic-bezier(.32,.72,0,1)":"none",
+          boxShadow:swipeDx>10?"-8px 0 24px rgba(0,0,0,0.5)":"none",
+          display:"flex",flexDirection:"column" as const }}>
 
         {/* Navbar */}
-        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 16px 12px",background:C.bg,borderBottom:`1px solid ${C.border}`,flexShrink:0 }}>
-          <button onClick={()=>setPage("card")} style={{ width:36,height:36,borderRadius:"50%",background:"none",border:"none",color:C.text,fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>‹</button>
+        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 16px 12px",borderBottom:`1px solid rgba(255,255,255,0.06)`,flexShrink:0 }}>
+          <button onClick={()=>setPage("card")} style={{ width:36,height:36,borderRadius:"50%",background:"none",border:"none",color:C.text,fontSize:24,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1 }}>‹</button>
           <span style={{ fontSize:16,fontWeight:700,color:C.text }}>{p.name}</span>
           <button style={{ width:36,height:36,borderRadius:"50%",background:"none",border:"none",color:C.textMuted,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>⋯</button>
         </div>
 
-        {/* Scrollable content */}
         <div style={{ flex:1,overflowY:"auto",paddingBottom:120 }}>
           <div style={{ padding:"20px 20px 0" }}>
 
-            {/* Bio section */}
-            {p.bio&&<div style={{ marginBottom:24 }}>
+            {/* Bio */}
+            {p.bio&&<div style={{ marginBottom:26 }}>
               <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
-                <span style={{ fontSize:22,color:C.gold,lineHeight:.8,fontFamily:"Georgia,serif",marginTop:-2 }}>"</span>
+                <span style={{ fontSize:24,color:C.gold,fontFamily:"Georgia,serif",lineHeight:.7 }}>"</span>
                 <span style={{ fontSize:15,fontWeight:700,color:C.text }}>關於我</span>
               </div>
-              <div style={{ fontSize:14.5,color:C.textSub,lineHeight:1.85,whiteSpace:"pre-wrap" as const }}>{p.bio}</div>
+              <div style={{ fontSize:14.5,color:C.textSub,lineHeight:1.85 }}>{p.bio}</div>
             </div>}
 
             {/* Photo strip */}
-            {allPhotos.length>0&&<div style={{ marginBottom:24 }}>
-              <div style={{ fontSize:13,color:C.textMuted,marginBottom:10 }}>照片 {allPhotos.length}/5</div>
-              <div style={{ display:"flex",gap:6,overflowX:"auto" as const,paddingBottom:4 }}>
+            {allPhotos.length>0&&<div style={{ marginBottom:26 }}>
+              <div style={{ fontSize:13.5,color:C.textMuted,marginBottom:10 }}>照片 {allPhotos.length}/5</div>
+              <div style={{ display:"flex",gap:7,overflowX:"auto" as const,paddingBottom:2 }}>
                 {allPhotos.map((ph,i)=>(
-                  <div key={i} onClick={()=>setLbIdx(i)} style={{ width:90,height:115,borderRadius:12,overflow:"hidden",flexShrink:0,cursor:"pointer" }}>
+                  <div key={i} onClick={()=>setLbIdx(i)} style={{ width:88,height:112,borderRadius:12,overflow:"hidden",flexShrink:0,cursor:"pointer" }}>
                     <img src={ph} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" as const }}/>
                   </div>
                 ))}
@@ -275,25 +311,28 @@ function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
             </div>}
 
             {/* Hobbies */}
-            {p.hobbies.length>0&&<div style={{ marginBottom:24 }}>
+            {p.hobbies.length>0&&<div style={{ marginBottom:26 }}>
               <div style={{ fontSize:15,fontWeight:700,color:C.text,marginBottom:12 }}>興趣愛好</div>
               <div style={{ display:"flex",flexWrap:"wrap" as const,gap:8 }}>
                 {p.hobbies.map(h=>(
-                  <div key={h} style={{ display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:20,background:C.bgCard,border:`1px solid ${C.border}` }}>
+                  <div key={h} style={{ display:"flex",alignItems:"center",gap:6,padding:"7px 15px",borderRadius:20,background:C.bgCard,border:`1px solid rgba(255,255,255,0.07)` }}>
                     <span style={{ fontSize:14 }}>{hobbyIcon[h]||"⭐"}</span>
                     <span style={{ fontSize:13.5,color:C.textSub }}>{h}</span>
                   </div>
                 ))}
+                {p.hobbies.length>5&&<div style={{ display:"flex",alignItems:"center",justifyContent:"center",padding:"7px 15px",borderRadius:20,background:C.bgCard,border:`1px solid rgba(255,255,255,0.07)` }}>
+                  <span style={{ fontSize:13.5,color:C.textMuted }}>···</span>
+                </div>}
               </div>
             </div>}
 
             {/* Life style */}
-            {lifeItems.length>0&&<div style={{ marginBottom:24 }}>
+            {lifeItems.length>0&&<div style={{ marginBottom:26 }}>
               <div style={{ fontSize:15,fontWeight:700,color:C.text,marginBottom:16 }}>生活方式</div>
-              <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16 }}>
+              <div style={{ display:"flex",gap:24,flexWrap:"wrap" as const }}>
                 {lifeItems.map((item,i)=>(
-                  <div key={i} style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:8 }}>
-                    <div style={{ width:44,height:44,display:"flex",alignItems:"center",justifyContent:"center",color:C.textSub }} dangerouslySetInnerHTML={{ __html: item.svg }}/>
+                  <div key={i} style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:8,minWidth:52 }}>
+                    <div style={{ width:46,height:46,display:"flex",alignItems:"center",justifyContent:"center",color:C.textSub }} dangerouslySetInnerHTML={{ __html: item.svg }}/>
                     <span style={{ fontSize:12,color:C.textSub,textAlign:"center" as const }}>{item.label}</span>
                   </div>
                 ))}
@@ -301,12 +340,12 @@ function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
             </div>}
 
             {/* Basic info */}
-            {basicItems.length>0&&<div style={{ marginBottom:24 }}>
+            {basicItems.length>0&&<div style={{ marginBottom:26 }}>
               <div style={{ fontSize:15,fontWeight:700,color:C.text,marginBottom:16 }}>基本資料</div>
-              <div style={{ display:"grid",gridTemplateColumns:`repeat(${Math.min(basicItems.length,4)},1fr)`,gap:16 }}>
+              <div style={{ display:"flex",gap:24,flexWrap:"wrap" as const }}>
                 {basicItems.map((item,i)=>(
-                  <div key={i} style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:8 }}>
-                    <div style={{ width:44,height:44,display:"flex",alignItems:"center",justifyContent:"center",color:C.textSub }} dangerouslySetInnerHTML={{ __html: item.svg }}/>
+                  <div key={i} style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:8,minWidth:52 }}>
+                    <div style={{ width:46,height:46,display:"flex",alignItems:"center",justifyContent:"center",color:C.textSub }} dangerouslySetInnerHTML={{ __html: item.svg }}/>
                     <div style={{ textAlign:"center" as const }}>
                       <div style={{ fontSize:13,color:C.text,fontWeight:600 }}>{item.label}</div>
                       <div style={{ fontSize:11,color:C.textMuted,marginTop:1 }}>{item.sub}</div>
@@ -317,12 +356,12 @@ function ProfileSheet({ p, myMbti, onClose, onLike, onSuperlike, onChat }: {
             </div>}
 
             {/* Relationship goal */}
-            {p.relationship_goal&&goalMap[p.relationship_goal]&&<div style={{ marginBottom:24 }}>
+            {p.relationship_goal&&goalFull[p.relationship_goal]&&<div style={{ marginBottom:26 }}>
               <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:8 }}>
-                <span style={{ fontSize:16,color:C.rose }}>♥</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill={C.rose}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 <span style={{ fontSize:15,fontWeight:700,color:C.text }}>關係目標</span>
               </div>
-              <div style={{ fontSize:14,color:C.textSub,lineHeight:1.7 }}>{goalMap[p.relationship_goal]}</div>
+              <div style={{ fontSize:14,color:C.textSub,lineHeight:1.7 }}>{goalFull[p.relationship_goal]}</div>
             </div>}
 
           </div>
