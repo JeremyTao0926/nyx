@@ -372,8 +372,8 @@ function SwipeCard({ p, isTop, myMbti, onSwipe, onOpenProfile }: { p: ExplorePro
             </div>
           </div>
         </div>
-        {/* Bio row */}
-        {(p.bio||p.hobbies.length>0) && (
+        {/* Bio row — only show on top card */}
+        {isTop && (p.bio||p.hobbies.length>0) && (
           <div style={{ padding:"14px 18px 16px",cursor:"pointer" }} onClick={onOpenProfile}>
             {p.bio && <div style={{ fontSize:13,color:C.textSub,lineHeight:1.55,marginBottom:8,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden" } as any}>{p.bio}</div>}
             {p.hobbies.length>0 && <div style={{ display:"flex",gap:5,flexWrap:"wrap" as const }}>
@@ -516,7 +516,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
                 <button onClick={load} style={{ padding:"13px 36px",borderRadius:50,background:C.grad,border:"none",color:C.bg,fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer" }}>重新載入</button>
               </div>
             ) : (
-              <div style={{ position:"relative",width:"100%",maxWidth:360,height:520 }}>
+              <div style={{ position:"relative",width:"100%",maxWidth:360,height:540,overflow:"hidden" }}>
                 {remaining.map((p,i)=><SwipeCard key={p.id} p={p} isTop={i===remaining.length-1} myMbti={myMbti} onSwipe={doSwipe} onOpenProfile={()=>setShowProfile(p)}/>)}
               </div>
             )}
