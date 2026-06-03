@@ -6,9 +6,9 @@ interface Props { role: AdminRole; C: any; }
 
 function StatCard({ label, value, sub, color, C }: any) {
   return (
-    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
+    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"16px 18px" }}>
       <div style={{ fontSize:12, color:C.textMuted, marginBottom:8, fontWeight:600, letterSpacing:".5px", textTransform:"uppercase" as const }}>{label}</div>
-      <div style={{ fontSize:32, fontWeight:800, color:color||C.text }}>{value?.toLocaleString() ?? "—"}</div>
+      <div style={{ fontSize:28, fontWeight:800, color:color||C.text }}>{value?.toLocaleString() ?? "—"}</div>
       {sub && <div style={{ fontSize:12, color:C.textMuted, marginTop:4 }}>{sub}</div>}
     </div>
   );
@@ -47,7 +47,7 @@ export function AdminDashboard({ role, C }: Props) {
         <>
           {/* User stats */}
           <div style={{ fontSize:13, fontWeight:700, color:C.textMuted, marginBottom:14, letterSpacing:".5px", textTransform:"uppercase" as const }}>用戶數據</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:14, marginBottom:28 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))", gap:14, marginBottom:28 }}>
             <StatCard label="真實用戶" value={stats.total_users} C={C} color={C.gold}/>
             <StatCard label="24小時活躍" value={stats.active_24h} sub={`佔總用戶 ${stats.total_users ? Math.round(stats.active_24h/stats.total_users*100) : 0}%`} C={C} color={C.mint}/>
             <StatCard label="7天活躍" value={stats.active_7d} C={C}/>
@@ -57,7 +57,7 @@ export function AdminDashboard({ role, C }: Props) {
 
           {/* Engagement */}
           <div style={{ fontSize:13, fontWeight:700, color:C.textMuted, marginBottom:14, letterSpacing:".5px", textTransform:"uppercase" as const }}>互動數據</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:14, marginBottom:28 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))", gap:14, marginBottom:28 }}>
             <StatCard label="總配對數" value={stats.total_matches} C={C}/>
             <StatCard label="今日新配對" value={stats.matches_today} C={C} color={C.gold}/>
             <StatCard label="今日訊息" value={stats.messages_today} C={C} color={C.mint}/>
@@ -67,7 +67,7 @@ export function AdminDashboard({ role, C }: Props) {
 
           {/* Moderation */}
           <div style={{ fontSize:13, fontWeight:700, color:C.textMuted, marginBottom:14, letterSpacing:".5px", textTransform:"uppercase" as const }}>內容審核</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:14 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))", gap:14 }}>
             <StatCard label="待處理檢舉" value={stats.pending_reports} C={C} color={stats.pending_reports > 0 ? C.rose : C.text}/>
           </div>
         </>

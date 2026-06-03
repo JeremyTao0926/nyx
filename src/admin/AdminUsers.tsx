@@ -63,16 +63,17 @@ export function AdminUsers({ tab, role, C }: Props) {
       {msg && <div style={{ background:"rgba(0,201,167,0.1)", border:"1px solid rgba(0,201,167,0.25)", borderRadius:10, padding:"10px 14px", color:C.mint, fontSize:13, marginBottom:16 }} onClick={()=>setMsg("")}>{msg}</div>}
 
       {/* Search */}
-      <div style={{ display:"flex", gap:10, marginBottom:20 }}>
+      <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" as const }}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜尋用戶名 / 電郵..."
           style={{ ...INP, flex:1 }}/>
         <button onClick={load} style={{ padding:"9px 18px", borderRadius:8, background:C.grad, border:"none", color:C.bg, fontFamily:"inherit", fontSize:13, fontWeight:600, cursor:"pointer" }}>搜尋</button>
       </div>
 
       {/* Table */}
-      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden" }}>
-        {/* Header */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 100px 140px", padding:"10px 16px", background:"rgba(255,255,255,0.03)", borderBottom:`1px solid ${C.border}` }}>
+      <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" as any }}>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden", minWidth:520 }}>
+        {/* Header — hidden on mobile */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 100px 140px", padding:"10px 16px", background:"rgba(255,255,255,0.03)", borderBottom:`1px solid ${C.border}` }} className="admin-table-header">
           {["用戶名","電郵","最後活躍","狀態","操作"].map(h => (
             <div key={h} style={{ fontSize:11, fontWeight:700, color:C.textMuted, letterSpacing:".5px", textTransform:"uppercase" as const }}>{h}</div>
           ))}
@@ -102,6 +103,7 @@ export function AdminUsers({ tab, role, C }: Props) {
           </div>
         ))}
       </div>
+      </div>{/* /overflowX */}
 
       {/* Detail panel */}
       {selected && (

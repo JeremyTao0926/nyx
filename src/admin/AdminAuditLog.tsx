@@ -22,19 +22,21 @@ export function AdminAuditLog({ C }: { C: any }) {
       {loading ? <div style={{ color:C.textMuted }}>載入中...</div>
       : logs.length === 0 ? <div style={{ color:C.textMuted }}>還沒有記錄</div>
       : (
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden" }}>
-          {logs.map((log, i) => (
-            <div key={log.id} style={{ display:"grid", gridTemplateColumns:"160px 1fr 1fr 120px", gap:16, padding:"12px 18px", borderBottom:i<logs.length-1?`1px solid ${C.border}`:"none", alignItems:"center" }}>
-              <div style={{ fontSize:12, color:C.textMuted }}>{new Date(log.created_at).toLocaleString("zh-TW", { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" })}</div>
-              <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{ACTION_LABELS[log.action] || log.action}</div>
-              <div style={{ fontSize:12.5, color:C.textSub }}>
-                {log.admin?.display_name || log.admin?.username || log.admin_id?.slice(0,8)}
+        <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" as any }}>
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden", minWidth:480 }}>
+            {logs.map((log, i) => (
+              <div key={log.id} style={{ display:"grid", gridTemplateColumns:"160px 1fr 1fr 120px", gap:16, padding:"12px 18px", borderBottom:i<logs.length-1?`1px solid ${C.border}`:"none", alignItems:"center" }}>
+                <div style={{ fontSize:12, color:C.textMuted }}>{new Date(log.created_at).toLocaleString("zh-TW", { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" })}</div>
+                <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{ACTION_LABELS[log.action] || log.action}</div>
+                <div style={{ fontSize:12.5, color:C.textSub }}>
+                  {log.admin?.display_name || log.admin?.username || log.admin_id?.slice(0,8)}
+                </div>
+                <div style={{ fontSize:11.5, color:C.textMuted }}>
+                  {log.target_type}: {log.target_id?.slice(0,8)}...
+                </div>
               </div>
-              <div style={{ fontSize:11.5, color:C.textMuted }}>
-                {log.target_type}: {log.target_id?.slice(0,8)}...
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
     </div>

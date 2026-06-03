@@ -138,6 +138,12 @@ export default function App() {
   async function logout() { await sb.auth.signOut(); setSplashSeen(false); setInChat(false); setActiveMatch(null); }
   function updateLocal(patch: Partial<UserProfile>) { setProfile(p => p ? {...p,...patch} : p); }
 
+  // Tab swipe refs — declared before any early returns (Rules of Hooks)
+  const appSwipeStartX = useRef(0);
+  const appSwipeStartY = useRef(0);
+  const appSwiping = useRef(false);
+  const [appSwipeDx, setAppSwipeDx] = useState(0);
+
   if (loading) return <>
     <style>{GLOBAL_CSS}</style>
     <div style={{ minHeight:"100dvh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -147,11 +153,6 @@ export default function App() {
 
   if (!authed) return <><style>{GLOBAL_CSS}</style><LoginScreen onLogin={() => setAuthed(true)}/></>;
   if (!splashSeen || resuming) return <><style>{GLOBAL_CSS}</style><SplashScreen onDone={() => { setSplashSeen(true); setResuming(false); }}/></>;
-
-  const appSwipeStartX = useRef(0);
-  const appSwipeStartY = useRef(0);
-  const appSwiping = useRef(false);
-  const [appSwipeDx, setAppSwipeDx] = useState(0);
 
   return (
     <>
