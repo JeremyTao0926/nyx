@@ -8,23 +8,54 @@ const INP = { width:"100%", padding:"12px 14px", background:C.surf, border:`1px 
 /* ─── Bottom Sheet base (drag to close) ─────────────── */
 export function BottomSheet({ children, onClose, title, maxH="86vh" }:
   { children:React.ReactNode; onClose:()=>void; title?:string; maxH?:string }) {
-  const [ty, setTy]  = useState(0);
+  const [ty, setTy] = useState(0);
   const [closing, setClosing] = useState(false);
   const startY = useRef(0);
-  function close(){ setClosing(true); setTimeout(onClose,260); }
-  return <div style={{ position:"fixed",inset:0,zIndex:100,background:closing?"rgba(0,0,0,0)":"rgba(0,0,0,0.6)",backdropFilter:closing?"none":"blur(18px)",display:"flex",alignItems:"flex-end",justifyContent:"center",transition:"background .26s" }} onClick={close}>
-    <div onClick={e=>e.stopPropagation()}
-      onTouchStart={e=>{startY.current=e.touches[0].clientY;}}
-      onTouchMove={e=>{const dy=e.touches[0].clientY-startY.current;if(dy>0)setTy(dy);}}
-      onTouchEnd={()=>{if(ty>90)close();else setTy(0);}}
-      style={{ maxWidth:480,margin:"0 auto",width:"100%",background:C.bgElevated,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",maxHeight:maxH,overflowY:"auto",transform:closing?`translateY(100%)`:`translateY(${ty}px)`,transition:ty===0?"transform .3s cubic-bezier(.32,.72,0,1)":"none",animation:closing?undefined:"slideUp .32s cubic-bezier(.32,.72,0,1)" }}>
-      <div style={{ padding:"14px 0 0",display:"flex",flexDirection:"column",alignItems:"center" }}>
-        <div style={{ width:40,height:4,borderRadius:3,background:C.border,cursor:"grab" }} />
+  const isDragging = useRef(false);
+  function close() { setClosing(true); setTimeout(onClose, 280); }
+
+  // Handle drag on the pill handle specifically
+  function onHandleTouchStart(e: React.TouchEvent) {
+    e.stopPropagation();
+    startY.current = e.touches[0].clientY;
+    isDragging.current = true;
+  }
+  function onHandleTouchMove(e: React.TouchEvent) {
+    if (!isDragging.current) return;
+    const dy = e.touches[0].clientY - startY.current;
+    if (dy > 0) setTy(dy);
+  }
+  function onHandleTouchEnd() {
+    isDragging.current = false;
+    if (ty > 80) close(); else setTy(0);
+  }
+
+  return (
+    <div
+      style={{ position:"fixed",inset:0,zIndex:200,background:closing?"rgba(0,0,0,0)":"rgba(0,0,0,0.65)",backdropFilter:closing?"none":"blur(16px)",display:"flex",alignItems:"flex-end",justifyContent:"center",transition:"background .28s" }}
+      onClick={close}>
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ maxWidth:480,margin:"0 auto",width:"100%",background:C.bgElevated,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",maxHeight:maxH,overflowY:"auto",
+          transform:closing?`translateY(100%)`:`translateY(${ty}px)`,
+          transition:ty===0?"transform .3s cubic-bezier(.32,.72,0,1)":"none",
+          animation:closing?undefined:"slideUp .32s cubic-bezier(.32,.72,0,1)",
+          willChange:"transform" }}>
+        {/* ── Drag handle pill — only this area responds to drag ── */}
+        <div
+          onTouchStart={onHandleTouchStart}
+          onTouchMove={onHandleTouchMove}
+          onTouchEnd={onHandleTouchEnd}
+          style={{ padding:"14px 0 8px",display:"flex",flexDirection:"column" as const,alignItems:"center",cursor:"grab",userSelect:"none" as const,touchAction:"none" }}>
+          <div style={{ width:44,height:5,borderRadius:3,background:"rgba(255,255,255,0.18)",transition:"background .15s" }}
+            onMouseEnter={e=>(e.currentTarget.style.background="rgba(255,255,255,0.32)")}
+            onMouseLeave={e=>(e.currentTarget.style.background="rgba(255,255,255,0.18)")}/>
+        </div>
+        {title && <div style={{ padding:"4px 20px 0",fontSize:17,fontWeight:700,color:C.text }}>{title}</div>}
+        {children}
       </div>
-      {title&&<div style={{ padding:"16px 20px 0",fontSize:17,fontWeight:700,color:C.text }}>{title}</div>}
-      {children}
     </div>
-  </div>;
+  );
 }
 
 /* ─── Custom Select ──────────────────────────────────── */

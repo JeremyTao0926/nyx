@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { sb, C, WRAP, GLOBAL_CSS, getProfile, getMatches, getUnreadCount } from "./utils";
 import type { UserProfile, MatchItem } from "./types";
 import { LoginScreen, SplashScreen } from "./screens/AuthScreens";
@@ -148,10 +148,44 @@ export default function App() {
   if (!authed) return <><style>{GLOBAL_CSS}</style><LoginScreen onLogin={() => setAuthed(true)}/></>;
   if (!splashSeen || resuming) return <><style>{GLOBAL_CSS}</style><SplashScreen onDone={() => { setSplashSeen(true); setResuming(false); }}/></>;
 
+  const appSwipeStartX = useRef(0);
+  const appSwipeStartY = useRef(0);
+  const appSwiping = useRef(false);
+  const [appSwipeDx, setAppSwipeDx] = useState(0);
+
   return (
     <>
       <style>{GLOBAL_CSS}</style>
-      <div style={{ display:"flex", flexDirection:"column", height:"100dvh", ...WRAP, background:C.bg, overflow:"hidden" }}>
+      <div style={{ display:"flex", flexDirection:"column", height:"100dvh", ...WRAP, background:C.bg, overflow:"hidden" }}
+        onTouchStart={e=>{
+          // only trigger from edge (left <30px or right >screen-30px)
+          const x = e.touches[0].clientX;
+          const w = window.innerWidth;
+          if (x < 30 || x > w - 30) {
+            appSwipeStartX.current = x;
+            appSwipeStartY.current = e.touches[0].clientY;
+            appSwiping.current = true;
+          } else {
+            appSwiping.current = false;
+          }
+        }}
+        onTouchMove={e=>{
+          if (!appSwiping.current) return;
+          const dx = e.touches[0].clientX - appSwipeStartX.current;
+          const dy = Math.abs(e.touches[0].clientY - appSwipeStartY.current);
+          if (dy > 40) { appSwiping.current = false; return; } // vertical scroll, cancel
+          if (Math.abs(dx) > 8) setAppSwipeDx(dx);
+        }}
+        onTouchEnd={e=>{
+          if (!appSwiping.current) { setAppSwipeDx(0); return; }
+          const dx = e.changedTouches[0].clientX - appSwipeStartX.current;
+          const TABS: Tab[] = ["explore","chat","profile"];
+          const cur = TABS.indexOf(tab);
+          if (dx < -50 && cur < TABS.length - 1) setTab(TABS[cur + 1]);
+          else if (dx > 50 && cur > 0) setTab(TABS[cur - 1]);
+          setAppSwipeDx(0);
+          appSwiping.current = false;
+        }}>
         <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
           {/* EXPLORE */}
           {tab==="explore" && userId && profile &&
