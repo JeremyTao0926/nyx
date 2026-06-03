@@ -135,6 +135,68 @@ function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlike, onCh
     </div>
   );
 
+  const [likeAnim, setLikeAnim] = useState(false);
+  const [priorityAnim, setPriorityAnim] = useState(false);
+  function handleLike() { setLikeAnim(true); setTimeout(()=>setLikeAnim(false),400); onLike(); }
+  function handlePriority() { setPriorityAnim(true); setTimeout(()=>{ setPriorityAnim(false); onSuperlike(); },480); }
+
+  const ActionBar = () => (
+    <div style={{ position:"absolute",bottom:0,left:0,right:0,zIndex:20 }}>
+      <div style={{ height:52,background:`linear-gradient(transparent,${C.bg})`,pointerEvents:"none" as const }}/>
+      <div style={{ background:C.bg,padding:"2px 32px 30px",display:"flex",alignItems:"flex-end",justifyContent:"space-between" }}>
+
+        {/* PASS */}
+        <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:5 }}>
+          <button onClick={onClose}
+            style={{ width:52,height:52,borderRadius:"50%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",color:"rgba(255,255,255,0.42)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .18s" }}
+            onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.cssText+="background:rgba(232,54,93,0.08);border-color:rgba(232,54,93,0.28);color:#E8365D"}}
+            onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.cssText+="background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.09);color:rgba(255,255,255,0.42)"}}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <span style={{ fontSize:11,color:"rgba(255,255,255,0.26)",letterSpacing:".3px" }}>略過</span>
+        </div>
+
+        {/* LIKE — primary */}
+        <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:6 }}>
+          <button onClick={handleLike}
+            style={{ width:66,height:66,borderRadius:"50%",background:"linear-gradient(135deg,#C9A84C 0%,#E2C068 100%)",border:"none",color:"#12100C",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+              boxShadow:"0 6px 24px rgba(201,168,76,0.38)",
+              transform:likeAnim?"scale(0.86)":"scale(1)",transition:"transform .2s cubic-bezier(.34,1.56,.64,1)" }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+          </button>
+          <span style={{ fontSize:11,color:"#E2C068",fontWeight:600,letterSpacing:".3px" }}>喜歡</span>
+        </div>
+
+        {/* PRIORITY — premium */}
+        <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:6 }}>
+          <button onClick={handlePriority}
+            style={{ position:"relative" as const,width:72,height:72,borderRadius:"50%",
+              background:"linear-gradient(145deg,#1A1608 0%,#231E0A 100%)",
+              border:"1.5px solid rgba(201,168,76,0.5)",
+              color:C.gold,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+              boxShadow:priorityAnim
+                ?"0 0 0 10px rgba(201,168,76,0.1),0 0 0 4px rgba(201,168,76,0.2),0 8px 32px rgba(201,168,76,0.4)"
+                :"0 4px 20px rgba(201,168,76,0.2)",
+              transform:priorityAnim?"scale(0.88)":"scale(1)",
+              transition:"all .22s cubic-bezier(.34,1.56,.64,1)" }}>
+            {/* Gold shimmer overlay */}
+            <div style={{ position:"absolute" as const,inset:0,borderRadius:"50%",
+              background:"linear-gradient(135deg,rgba(201,168,76,0.14) 0%,transparent 55%,rgba(201,168,76,0.06) 100%)",
+              pointerEvents:"none" as const }}/>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+          </button>
+          <span style={{ fontSize:11,color:C.gold,fontWeight:700,letterSpacing:".5px" }}>優先認識</span>
+        </div>
+
+      </div>
+    </div>
+  );
+
+
   return (
     <div style={{ position:"fixed",inset:0,zIndex:150,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.55)" }}>
       <div onTouchStart={onSwipeStart} onTouchMove={onSwipeMove} onTouchEnd={onSwipeEnd}
@@ -292,27 +354,8 @@ function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlike, onCh
           </div>
         </div>
 
-        {/* Fixed bottom action bar */}
-        <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"8px 40px 28px",background:`linear-gradient(transparent,${C.bg} 38%)`,display:"flex",alignItems:"center",justifyContent:"space-between",zIndex:20 }}>
-          <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:5 }}>
-            <button onClick={onClose} style={{ width:56,height:56,borderRadius:"50%",background:"#1C1916",border:"1px solid rgba(255,255,255,0.09)",color:"rgba(255,255,255,0.6)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-            <span style={{ fontSize:11.5,color:"rgba(255,255,255,0.32)" }}>略過</span>
-          </div>
-          <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:5 }}>
-            <button onClick={onLike} style={{ width:72,height:72,borderRadius:"50%",background:"linear-gradient(135deg,#C9A84C,#E8D080)",border:"none",color:"#1C1610",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 32px rgba(201,168,76,0.45)" }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-            </button>
-            <span style={{ fontSize:11.5,color:C.gold,fontWeight:600 }}>喜歡</span>
-          </div>
-          <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:5 }}>
-            <button onClick={onChat} style={{ width:56,height:56,borderRadius:"50%",background:"#1C1916",border:"1px solid rgba(255,255,255,0.09)",color:"rgba(255,255,255,0.6)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            </button>
-            <span style={{ fontSize:11.5,color:"rgba(255,255,255,0.32)" }}>打招呼</span>
-          </div>
-        </div>
+        {/* ── BOTTOM ACTION BAR ── */}
+        <ActionBar/>
       </div>
     </div>
   );
