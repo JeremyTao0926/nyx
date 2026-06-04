@@ -108,6 +108,20 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Push notifications — separate from realtime, runs once after login
+  useEffect(() => {
+    if (!userId || !authed) return;
+    const timer = setTimeout(() => initPush(userId).catch(() => {}), 2000);
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "NOTIFICATION_CLICK") setTab("chat");
+    };
+    navigator.serviceWorker?.addEventListener("message", handler);
+    return () => {
+      clearTimeout(timer);
+      navigator.serviceWorker?.removeEventListener("message", handler);
+    };
+  }, [userId, authed]);
+
   useEffect(() => {
     if (!userId || !authed) return;
     sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId);
@@ -125,13 +139,6 @@ export default function App() {
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"notifications",
         filter:`user_id=eq.${userId}` }, () => loadAll())
       .subscribe();
-
-    // Init Web Push
-    initPush(userId).catch(() => {});
-    onNotificationClick((url) => {
-      // Navigate to chat tab when notification is clicked
-      setTab("chat");
-    });
 
     // Reload matches when tab becomes visible again (user returns to app)
     const onVisible = () => {
