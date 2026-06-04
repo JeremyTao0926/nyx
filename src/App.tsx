@@ -128,29 +128,19 @@ export default function App() {
     loadAll();
 
     const ch = sb.channel(`app-${userId}`)
-      // New match
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"matches",
         filter:`user1_id=eq.${userId}` }, () => { getMatches(userId!).then(setMatches); })
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"matches",
         filter:`user2_id=eq.${userId}` }, () => { getMatches(userId!).then(setMatches); })
-      // New message with filter (required for free tier realtime)
-      .on("postgres_changes", { event:"INSERT", schema:"public", table:"chat_messages",
-        filter:`match_id=in.(${(matches||[]).map((m: any)=>m.matchId).join(",") || "00000000-0000-0000-0000-000000000000"})` }, () => {
-        loadUnread();
-        getMatches(userId!).then(setMatches);
-      })
-      // Notifications
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"notifications",
         filter:`user_id=eq.${userId}` }, () => loadAll())
       .subscribe();
 
-    // Fallback: poll every 8s when tab is visible (ensures messages always appear)
+    // Poll every 5s — most reliable way to get new messages on free tier
     const pollInterval = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        loadUnread();
-        getMatches(userId!).then(setMatches);
-      }
-    }, 8000);
+      loadUnread();
+      getMatches(userId!).then(setMatches);
+    }, 5000);
 
     // Reload matches when tab becomes visible again (user returns to app)
     const onVisible = () => {

@@ -7,25 +7,29 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Read VAPID keys at module level (after env is ready)
-const VAPID_PUBLIC  = Deno.env.get("VAPID_PUBLIC") ?? "";
-const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE") ?? "";
-const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:admin@nyx.app";
-
-if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
-  console.error("VAPID keys not set! PUBLIC:", !!VAPID_PUBLIC, "PRIVATE:", !!VAPID_PRIVATE);
-} else {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
-  console.log("VAPID configured OK, public key prefix:", VAPID_PUBLIC.slice(0, 10));
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
+    // Read env every request — most reliable in Deno
+    const VAPID_PUBLIC  = Deno.env.get("VAPID_PUBLIC") ?? "";
+    const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE") ?? "";
+    const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:admin@nyx.app";
 
-    const { recipient_id, title, body, url, sender_avatar } = await req.json();
+    if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
+      console.error("VAPID keys missing! Check secrets.");
+      return new Response("VAPID keys not configured", { status: 500 });
+    }
+
+    // Set VAPID details fresh each request
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+
+    const body = await req.json();
+    const { recipient_id, title, body: msgBody, url, sender_avatar } = body;
+
     if (!recipient_id) return new Response("Missing recipient_id", { status: 400 });
+
+    console.log("Sending push to:", recipient_id, "title:", title);
 
     const sb = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -42,16 +46,17 @@ serve(async (req) => {
       return new Response("DB error", { status: 500 });
     }
 
+    console.log("Found subscriptions:", subs?.length ?? 0);
+
     if (!subs?.length) {
-      console.log("No subscriptions for user:", recipient_id);
       return new Response(JSON.stringify({ sent: 0, reason: "no_subscriptions" }), {
         status: 200, headers: { ...CORS, "Content-Type": "application/json" }
       });
     }
 
     const payload = JSON.stringify({
-      title,
-      body,
+      title: title ?? "NYX",
+      body: msgBody ?? "",
       icon: sender_avatar || "/favicon.svg",
       badge: "/favicon.svg",
       tag: "nyx-msg",
@@ -59,36 +64,30 @@ serve(async (req) => {
     });
 
     let sent = 0;
-    const errors: string[] = [];
-
     for (const sub of subs) {
       try {
-        await webpush.sendNotification(
+        const result = await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           payload,
           { urgency: "high", TTL: 86400 }
         );
+        console.log("Push sent, status:", result.statusCode);
         sent++;
-        console.log("Push sent to:", sub.endpoint.slice(0, 50));
       } catch (e: any) {
-        const statusCode = e?.statusCode || e?.status;
-        console.error("Push failed:", statusCode, e?.message);
-        errors.push(String(e?.message));
-        // Remove expired subscriptions
-        if (statusCode === 410 || statusCode === 404) {
+        console.error("Push error:", e?.statusCode, e?.message);
+        if (e?.statusCode === 410 || e?.statusCode === 404) {
           await sb.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
-          console.log("Removed expired subscription");
+          console.log("Removed expired sub");
         }
       }
     }
 
-    return new Response(
-      JSON.stringify({ sent, total: subs.length, errors }),
-      { status: 200, headers: { ...CORS, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ sent, total: subs.length }), {
+      status: 200, headers: { ...CORS, "Content-Type": "application/json" }
+    });
 
   } catch (e) {
-    console.error("Handler error:", e);
-    return new Response("Internal error: " + String(e), { status: 500 });
+    console.error("Fatal error:", e);
+    return new Response("Error: " + String(e), { status: 500 });
   }
 });
