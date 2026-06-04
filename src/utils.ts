@@ -752,6 +752,7 @@ export const GLOBAL_CSS = `
 
   @keyframes dot{0%,60%,100%{transform:translateY(0);opacity:.35;}30%{transform:translateY(-5px);opacity:1;}}
   @keyframes slideUp{from{transform:translateY(60px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  @keyframes typingDot{0%,60%,100%{transform:translateY(0);opacity:.3;}30%{transform:translateY(-4px);opacity:1;}}
   @keyframes profileZoomIn{from{transform:scale(0.9) translateY(20px);opacity:0;}to{transform:scale(1) translateY(0);opacity:1;}}
   @keyframes emojiUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
   @keyframes dropDown{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}

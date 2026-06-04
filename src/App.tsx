@@ -92,6 +92,7 @@ export default function App() {
   const [inChat, setInChat]         = useState(false);
   const [activeMatch, setActiveMatch] = useState<MatchItem|null>(null);
   const [matches, setMatches]       = useState<MatchItem[]>([]);
+  const [typingMatchIds, setTypingMatchIds] = useState<Set<string>>(new Set());
   const [unreadPerMatch, setUnreadPerMatch] = useState<Record<string,number>>({});
   const [totalUnread, setTotalUnread] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -127,6 +128,50 @@ export default function App() {
     sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId);
     loadAll();
 
+    // Broadcast channel — instant UI update, no DB round-trip
+    const broadcastCh = sb.channel(`user-inbox:${userId}`)
+      .on("broadcast", { event: "new_message" }, (payload: any) => {
+        const { matchId, senderName, preview, ts } = payload.payload || {};
+        // Instantly update the match in state
+        setMatches(prev => {
+          const now = ts || Date.now();
+          const updated = prev.map(m =>
+            m.matchId === matchId
+              ? { ...m, lastMsg: preview || m.lastMsg, time: new Date(now).toISOString() }
+              : m
+          );
+          // Re-sort by time
+          return [...updated].sort((a, b) =>
+            new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime()
+          );
+        });
+        // Update unread count instantly
+        setUnreadPerMatch((prev: Record<string,number>) => ({
+          ...prev,
+          [matchId]: (prev[matchId] || 0) + 1
+        }));
+      })
+      .on("broadcast", { event: "new_match" }, () => {
+        getMatches(userId!).then(setMatches);
+      })
+      .subscribe();
+
+    // Subscribe to typing events for all current matches
+    const typingTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+    const typingChannels = (matches || []).map(m => {
+      return sb.channel(`typing-${m.matchId}`)
+        .on("broadcast", { event: "typing" }, (payload: any) => {
+          if (payload.payload?.userId === userId) return; // ignore own typing
+          setTypingMatchIds(prev => { const s = new Set(prev); s.add(m.matchId); return s; });
+          clearTimeout(typingTimers[m.matchId]);
+          typingTimers[m.matchId] = setTimeout(() => {
+            setTypingMatchIds(prev => { const s = new Set(prev); s.delete(m.matchId); return s; });
+          }, 3000);
+        })
+        .subscribe();
+    });
+
+    // postgres_changes for matches & notifications (low frequency, reliable)
     const ch = sb.channel(`app-${userId}`)
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"matches",
         filter:`user1_id=eq.${userId}` }, () => { getMatches(userId!).then(setMatches); })
@@ -136,11 +181,11 @@ export default function App() {
         filter:`user_id=eq.${userId}` }, () => loadAll())
       .subscribe();
 
-    // Poll every 5s — most reliable way to get new messages on free tier
+    // Fallback poll every 30s (safety net only)
     const pollInterval = setInterval(() => {
       loadUnread();
       getMatches(userId!).then(setMatches);
-    }, 5000);
+    }, 30000);
 
     // Reload matches when tab becomes visible again (user returns to app)
     const onVisible = () => {
@@ -155,7 +200,7 @@ export default function App() {
     document.addEventListener("visibilitychange", onVisible);
 
     const iv = setInterval(() => sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId), 4*60*1000);
-    return () => { sb.removeChannel(ch); clearInterval(iv); clearInterval(pollInterval); document.removeEventListener("visibilitychange", onVisible); };
+    return () => { sb.removeChannel(ch); sb.removeChannel(broadcastCh); typingChannels.forEach(c => sb.removeChannel(c)); clearInterval(iv); clearInterval(pollInterval); document.removeEventListener("visibilitychange", onVisible); };
   }, [userId, authed]);
 
   async function loadAll() {
@@ -257,7 +302,7 @@ export default function App() {
             {/* position:relative container so absolute children stay within bounds */}
             <div style={{ position:"relative", flex:1, overflow:"hidden" }}>
               <div style={{ position:"absolute", inset:0 }}>
-                <ChatListScreen profile={profile} matches={matches} unreadPerMatch={unreadPerMatch} onOpenNyx={() => setInChat(true)} onOpenMatch={openMatch}/>
+                <ChatListScreen profile={profile} matches={matches} unreadPerMatch={unreadPerMatch} typingMatchIds={typingMatchIds} onOpenNyx={() => setInChat(true)} onOpenMatch={openMatch}/>
               </div>
               {inChat && <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", justifyContent:"center" }}><div style={{ width:"100%", maxWidth:480, height:"100%", position:"relative" }}>
                 {!activeMatch

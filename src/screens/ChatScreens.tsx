@@ -506,8 +506,8 @@ function MsgMenu({ msg, isMe, onCopy, onDelete, onHide, onRecall, onReply, onAna
 }
 
 /* ─── Conversation List ──────────────────────────────── */
-export function ChatListScreen({ profile, matches, unreadPerMatch, onOpenNyx, onOpenMatch }:
-  { profile: UserProfile; matches: MatchItem[]; unreadPerMatch: Record<string, number>; onOpenNyx: () => void; onOpenMatch: (m: MatchItem) => void }) {
+export function ChatListScreen({ profile, matches, unreadPerMatch, typingMatchIds, onOpenNyx, onOpenMatch }:
+  { profile: UserProfile; matches: MatchItem[]; unreadPerMatch: Record<string, number>; typingMatchIds?: Set<string>; onOpenNyx: () => void; onOpenMatch: (m: MatchItem) => void }) {
   const [search, setSearch] = useState("");
   const [nyxLastMsg, setNyxLastMsg] = useState("嗨，把聊天貼給我分析 💫");
   const [nyxTime, setNyxTime] = useState(fmtTime(new Date()));
@@ -541,7 +541,7 @@ export function ChatListScreen({ profile, matches, unreadPerMatch, onOpenNyx, on
 
   const all = [
     { id: "nyx", isNyx: true, name: "Nyx ✦", lastMsg: nyxLastMsg, time: nyxTime, unread: 0, avatar: "", online: true, lastActive: null },
-    ...sortedMatches.map(m => ({ id: m.id, isNyx: false, name: m.name, lastMsg: previewMsg(m.lastMsg), time: m.time, unread: unreadPerMatch[m.matchId] || 0, avatar: m.avatar, online: false, lastActive: (m as any).lastActive || null }))
+    ...sortedMatches.map(m => ({ id: m.id, matchId: m.matchId, isNyx: false, name: m.name, lastMsg: previewMsg(m.lastMsg), time: m.time, unread: unreadPerMatch[m.matchId] || 0, avatar: m.avatar, online: false, lastActive: (m as any).lastActive || null }))
   ].filter(i => !search || i.name.toLowerCase().includes(search.toLowerCase()));
 
   return <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease" }}>
@@ -736,6 +736,11 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           const opt: ChatMsg = { id: Date.now() + "i", senderId: myUserId, content: url, timestamp: new Date(), isImage: true };
           setMsgs(p => [...p, opt]); sound.send();
           await sb.from("chat_messages").insert({ match_id: matchId, sender_id: myUserId, content: url, is_image: true });
+          // Broadcast for instant update
+          sb.channel(`user-inbox:${other.id}`).send({
+            type: "broadcast", event: "new_message",
+            payload: { matchId, senderName: myProfile?.display_name || myProfile?.username || "", preview: "📷 圖片", ts: Date.now() }
+          });
           // Push notify recipient about image
           sb.functions.invoke("send-push", {
             body: {
@@ -754,6 +759,16 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       const opt: ChatMsg = { id: Date.now() + "t", senderId: myUserId, content, timestamp: new Date() };
       setMsgs(p => [...p, opt]); sound.send();
       await sendChatMsg(matchId, myUserId, content);
+      // Broadcast to recipient for instant UI update (no DB round-trip)
+      sb.channel(`user-inbox:${other.id}`).send({
+        type: "broadcast", event: "new_message",
+        payload: {
+          matchId,
+          senderName: myProfile?.display_name || myProfile?.username || "",
+          preview: content.length > 40 ? content.slice(0, 40) + "..." : content,
+          ts: Date.now()
+        }
+      });
       // Push notify the recipient
       sb.functions.invoke("send-push", {
         body: {
