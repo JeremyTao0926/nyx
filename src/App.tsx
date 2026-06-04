@@ -128,13 +128,14 @@ export default function App() {
     loadAll();
 
     const ch = sb.channel(`app-${userId}`)
-      // New match → reload matches list immediately
+      // New match
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"matches",
         filter:`user1_id=eq.${userId}` }, () => { getMatches(userId!).then(setMatches); })
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"matches",
         filter:`user2_id=eq.${userId}` }, () => { getMatches(userId!).then(setMatches); })
-      // New message → update unread badge + refresh match list (lastMsg)
-      .on("postgres_changes", { event:"INSERT", schema:"public", table:"chat_messages" }, () => {
+      // New message with filter (required for free tier realtime)
+      .on("postgres_changes", { event:"INSERT", schema:"public", table:"chat_messages",
+        filter:`match_id=in.(${(matches||[]).map((m: any)=>m.matchId).join(",") || "00000000-0000-0000-0000-000000000000"})` }, () => {
         loadUnread();
         getMatches(userId!).then(setMatches);
       })
@@ -142,6 +143,14 @@ export default function App() {
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"notifications",
         filter:`user_id=eq.${userId}` }, () => loadAll())
       .subscribe();
+
+    // Fallback: poll every 8s when tab is visible (ensures messages always appear)
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        loadUnread();
+        getMatches(userId!).then(setMatches);
+      }
+    }, 8000);
 
     // Reload matches when tab becomes visible again (user returns to app)
     const onVisible = () => {
@@ -156,7 +165,7 @@ export default function App() {
     document.addEventListener("visibilitychange", onVisible);
 
     const iv = setInterval(() => sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId), 4*60*1000);
-    return () => { sb.removeChannel(ch); clearInterval(iv); document.removeEventListener("visibilitychange", onVisible); };
+    return () => { sb.removeChannel(ch); clearInterval(iv); clearInterval(pollInterval); document.removeEventListener("visibilitychange", onVisible); };
   }, [userId, authed]);
 
   async function loadAll() {
