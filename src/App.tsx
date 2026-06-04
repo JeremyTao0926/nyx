@@ -133,8 +133,11 @@ export default function App() {
         filter:`user1_id=eq.${userId}` }, () => { getMatches(userId!).then(setMatches); })
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"matches",
         filter:`user2_id=eq.${userId}` }, () => { getMatches(userId!).then(setMatches); })
-      // New message → update unread badge
-      .on("postgres_changes", { event:"INSERT", schema:"public", table:"chat_messages" }, () => loadUnread())
+      // New message → update unread badge + refresh match list (lastMsg)
+      .on("postgres_changes", { event:"INSERT", schema:"public", table:"chat_messages" }, () => {
+        loadUnread();
+        getMatches(userId!).then(setMatches);
+      })
       // Notifications
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"notifications",
         filter:`user_id=eq.${userId}` }, () => loadAll())
