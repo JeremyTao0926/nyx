@@ -3,7 +3,8 @@ import { C, sound, sb, updateProfile, uploadAvatar, uploadCover, uploadPhoto, de
 import { Av } from "../components/Atoms";
 import { ImageCropper } from "../components/ImageCropper";
 import { MbtiSheet, MultiSelect, BottomSheet } from "../components/Modals";
-import type { UserProfile, Lang } from "../types";
+import type { UserProfile, Lang, WhoLikedItem } from "../types";
+import { getWhoLikedMe } from "../utils";
 import { PremiumScreen } from "./PremiumScreen";
 import { TermsScreen } from "./TermsScreen";
 
@@ -116,7 +117,7 @@ function PhotoGrid({ photos, onAdd, onRemove, uploading }: { photos: string[]; o
   </div>;
 }
 
-export function ProfileScreen({ profile, userId, onLogout, onUpdate }: { profile: UserProfile; userId: string; onLogout: () => void; onUpdate: (p: Partial<UserProfile>) => void }) {
+export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat }: { profile: UserProfile; userId: string; onLogout: () => void; onUpdate: (p: Partial<UserProfile>) => void; onOpenChat?: (matchId: string, otherId: string, name: string, avatar: string) => void }) {
   const [activeTab, setActiveTab] = useState<"view" | "edit" | "settings">("view");
   const [name, setName] = useState(profile.display_name || profile.username);
   const [bio, setBio] = useState(profile.bio || "");
@@ -149,6 +150,12 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate }: { profile
   const [loveLanguage, setLoveLanguage] = useState((profile as any).love_language || "");
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState({ likesReceived: 0, likesGiven: 0, matches: 0 });
+  const [statsPanel, setStatsPanel] = useState<"liked_me"|"i_liked"|"matches"|null>(null);
+  const [whoLikedMe, setWhoLikedMe] = useState<WhoLikedItem[]>([]);
+  const [iLiked, setILiked] = useState<WhoLikedItem[]>([]);
+  const [myMatches, setMyMatches] = useState<{matchId:string;userId:string;name:string;avatar:string;mbti:string;age:number|null;lastMsg:string}[]>([]);
+  const [showAllMatches, setShowAllMatches] = useState(false);
+  const [loadingPanel, setLoadingPanel] = useState(false);
   const [locating, setLocating] = useState(false);
   const [cropFile, setCropFile] = useState<{ file: File; type: "avatar" | "cover" | "photo" } | null>(null);
   const [showPremium, setShowPremium] = useState(false);
@@ -167,6 +174,83 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate }: { profile
       sb.from("matches").select("id", { count: "exact", head: true }).or(`user1_id.eq.${userId},user2_id.eq.${userId}`),
     ]).then(([r, g, m]) => setStats({ likesReceived: r.count || 0, likesGiven: g.count || 0, matches: m.count || 0 }));
   }, [userId]);
+
+  async function openStatsPanel(panel: "liked_me"|"i_liked"|"matches") {
+    setStatsPanel(panel);
+    setLoadingPanel(true);
+
+    // Get matched user IDs to exclude from both lists
+    const { data: matchedRows } = await sb.from("matches")
+      .select("user1_id,user2_id")
+      .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
+    const matchedIds = new Set((matchedRows||[]).map((m: any) =>
+      m.user1_id === userId ? m.user2_id : m.user1_id
+    ));
+
+    if (panel === "liked_me") {
+      // 別人喜歡我，但排除已配對（他們已是配對，不應在這裡）
+      const { data } = await sb.from("swipes")
+        .select("swiper_id,direction,created_at")
+        .eq("swiped_id", userId)
+        .in("direction", ["like","superlike"])
+        .order("created_at", { ascending: false });
+      if (data) {
+        const unmatched = data.filter((s: any) => !matchedIds.has(s.swiper_id));
+        const items = await Promise.all(unmatched.map(async (s: any) => {
+          const { data: p } = await sb.from("profiles")
+            .select("id,display_name,username,avatar_url,birthday,mbti")
+            .eq("id", s.swiper_id).maybeSingle();
+          return { id: s.swiper_id, name: p?.display_name||p?.username||"?", age: p?.birthday?calcAge(p.birthday):null, avatar: p?.avatar_url||"", mbti: p?.mbti||"INFP", direction: s.direction, timestamp: new Date(s.created_at) } as WhoLikedItem;
+        }));
+        setWhoLikedMe(items);
+      }
+    }
+
+    if (panel === "matches") {
+      const { data: matchRows } = await sb.from("matches")
+        .select("id,user1_id,user2_id,created_at")
+        .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+        .order("created_at", { ascending: false });
+      if (matchRows) {
+        const items = await Promise.all(matchRows.map(async (m: any) => {
+          const otherId = m.user1_id === userId ? m.user2_id : m.user1_id;
+          const { data: p } = await sb.from("profiles")
+            .select("id,display_name,username,avatar_url,birthday,mbti")
+            .eq("id", otherId).maybeSingle();
+          // Get last message
+          const { data: msgs } = await sb.from("chat_messages")
+            .select("content,is_image")
+            .eq("match_id", m.id)
+            .order("created_at", { ascending: false })
+            .limit(1);
+          const lastMsg = msgs?.[0]?.is_image ? "📷 圖片" : msgs?.[0]?.content?.slice(0,30) || "開始聊天吧";
+          return { matchId: m.id, userId: otherId, name: p?.display_name||p?.username||"?", avatar: p?.avatar_url||"", mbti: p?.mbti||"INFP", age: p?.birthday?calcAge(p.birthday):null, lastMsg };
+        }));
+        setMyMatches(items);
+      }
+    }
+
+    if (panel === "i_liked") {
+      // 我喜歡的人，排除已配對（配對的去「消息」找）
+      const { data } = await sb.from("swipes")
+        .select("swiped_id,direction,created_at")
+        .eq("swiper_id", userId)
+        .in("direction", ["like","superlike"])
+        .order("created_at", { ascending: false });
+      if (data) {
+        const unmatched = data.filter((s: any) => !matchedIds.has(s.swiped_id));
+        const items = await Promise.all(unmatched.map(async (s: any) => {
+          const { data: p } = await sb.from("profiles")
+            .select("id,display_name,username,avatar_url,birthday,mbti")
+            .eq("id", s.swiped_id).maybeSingle();
+          return { id: s.swiped_id, name: p?.display_name||p?.username||"?", age: p?.birthday?calcAge(p.birthday):null, avatar: p?.avatar_url||"", mbti: p?.mbti||"INFP", direction: s.direction, timestamp: new Date(s.created_at) } as WhoLikedItem;
+        }));
+        setILiked(items);
+      }
+    }
+
+    setLoadingPanel(false);
+  }
 
   function handleAvatar(file: File) { setCropFile({ file, type: "avatar" }); }
   async function doUploadAvatar(blob: Blob) { setUploading(true); setCropFile(null); try { const f = new File([blob], "avatar.jpg", { type: "image/jpeg" }); const url = await uploadAvatar(f, userId); setAvatarUrl(url); await updateProfile(userId, { avatar_url: url }); onUpdate({ avatar_url: url }); } catch (e) { console.error(e); } setUploading(false); }
@@ -279,14 +363,17 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate }: { profile
 
       <div style={{ padding: "0 16px 48px" }}>
 
-        {/* Stats card */}
+        {/* Stats card — clickable */}
         <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, display: "flex", marginBottom: 14, overflow: "hidden" }}>
           {[
-            { ico: "heart", val: stats.likesReceived, label: "喜歡我", color: "#e8365d" },
-            { ico: "star", val: stats.likesGiven, label: "我喜歡", color: C.gold },
-            { ico: "users", val: stats.matches, label: "我的配對", color: "#6c88f5" },
+            { ico: "heart", val: stats.likesReceived, label: "喜歡我", color: "#e8365d", panel: "liked_me" as const },
+            { ico: "star", val: stats.likesGiven, label: "我喜歡", color: C.gold, panel: "i_liked" as const },
+            { ico: "users", val: stats.matches, label: "我的配對", color: "#6c88f5", panel: "matches" as const },
           ].map((s, i) => (
-            <div key={s.label} style={{ flex: 1, textAlign: "center" as const, padding: "18px 0", borderRight: i < 2 ? `1px solid ${C.border}` : "none" }}>
+            <div key={s.label} onClick={() => openStatsPanel(s.panel)}
+              style={{ flex: 1, textAlign: "center" as const, padding: "18px 0", borderRight: i < 2 ? `1px solid ${C.border}` : "none", cursor: "pointer", transition: "background .15s" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 4 }}>
                 <Si n={s.ico} s={18} c={s.color} />
                 <span style={{ fontSize: 22, fontWeight: 800, color: C.text }}>{s.val}</span>
@@ -397,6 +484,125 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate }: { profile
       </div>
 
       {cropFile && <ImageCropper file={cropFile.file} aspectRatio={cropFile.type === "cover" ? 2.5 : 1} shape={cropFile.type === "avatar" ? "circle" : "rect"} onConfirm={blob => { if (cropFile.type === "avatar") doUploadAvatar(blob); else if (cropFile.type === "cover") doUploadCover(blob); }} onCancel={() => setCropFile(null)} />}
+
+      {/* ── Stats Panel ── */}
+      {statsPanel && (
+        <div style={{ position:"fixed",inset:0,zIndex:200,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.65)",backdropFilter:"blur(16px)" }} onClick={()=>setStatsPanel(null)}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%",maxWidth:480,margin:"0 auto",background:"#141210",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",maxHeight:"82vh",display:"flex",flexDirection:"column" as const,position:"absolute",bottom:0,animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
+            {/* Handle */}
+            <div style={{ padding:"14px 0 0",display:"flex",justifyContent:"center" }}><div style={{ width:40,height:5,borderRadius:3,background:"rgba(255,255,255,0.15)" }}/></div>
+            {/* Header */}
+            <div style={{ padding:"12px 20px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+              <div>
+                <div style={{ fontSize:17,fontWeight:700,color:C.text }}>
+                  {statsPanel==="liked_me"?"喜歡你的人":statsPanel==="i_liked"?"你喜歡的人":"你的配對"}
+                </div>
+                <div style={{ fontSize:12,color:C.textMuted,marginTop:2 }}>
+                  {statsPanel==="liked_me"?`${stats.likesReceived} 人`:statsPanel==="i_liked"?`${stats.likesGiven} 人`:`${stats.matches} 個配對`}
+                </div>
+              </div>
+              <button onClick={()=>{setStatsPanel(null);setShowAllMatches(false);}} style={{ width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"none",color:C.textMuted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16 }}>✕</button>
+            </div>
+            {/* Content */}
+            <div style={{ flex:1,overflowY:"auto",padding:"8px 0 32px" }}>
+              {loadingPanel ? (
+                <div style={{ display:"flex",justifyContent:"center",padding:"48px 0" }}>
+                  <div style={{ width:28,height:28,border:`2px solid ${C.border}`,borderTopColor:C.gold,borderRadius:"50%",animation:"spin .7s linear infinite" }}/>
+                </div>
+              ) : statsPanel === "matches" ? (
+                myMatches.length === 0 ? (
+                  <div style={{ textAlign:"center" as const,padding:"48px 20px",color:C.textMuted }}>
+                    <div style={{ fontSize:40,marginBottom:14,opacity:.4 }}>💬</div>
+                    <div style={{ fontSize:14 }}>還沒有配對，去探索一下吧</div>
+                  </div>
+                ) : (
+                  <div>
+                    {(showAllMatches ? myMatches : myMatches.slice(0,8)).map(m=>(
+                      <div key={m.matchId}
+                        onClick={()=>{ setStatsPanel(null); onOpenChat?.(m.matchId, m.userId, m.name, m.avatar); }}
+                        style={{ display:"flex",alignItems:"center",gap:14,padding:"12px 20px",cursor:"pointer",transition:"background .15s" }}
+                        onMouseEnter={e=>(e.currentTarget.style.background="rgba(255,255,255,0.025)")}
+                        onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
+                        <Av url={m.avatar} name={m.name} size={54}/>
+                        <div style={{ flex:1,minWidth:0 }}>
+                          <div style={{ fontSize:15,fontWeight:600,color:C.text }}>{m.name}{m.age?`, ${m.age}`:""}</div>
+                          <div style={{ fontSize:12.5,color:C.textMuted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const }}>{m.lastMsg}</div>
+                        </div>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(245,237,214,0.25)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      </div>
+                    ))}
+                    {myMatches.length > 8 && !showAllMatches && (
+                      <button onClick={()=>setShowAllMatches(true)}
+                        style={{ width:"100%",padding:"14px",background:"none",border:"none",color:C.gold,fontFamily:"inherit",fontSize:14,fontWeight:600,cursor:"pointer",borderTop:`1px solid ${C.border}` }}>
+                        查看全部 {myMatches.length} 個配對
+                      </button>
+                    )}
+                  </div>
+                )
+              ) : (
+                (() => {
+                  const items = statsPanel==="liked_me" ? whoLikedMe : iLiked;
+                  if (items.length === 0) return (
+                    <div style={{ textAlign:"center" as const,padding:"48px 20px",color:C.textMuted }}>
+                      <div style={{ fontSize:40,marginBottom:14,opacity:.3,color:C.gold }}>◈</div>
+                      <div style={{ fontSize:14 }}>{statsPanel==="liked_me"?"還沒有人喜歡你，去探索一下吧":"你還沒有喜歡任何人"}</div>
+                    </div>
+                  );
+                  // Group by date
+                  const today = new Date(); today.setHours(0,0,0,0);
+                  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate()-1);
+                  const groups: {label:string; items:WhoLikedItem[]}[] = [];
+                  const todayItems = items.filter(i=>new Date(i.timestamp)>=today);
+                  const yesterdayItems = items.filter(i=>new Date(i.timestamp)>=yesterday&&new Date(i.timestamp)<today);
+                  const olderItems = items.filter(i=>new Date(i.timestamp)<yesterday);
+                  if (todayItems.length) groups.push({label:"今天",items:todayItems});
+                  if (yesterdayItems.length) groups.push({label:"昨天",items:yesterdayItems});
+                  if (olderItems.length) groups.push({label:"更早",items:olderItems});
+                  return (
+                    <>
+                      {groups.map(group=>(
+                        <div key={group.label}>
+                          <div style={{ fontSize:11.5,fontWeight:700,color:C.textMuted,letterSpacing:".5px",padding:"14px 20px 8px",textTransform:"uppercase" as const }}>{group.label}</div>
+                          {group.items.map(item=>(
+                            <div key={item.id} style={{ display:"flex",alignItems:"center",gap:14,padding:"12px 20px",transition:"background .15s" }}
+                              onMouseEnter={e=>(e.currentTarget.style.background="rgba(255,255,255,0.02)")}
+                              onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
+                              <Av url={item.avatar} name={item.name} size={54}/>
+                              <div style={{ flex:1,minWidth:0 }}>
+                                <div style={{ fontSize:15,fontWeight:600,color:C.text }}>{item.name}{item.age?`, ${item.age}`:""}</div>
+                                <div style={{ fontSize:12.5,marginTop:2,display:"flex",alignItems:"center",gap:6 }}>
+                                  {item.direction==="superlike"
+                                    ? <span style={{ color:C.gold,fontWeight:600 }}>✦ 優先認識</span>
+                                    : <span style={{ color:"#e8365d" }}>♥ 喜歡你</span>}
+                                  <span style={{ color:C.textMuted }}>·</span>
+                                  <span style={{ color:C.textMuted }}>{item.mbti}</span>
+                                </div>
+                              </div>
+                              {statsPanel==="liked_me" && (
+                                <button
+                                  onClick={async ()=>{
+                                    await sb.from("swipes").upsert({swiper_id:userId,swiped_id:item.id,direction:"like"},{onConflict:"swiper_id,swiped_id"});
+                                    setWhoLikedMe(w=>w.filter(x=>x.id!==item.id));
+                                    setStats(s=>({...s,likesReceived:s.likesReceived-1}));
+                                    sound.match();
+                                  }}
+                                  style={{ padding:"8px 16px",borderRadius:20,background:"linear-gradient(135deg,#C9A84C,#E2C068)",border:"none",color:"#12100C",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0 }}>
+                                  喜歡
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </>
+                  );
+                })()
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDelete && <BottomSheet onClose={() => setShowDelete(false)}>
         <div style={{ padding: "20px 24px 52px", textAlign: "center" }}>
           <div style={{ fontSize: 38, marginBottom: 16 }}>⚠️</div>

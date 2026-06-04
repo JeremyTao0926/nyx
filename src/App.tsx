@@ -169,6 +169,7 @@ export default function App() {
   return (
     <>
       <style>{GLOBAL_CSS}</style>
+      <InstallBanner/>
       <div style={{ display:"flex", flexDirection:"column", height:"100dvh", ...WRAP, background:C.bg, overflow:"hidden" }}
         onTouchStart={e=>{
           // only trigger from edge (left <30px or right >screen-30px)
@@ -220,7 +221,13 @@ export default function App() {
           </>}
           {/* PROFILE */}
           {tab==="profile" && profile && userId &&
-            <ProfileScreen profile={profile} userId={userId} onLogout={logout} onUpdate={updateLocal}/>}
+            <ProfileScreen profile={profile} userId={userId} onLogout={logout} onUpdate={updateLocal}
+              onOpenChat={(matchId, otherId, name, avatar) => {
+                const m = matches.find(x=>x.matchId===matchId) || { id: otherId, matchId, name, avatar, lastMsg:"", time:"", unread:0 };
+                setActiveMatch(m as any);
+                setInChat(true);
+                setTab("chat");
+              }}/>}
         </div>
         <BottomTabBar tab={tab} setTab={t => { setTab(t); if (t!=="chat") setInChat(false); }} unread={totalUnread}/>
       </div>

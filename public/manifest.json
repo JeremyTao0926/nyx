@@ -1,0 +1,18 @@
+{
+  "name": "NYX",
+  "short_name": "NYX",
+  "description": "NYX Dating App",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0C0A08",
+  "theme_color": "#0C0A08",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

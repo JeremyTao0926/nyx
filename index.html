@@ -19,7 +19,12 @@
       /* Prevent context menu on long press */
       * { -webkit-tap-highlight-color: transparent; }
     </style>
-  </head>
+    <link rel="manifest" href="/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NYX">
+  <meta name="theme-color" content="#0C0A08">
+</head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
