@@ -42,6 +42,45 @@ function BottomTabBar({ tab, setTab, unread }: { tab: Tab; setTab: (t: Tab) => v
 }
 
 /* ─── App ────────────────────────────────────────────── */
+
+/* ── PWA Install Banner ── */
+function InstallBanner() {
+  const [show, setShow] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const standalone = (window.navigator as any).standalone === true
+      || window.matchMedia("(display-mode: standalone)").matches;
+    if (standalone) return;
+    setIsIOS(ios);
+    const dismissed = localStorage.getItem("nyx-install-dismissed");
+    if (dismissed) return;
+    const t = setTimeout(() => setShow(true), 3000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (!show) return null;
+
+  return (
+    <div style={{ position:"fixed", bottom:72, left:12, right:12, zIndex:999,
+      background:"rgba(20,18,12,0.97)", backdropFilter:"blur(20px)",
+      border:"1px solid rgba(201,168,76,0.3)", borderRadius:16,
+      padding:"14px 16px", display:"flex", alignItems:"flex-start", gap:12,
+      boxShadow:"0 8px 32px rgba(0,0,0,0.5)", animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
+      <div style={{ width:40,height:40,borderRadius:10,background:"linear-gradient(135deg,#C9A84C,#E2C068)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0 }}>N</div>
+      <div style={{ flex:1,minWidth:0 }}>
+        <div style={{ fontSize:14,fontWeight:700,color:"#F5EDD6",marginBottom:3 }}>加入主畫面以接收通知</div>
+        {isIOS
+          ? <div style={{ fontSize:12,color:"rgba(245,237,214,0.55)",lineHeight:1.5 }}>點底部 <span style={{ fontSize:13 }}>⎙</span> 分享 → 「加入主畫面」</div>
+          : <div style={{ fontSize:12,color:"rgba(245,237,214,0.55)",lineHeight:1.5 }}>瀏覽器右上角 ⋮ → 「加入主畫面」</div>}
+      </div>
+      <button onClick={()=>{ setShow(false); localStorage.setItem("nyx-install-dismissed","1"); }}
+        style={{ background:"none",border:"none",color:"rgba(245,237,214,0.35)",fontSize:18,cursor:"pointer",padding:"0 4px",flexShrink:0,lineHeight:1 }}>✕</button>
+    </div>
+  );
+}
+
 export default function App() {
   const [authed, setAuthed]         = useState(false);
   const [userId, setUserId]         = useState<string|null>(null);
