@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { sb, C, WRAP, GLOBAL_CSS, getProfile, getMatches, getUnreadCount } from "./utils";
 import type { UserProfile, MatchItem } from "./types";
 import { LoginScreen, SplashScreen } from "./screens/AuthScreens";
-import { initPush, removePush, onNotificationClick } from "./pushNotifications";
+import { initPush, removePush } from "./pushNotifications";
 import { ChatListScreen, RealChatScreen } from "./screens/ChatScreens";
 import { NyxChatScreen } from "./screens/NyxChatScreen";
 import { ExploreScreen } from "./screens/ExploreScreen";
