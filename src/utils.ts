@@ -740,6 +740,14 @@ export async function getBondInfo(matchId: string): Promise<BondInfo> {
 }
 
 export const GLOBAL_CSS = `
+  /* ── Safe Area (notch/Dynamic Island/home bar) ── */
+  :root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+  }
+
   @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   html,body{height:100%;background:#0C0A08;overscroll-behavior:none;}

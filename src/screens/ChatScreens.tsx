@@ -1046,7 +1046,14 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
         onLike={()=>{}} onSuperlike={()=>{}} onChat={()=>{}}
       />}
     {showMemory && <MemoryWall matchId={matchId} otherName={other.name} onClose={() => setShowMemory(false)} />}
-    {showClone && <CloneScreen matchId={matchId} myUserId={myUserId} myProfile={myProfile} other={other} onClose={() => setShowClone(false)} />}
+    {showClone && (
+      <div style={{ position:"fixed",inset:0,zIndex:100 }}
+        onTouchStart={e=>e.stopPropagation()}
+        onTouchMove={e=>e.stopPropagation()}
+        onTouchEnd={e=>e.stopPropagation()}>
+        <CloneScreen matchId={matchId} myUserId={myUserId} myProfile={myProfile} other={other} onClose={() => setShowClone(false)} />
+      </div>
+    )}
 
     {/* Msg menu */}
     {menuMsg && <MsgMenu msg={menuMsg} isMe={menuMsg.senderId === myUserId}

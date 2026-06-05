@@ -263,7 +263,7 @@ export default function App() {
     <>
       <style>{GLOBAL_CSS}</style>
       <InstallBanner/>
-      <div style={{ display:"flex", flexDirection:"column", height:"100dvh", ...WRAP, background:C.bg, overflow:"hidden" }}
+      <div style={{ display:"flex", flexDirection:"column", height:"100dvh", paddingTop:"env(safe-area-inset-top,0px)", ...WRAP, background:C.bg, overflow:"hidden", boxSizing:"border-box" as const }}
         onTouchStart={e=>{
           // only trigger from edge (left <30px or right >screen-30px)
           const x = e.touches[0].clientX;
