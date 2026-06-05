@@ -389,6 +389,10 @@ export function CloneScreen({ matchId, myUserId, myProfile, other, onClose }: {
   matchId: string; myUserId: string; myProfile: UserProfile; other: MatchItem; onClose: () => void;
 }) {
   const [phase, setPhase] = useState<"select"|"loading"|"chat">("select");
+  const swipeStartX = useRef(0);
+  const swipeStartY = useRef(0);
+  const [swipeDx, setSwipeDx] = useState(0);
+  const isSwiping = useRef(false);
   const [mode, setMode] = useState<CloneMode>("fresh");
   const [session, setSession] = useState<CloneSession|null>(null);
   const [error, setError] = useState("");
@@ -436,9 +440,38 @@ export function CloneScreen({ matchId, myUserId, myProfile, other, onClose }: {
     }
   }
 
+  function onSwipeStart(e: React.TouchEvent) {
+    swipeStartX.current = e.touches[0].clientX;
+    swipeStartY.current = e.touches[0].clientY;
+    isSwiping.current = false;
+  }
+  function onSwipeMove(e: React.TouchEvent) {
+    const dx = e.touches[0].clientX - swipeStartX.current;
+    const dy = Math.abs(e.touches[0].clientY - swipeStartY.current);
+    if (swipeStartX.current < 40 && dx > 0 && dy < 60) {
+      isSwiping.current = true;
+      setSwipeDx(Math.min(dx, 260));
+    }
+  }
+  function onSwipeEnd() {
+    if (isSwiping.current && swipeDx > 100) {
+      if (phase === "chat") setPhase("select");
+      else onClose();
+    }
+    setSwipeDx(0);
+    isSwiping.current = false;
+  }
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}>
-      <div style={{ width: "100%", maxWidth: 480, background: C.bg, display: "flex", flexDirection: "column", height: "100%", position: "relative" }}>
+      <div
+        onTouchStart={onSwipeStart}
+        onTouchMove={onSwipeMove}
+        onTouchEnd={onSwipeEnd}
+        style={{ width: "100%", maxWidth: 480, background: C.bg, display: "flex", flexDirection: "column", height: "100%", position: "relative",
+          transform: `translateX(${swipeDx}px)`,
+          transition: swipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
+          boxShadow: swipeDx > 10 ? "-8px 0 24px rgba(0,0,0,0.5)" : "none" }}>
         {/* Header */}
         <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, borderBottom: `1px solid ${C.border}`, background: "rgba(12,10,8,0.97)", backdropFilter: "blur(20px)", flexShrink: 0 }}>
           <button onClick={phase === "chat" ? () => setPhase("select") : onClose}
