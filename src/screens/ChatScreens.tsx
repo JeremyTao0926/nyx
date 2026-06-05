@@ -650,23 +650,31 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       })
       .subscribe();
 
-    // Load other user profile
+    // Load other user profile + realtime last_active
+    const loadOtherProfile = (data: any) => {
+      setOtherProfileData({
+        name: data.display_name || data.username, age: data.birthday ? calcAge(data.birthday) : null,
+        avatar: data.avatar_url, cover: (data as any).cover_url || null, bio: data.bio, mbti: data.mbti, location: data.location_text,
+        country: data.country, hobbies: data.hobbies || [], photos: data.photos || [],
+        lastActive: data.last_active, hideOnline: data.hide_online_status,
+        occupation: data.occupation || null, education: data.education || null,
+        income: data.income || null, height_cm: data.height_cm || null,
+        drinking: data.drinking || null, smoking: data.smoking || null,
+        exercise: data.exercise || null, has_pets: data.has_pets || null,
+        want_children: data.want_children || null, relationship_goal: data.relationship_goal || null,
+        love_language: data.love_language || null,
+      });
+    };
     sb.from("profiles").select("*,cover_url").eq("id", other.id).maybeSingle().then(({ data }) => {
-      if (data) {
-        setOtherProfileData({
-          name: data.display_name || data.username, age: data.birthday ? calcAge(data.birthday) : null,
-          avatar: data.avatar_url, cover: (data as any).cover_url || null, bio: data.bio, mbti: data.mbti, location: data.location_text,
-          country: data.country, hobbies: data.hobbies || [], photos: data.photos || [],
-          lastActive: data.last_active, hideOnline: data.hide_online_status,
-          occupation: data.occupation || null, education: data.education || null,
-          income: data.income || null, height_cm: data.height_cm || null,
-          drinking: data.drinking || null, smoking: data.smoking || null,
-          exercise: data.exercise || null, has_pets: data.has_pets || null,
-          want_children: data.want_children || null, relationship_goal: data.relationship_goal || null,
-          love_language: data.love_language || null,
-        });
-      }
+      if (data) loadOtherProfile(data);
     });
+    // Poll other's last_active every 30s (lightweight, no realtime channel needed)
+    const profileInterval = setInterval(() => {
+      sb.from("profiles").select("last_active,hide_online_status").eq("id", other.id).maybeSingle()
+        .then(({ data }) => {
+          if (data) setOtherProfileData((prev: any) => prev ? { ...prev, lastActive: data.last_active, hideOnline: data.hide_online_status } : prev);
+        });
+    }, 30000);
 
     // Realtime messages
     const msgCh = sb.channel(`chat-${matchId}`)

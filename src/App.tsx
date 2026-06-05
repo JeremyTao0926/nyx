@@ -125,7 +125,11 @@ export default function App() {
 
   useEffect(() => {
     if (!userId || !authed) return;
-    sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId);
+    // Update last_active immediately on login and on every app focus
+    const updateActive = () => sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId);
+    updateActive();
+    const onFocus = () => { if (document.visibilityState === "visible") updateActive(); };
+    document.addEventListener("visibilitychange", onFocus);
     loadAll();
 
     // Broadcast channel — instant UI update, no DB round-trip
@@ -200,7 +204,7 @@ export default function App() {
     document.addEventListener("visibilitychange", onVisible);
 
     const iv = setInterval(() => sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId), 4*60*1000);
-    return () => { sb.removeChannel(ch); sb.removeChannel(broadcastCh); typingChannels.forEach(c => sb.removeChannel(c)); clearInterval(iv); clearInterval(pollInterval); document.removeEventListener("visibilitychange", onVisible); };
+    return () => { sb.removeChannel(ch); sb.removeChannel(broadcastCh); typingChannels.forEach(c => sb.removeChannel(c)); clearInterval(iv); clearInterval(pollInterval); document.removeEventListener("visibilitychange", onVisible); document.removeEventListener("visibilitychange", onFocus); };
   }, [userId, authed]);
 
   async function loadAll() {
