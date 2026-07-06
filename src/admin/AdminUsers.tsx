@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getUsers, banUser, unbanUser, markTestAccount, deleteTestData, canDo, getUserStats, disableUser, restoreUser, softDeleteUser } from "./adminUtils";
+import { getUsers, banUser, unbanUser, markTestAccount, deleteTestData, canDo, getUserStats, disableUser, restoreUser, softDeleteUser, grantPremium } from "./adminUtils";
 import type { UserRow, AdminRole } from "./adminUtils";
 
 interface Props { tab: "users" | "test_data"; role: AdminRole; C: any; }
@@ -35,6 +35,14 @@ export function AdminUsers({ tab, role, C }: Props) {
 
   async function handleUnban(u: UserRow) {
     try { await unbanUser(u.id); setMsg("✓ 已解封"); load(); } catch (e: any) { setMsg(e.message); }
+  }
+
+  async function handleGrantPremium(u: UserRow, plan: "premium" | "premium_plus" | null) {
+    try {
+      await grantPremium(u.id, plan);
+      setMsg(plan ? `✓ 已授予 ${plan === "premium_plus" ? "Premium+" : "Premium"}` : "✓ 已移除 Premium");
+      load();
+    } catch (e: any) { setMsg(e.message); }
   }
 
   async function handleMarkTest(u: UserRow, isTest: boolean) {
@@ -208,6 +216,23 @@ export function AdminUsers({ tab, role, C }: Props) {
                     >
                       軟刪除
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Premium Management */}
+              {canDo(role, "super_admin") && (
+                <div style={{ padding:"14px", background:"rgba(201,168,76,0.04)", borderRadius:10, border:`1px solid rgba(201,168,76,0.15)` }}>
+                  <div style={{ fontSize:12, color:C.gold, marginBottom:10, fontWeight:600 }}>Premium 管理</div>
+                  <div style={{ fontSize:12, color:C.textMuted, marginBottom:10 }}>
+                    目前：{(selected as any).is_premium
+                      ? <span style={{ color:C.gold }}>✦ {(selected as any).premium_plan === "premium_plus" ? "Premium+" : "Premium"}</span>
+                      : <span>無訂閱</span>}
+                  </div>
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" as const }}>
+                    <button onClick={()=>handleGrantPremium(selected,"premium")} style={{ padding:"7px 13px", borderRadius:8, background:"rgba(201,168,76,0.1)", border:"1px solid rgba(201,168,76,0.3)", color:C.gold, fontFamily:"inherit", fontSize:12, fontWeight:600, cursor:"pointer" }}>授予 Premium</button>
+                    <button onClick={()=>handleGrantPremium(selected,"premium_plus")} style={{ padding:"7px 13px", borderRadius:8, background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.3)", color:"#A78BFA", fontFamily:"inherit", fontSize:12, fontWeight:600, cursor:"pointer" }}>授予 Premium+</button>
+                    {(selected as any).is_premium && <button onClick={()=>handleGrantPremium(selected,null)} style={{ padding:"7px 13px", borderRadius:8, background:"rgba(255,60,60,0.08)", border:"1px solid rgba(255,60,60,0.2)", color:"#FF6B6B", fontFamily:"inherit", fontSize:12, cursor:"pointer" }}>移除</button>}
                   </div>
                 </div>
               )}

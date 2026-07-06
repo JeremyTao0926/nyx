@@ -117,9 +117,6 @@ export type WhoLikedItem = {
 export type ReportCategory = 'fake' | 'harassment' | 'nudity' | 'scam' | 'other';
 
 export type DailyLikeStatus = {
-  used: number;
-  limit: number;
-  remaining: number;
-  resetAt: Date;
-  isPremium: boolean;
+  used: number; limit: number; remaining: number; resetAt: Date; isPremium: boolean;
+  superlikeUsed: number; superlikeLimit: number; superlikeRemaining: number;
 };

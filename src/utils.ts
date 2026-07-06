@@ -243,10 +243,21 @@ export async function recordSwipe(swiperId: string, swipedId: string, dir: "like
 }
 export async function getDailyLikeStatus(uid: string): Promise<DailyLikeStatus> {
   await sb.rpc("reset_daily_likes_if_needed", { uid });
-  const { data } = await sb.from("profiles").select("daily_likes_used,daily_likes_reset_at").eq("id", uid).single();
+  const { data } = await sb.from("profiles")
+    .select("daily_likes_used,daily_likes_reset_at,is_premium,superlike_used_today")
+    .eq("id", uid).single();
+  const isPremium = data?.is_premium === true;
   const used = data?.daily_likes_used || 0;
-  const limit = DAILY_LIKE_LIMIT;
-  return { used, limit, remaining: Math.max(0, limit - used), resetAt: new Date(data?.daily_likes_reset_at || Date.now()), isPremium: false };
+  const limit = isPremium ? 99999 : DAILY_LIKE_LIMIT;
+  const superlikeUsed = data?.superlike_used_today || 0;
+  const superlikeLimit = isPremium ? 5 : 1;
+  return {
+    used, limit, remaining: Math.max(0, limit - used),
+    resetAt: new Date(data?.daily_likes_reset_at || Date.now()),
+    isPremium,
+    superlikeUsed, superlikeLimit,
+    superlikeRemaining: Math.max(0, superlikeLimit - superlikeUsed)
+  };
 }
 
 /* ─── Smart recommendation scoring ──────────────────── */

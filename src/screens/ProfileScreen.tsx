@@ -357,7 +357,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap" as const, marginBottom: 0 }}>
           <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(232,54,93,0.13)", border: "1px solid rgba(232,54,93,0.3)", fontSize: 12, color: C.rose, fontWeight: 600 }}>✦ {mbti}</span>
           <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{gender === "male" ? "♂ 男性" : "♀ 女性"}</span>
-          <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(201,168,76,0.12)", border: "1px solid rgba(201,168,76,0.3)", fontSize: 12, color: C.gold, fontWeight: 600 }}>👑 Premium</span>
+          {(profile as any).is_premium && <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(201,168,76,0.12)", border: "1px solid rgba(201,168,76,0.3)", fontSize: 12, color: C.gold, fontWeight: 600 }}>👑 Premium</span>}
         </div>
       </div>
 
@@ -921,7 +921,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         <button onClick={onLogout} style={{ width: "100%", padding: "15px", borderRadius: 14, background: "transparent", border: "1px solid rgba(232,54,93,0.35)", color: C.rose, fontFamily: "inherit", fontSize: 15, fontWeight: 600, cursor: "pointer", marginBottom: 8, transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(232,54,93,0.07)"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>登出帳號</button>
         <button onClick={() => setShowDelete(true)} style={{ width: "100%", padding: "11px", borderRadius: 14, background: "transparent", border: "none", color: C.textDim, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}>刪除帳號</button>
       </div>
-      {showPremium && <div style={{ position: "fixed", inset: 0, zIndex: 300, background: C.bg }}><PremiumScreen onBack={() => setShowPremium(false)} /></div>}
+      {showPremium && <div style={{ position: "fixed", inset: 0, zIndex: 300, background: C.bg }}><PremiumScreen onBack={() => setShowPremium(false)} profile={profile} /></div>}
       {showTerms && <div style={{ position: "fixed", inset: 0, zIndex: 300, background: C.bg }}><TermsScreen onBack={() => setShowTerms(null)} type={showTerms} /></div>}
       {showDelete && <BottomSheet onClose={() => setShowDelete(false)}>
         <div style={{ padding: "20px 24px 52px", textAlign: "center" }}>

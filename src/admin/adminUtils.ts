@@ -10,6 +10,16 @@ export { sb };
 
 export type AdminRole = "super_admin" | "moderator" | "analyst" | "tester";
 
+export async function grantPremium(userId: string, plan: "premium" | "premium_plus" | null) {
+  const expiresAt = plan ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null;
+  const { error } = await sb.from("profiles").update({
+    is_premium: plan !== null,
+    premium_plan: plan,
+    premium_expires_at: expiresAt,
+  }).eq("id", userId);
+  if (error) throw error;
+}
+
 export interface AdminUser {
   userId: string;
   role: AdminRole;

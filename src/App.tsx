@@ -123,6 +123,29 @@ export default function App() {
     };
   }, [userId, authed]);
 
+  // Handle Stripe redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    const plan = params.get("plan");
+    if (payment === "success" && plan) {
+      // Clean URL
+      window.history.replaceState({}, "", "/");
+      // Reload profile to get updated is_premium
+      if (userId) {
+        setTimeout(() => {
+          sb.from("profiles").select("*").eq("id", userId).single().then(({ data }) => {
+            if (data) updateLocal(data as any);
+          });
+        }, 2000);
+        alert(`🎉 歡迎加入 ${plan === "premium_plus" ? "NYX Premium+" : "NYX Premium"}！所有功能已解鎖。`);
+      }
+    }
+    if (payment === "cancelled") {
+      window.history.replaceState({}, "", "/");
+    }
+  }, [userId, authed]);
+
   useEffect(() => {
     if (!userId || !authed) return;
     // Update last_active immediately on login and on every app focus

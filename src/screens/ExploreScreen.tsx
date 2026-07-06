@@ -464,6 +464,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
   const [showWhoLiked,setShowWhoLiked] = useState(false);
   const [whoLiked,setWhoLiked]   = useState<WhoLikedItem[]>([]);
   const [dailyStatus,setDailyStatus] = useState<DailyLikeStatus|null>(null);
+  const [showPremiumGate, setShowPremiumGate] = useState<"likes"|"superlike"|"wholiked"|null>(null);
   const [matchInfo,setMatchInfo] = useState<{avatar:string;name:string;id:string;matchId?:string;profile?:ExploreProfile}|null>(null);
   const [showIcebreaker,setShowIcebreaker] = useState(false);
   const [showProfile,setShowProfile] = useState<ExploreProfile|null>(null);
@@ -480,9 +481,15 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
 
   async function doSwipe(dir:"like"|"pass"|"superlike") {
     const p=profiles[idx]; if(!p) return;
-    if(dir!=="pass"&&dailyStatus&&dailyStatus.remaining<=0){alert("今日喜歡額度已用完");return;}
+    if(dir==="like"&&dailyStatus&&!dailyStatus.isPremium&&dailyStatus.remaining<=0){
+      setShowPremiumGate("likes"); return;
+    }
+    if(dir==="superlike"&&dailyStatus&&dailyStatus.superlikeRemaining<=0){
+      setShowPremiumGate("superlike"); return;
+    }
     const matched=await recordSwipe(userId,p.id,dir);
-    if(dir!=="pass") setDailyStatus(s=>s?{...s,used:s.used+1,remaining:Math.max(0,s.remaining-1)}:s);
+    if(dir==="like") setDailyStatus(s=>s?{...s,used:s.used+1,remaining:Math.max(0,s.remaining-1)}:s);
+    if(dir==="superlike") setDailyStatus(s=>s?{...s,superlikeUsed:(s.superlikeUsed||0)+1,superlikeRemaining:Math.max(0,(s.superlikeRemaining||0)-1)}:s);
     if(matched){
       const{data}=await sb.from("matches").select("id").or(`and(user1_id.eq.${userId},user2_id.eq.${p.id}),and(user1_id.eq.${p.id},user2_id.eq.${userId})`).maybeSingle();
       sound.match(); setMatchInfo({avatar:p.avatar,name:p.name,id:p.id,matchId:data?.id,profile:p});
@@ -513,7 +520,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
             {/* Premium crown */}
             <button style={{ width:34,height:34,borderRadius:"50%",background:C.goldSoft,border:`1px solid ${C.gold}33`,color:C.gold,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>👑</button>
             {/* Who liked me */}
-            <button onClick={()=>setShowWhoLiked(true)} style={{ position:"relative",width:34,height:34,borderRadius:"50%",background:C.roseSoft,border:`1px solid rgba(232,54,93,0.2)`,color:C.rose,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+            <button onClick={()=>{ if(!dailyStatus?.isPremium){ setShowPremiumGate("wholiked"); return; } setShowWhoLiked(true); }} style={{ position:"relative",width:34,height:34,borderRadius:"50%",background:C.roseSoft,border:`1px solid rgba(232,54,93,0.2)`,color:C.rose,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
               ♥{whoLiked.length>0&&<div style={{ position:"absolute",top:-3,right:-3,width:15,height:15,borderRadius:"50%",background:C.gradRose,fontSize:8.5,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${C.bg}` }}>{whoLiked.length}</div>}
             </button>
             {/* Grid toggle */}
@@ -607,6 +614,30 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
         onSuperlike={()=>{doSwipe("superlike");setShowProfile(null);}}
         onChat={()=>{ setShowProfile(null); }}
       />}
+
+      {/* ── Premium Gate ── */}
+      {showPremiumGate && (
+        <div style={{ position:"fixed",inset:0,zIndex:500,background:"rgba(0,0,0,0.82)",backdropFilter:"blur(20px)",display:"flex",alignItems:"flex-end",justifyContent:"center" }} onClick={()=>setShowPremiumGate(null)}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%",maxWidth:480,background:"#141210",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,padding:"32px 24px 52px",textAlign:"center" as const,animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
+            <div style={{ width:60,height:60,borderRadius:"50%",background:"linear-gradient(135deg,#C9A84C,#E2C068)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,margin:"0 auto 18px",color:"#12100C",fontWeight:800 }}>
+              {showPremiumGate==="wholiked"?"♥":showPremiumGate==="superlike"?"★":"∞"}
+            </div>
+            <div style={{ fontSize:20,fontWeight:800,color:C.text,marginBottom:10 }}>
+              {showPremiumGate==="likes"?"今日喜歡已用完":showPremiumGate==="superlike"?"今日優先認識已用完":"查看所有喜歡你的人"}
+            </div>
+            <div style={{ fontSize:14,color:C.textMuted,lineHeight:1.65,marginBottom:28 }}>
+              {showPremiumGate==="likes" && <span>免費版每天可喜歡 30 人<br/>升級 Premium 享無限喜歡</span>}
+              {showPremiumGate==="superlike" && <span>免費版每天 1 次優先認識<br/>Premium 每天 5 次</span>}
+              {showPremiumGate==="wholiked" && <span>升級 Premium<br/>查看所有喜歡你的人</span>}
+            </div>
+            <button onClick={()=>setShowPremiumGate(null)}
+              style={{ width:"100%",padding:"15px",borderRadius:50,background:"linear-gradient(135deg,#C9A84C,#E2C068)",border:"none",color:"#12100C",fontFamily:"inherit",fontSize:16,fontWeight:800,cursor:"pointer",boxShadow:"0 4px 24px rgba(201,168,76,0.4)",marginBottom:14 }}>
+              升級 Premium
+            </button>
+            <button onClick={()=>setShowPremiumGate(null)} style={{ background:"none",border:"none",color:C.textMuted,fontFamily:"inherit",fontSize:14,cursor:"pointer" }}>稍後再說</button>
+          </div>
+        </div>
+      )}
 
       {matchInfo && <MatchAnimation myAvatar={profile.avatar_url||""} myName={profile.display_name||profile.username} theirAvatar={matchInfo.avatar} theirName={matchInfo.name}
         onChat={()=>{if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:"",time:"",unread:0} as any);setMatchInfo(null);}}

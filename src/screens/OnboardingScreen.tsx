@@ -14,6 +14,8 @@ const ICONS = ["✦", "🔥", "💗", "🔍", "🚀"];
 const COLORS = [C.rose, C.rose, C.rose, C.mint, C.gold];
 
 export function OnboardingScreen({ userId, onDone }: { userId: string; onDone: () => void }) {
+  const [ageVerified, setAgeVerified] = useState(false);
+  const [ageDenied, setAgeDenied] = useState(false);
   const [step, setStep] = useState(0);
   const [exiting, setExiting] = useState(false);
 
@@ -32,6 +34,36 @@ export function OnboardingScreen({ userId, onDone }: { userId: string; onDone: (
   }
 
   const s = STEPS[step];
+  // Age gate
+  if (ageDenied) return (
+    <div style={{ position:"fixed",inset:0,background:C.bg,display:"flex",flexDirection:"column" as const,alignItems:"center",justifyContent:"center",padding:32,textAlign:"center" as const }}>
+      <div style={{ fontSize:48,marginBottom:20 }}>🔞</div>
+      <div style={{ fontSize:22,fontWeight:800,color:C.text,marginBottom:12 }}>未滿 18 歲無法使用</div>
+      <div style={{ fontSize:14,color:C.textMuted,lineHeight:1.65 }}>NYX 僅供 18 歲以上成年人使用。<br/>很遺憾，你目前無法使用本服務。</div>
+    </div>
+  );
+
+  if (!ageVerified) return (
+    <div style={{ position:"fixed",inset:0,background:C.bg,display:"flex",flexDirection:"column" as const,alignItems:"center",justifyContent:"center",padding:32,textAlign:"center" as const }}>
+      <div style={{ fontSize:56,marginBottom:24 }}>✦</div>
+      <div style={{ fontSize:26,fontWeight:800,color:C.text,marginBottom:12 }}>年齡確認</div>
+      <div style={{ fontSize:15,color:C.textMuted,lineHeight:1.7,marginBottom:36 }}>
+        NYX 包含成人約會內容，<br/>僅供 <span style={{ color:C.gold,fontWeight:700 }}>18 歲以上</span>成年人使用。<br/>請確認你的年齡。
+      </div>
+      <button onClick={()=>setAgeVerified(true)}
+        style={{ width:"100%",maxWidth:360,padding:"16px",borderRadius:50,background:"linear-gradient(135deg,#C9A84C,#E2C068)",border:"none",color:"#12100C",fontFamily:"inherit",fontSize:16,fontWeight:800,cursor:"pointer",marginBottom:14,boxShadow:"0 4px 24px rgba(201,168,76,0.35)" }}>
+        我已年滿 18 歲，繼續使用
+      </button>
+      <button onClick={()=>setAgeDenied(true)}
+        style={{ background:"none",border:"none",color:C.textMuted,fontFamily:"inherit",fontSize:14,cursor:"pointer" }}>
+        我未滿 18 歲
+      </button>
+      <div style={{ fontSize:11.5,color:C.textDim,marginTop:24,lineHeight:1.6,maxWidth:300 }}>
+        繼續即代表你同意我們的服務條款與隱私政策，並確認你已年滿 18 歲。
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ position: "fixed", inset: 0, background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between", padding: "60px 32px 56px", zIndex: 400, animation: "fadeIn .3s ease" }}>
       {/* Background glow */}

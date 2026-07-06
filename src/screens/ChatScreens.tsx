@@ -1053,7 +1053,14 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
         onClose={() => setShowOtherProfile(false)}
         onLike={()=>{}} onSuperlike={()=>{}} onChat={()=>{}}
       />}
-    {showMemory && <MemoryWall matchId={matchId} otherName={other.name} onClose={() => setShowMemory(false)} />}
+    {showMemory && (
+      <div style={{ position:"fixed",inset:0,zIndex:100 }}
+        onTouchStart={e=>e.stopPropagation()}
+        onTouchMove={e=>e.stopPropagation()}
+        onTouchEnd={e=>e.stopPropagation()}>
+        <MemoryWall matchId={matchId} otherName={other.name} onClose={() => setShowMemory(false)} />
+      </div>
+    )}
     {showClone && (
       <div style={{ position:"fixed",inset:0,zIndex:100 }}
         onTouchStart={e=>e.stopPropagation()}
@@ -1095,6 +1102,14 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           {REPORT_CATEGORIES.map((cat, i) => <button key={cat.id} onClick={async () => { await reportUser(myUserId, other.id, cat.label, cat.id); alert("已檢舉，我們將盡快審核"); setShowReport(false); }} style={{ width: "100%", padding: "13px 16px", borderRadius: 14, background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`, color: C.textSub, fontFamily: "inherit", fontSize: 13.5, cursor: "pointer", marginBottom: 8, textAlign: "left", display: "flex", alignItems: "center", gap: 10, transition: "background .15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")} onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}><span style={{fontSize:18}}>{cat.icon}</span>{cat.label}</button>)}
         </div>
         <div style={{ height: 1, background: C.border, marginBottom: 10 }} />
+        <button onClick={async () => {
+            if(!window.confirm(`確定要解除與 ${other.name} 的配對？此操作無法復原。`)) return;
+            await sb.from("matches").delete().eq("id", matchId);
+            setShowReport(false);
+            onBack();
+          }} style={{ width: "100%", padding: "13px", borderRadius: 14, background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`, color: C.textSub, fontFamily: "inherit", fontSize: 14, cursor: "pointer", marginBottom: 8 }}>
+          解除配對 {other.name}
+        </button>
         <button onClick={async () => { await blockUser(myUserId, other.id); setShowReport(false); onBack(); }} style={{ width: "100%", padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.06)", border: "1px solid rgba(255,60,60,0.2)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, cursor: "pointer", marginBottom: 8 }}>封鎖 {other.name}</button>
         <button onClick={() => setShowReport(false)} style={{ width: "100%", padding: "11px", borderRadius: 14, background: "transparent", border: "none", color: C.textMuted, fontFamily: "inherit", fontSize: 14, cursor: "pointer" }}>取消</button>
       </div>

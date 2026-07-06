@@ -116,7 +116,8 @@ export function AdminApp() {
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes slideIn{from{transform:translateX(-100%)}to{transform:translateX(0)}}
-        *{box-sizing:border-box}
+        *{box-sizing:border-box;margin:0;padding:0}
+        html,body,#root{margin:0;padding:0;background:#0C0A08;}
         ::-webkit-scrollbar{width:4px;height:4px}
         ::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:rgba(201,168,76,0.2);border-radius:2px}
