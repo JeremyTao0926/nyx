@@ -118,6 +118,7 @@ export function AdminApp() {
         @keyframes slideIn{from{transform:translateX(-100%)}to{transform:translateX(0)}}
         *{box-sizing:border-box;margin:0;padding:0}
         html,body,#root{margin:0;padding:0;background:#0C0A08;}
+        body{padding-top:env(safe-area-inset-top,0px);}
         ::-webkit-scrollbar{width:4px;height:4px}
         ::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:rgba(201,168,76,0.2);border-radius:2px}
@@ -134,7 +135,7 @@ export function AdminApp() {
       `}</style>
 
       {/* ── MOBILE TOP BAR ── */}
-      <div className="admin-topbar" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 16px", background:C.card, borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, zIndex:40 }}>
+      <div className="admin-topbar" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 16px", paddingTop:"calc(14px + env(safe-area-inset-top, 0px))", background:C.card, borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, zIndex:40 }}>
         <button onClick={()=>setSidebarOpen(true)} style={{ width:38, height:38, borderRadius:10, background:C.surf, border:`1px solid ${C.border}`, color:C.text, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:4 }}>
           <div style={{ width:16, height:1.5, background:C.text, borderRadius:1 }}/>
           <div style={{ width:12, height:1.5, background:C.text, borderRadius:1 }}/>
@@ -220,7 +221,7 @@ export function AdminApp() {
       </div>
 
       {/* Bottom nav spacer on mobile */}
-      <div className="admin-mobile-nav" style={{ height:64 }}/>
+      <div className="admin-mobile-nav" style={{ height:"calc(64px + env(safe-area-inset-bottom, 0px))" }}/>
     </div>
   );
 }
