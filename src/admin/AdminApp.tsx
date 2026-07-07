@@ -209,10 +209,10 @@ export function AdminApp() {
       </div>
 
       {/* ── MOBILE BOTTOM NAV ── */}
-      <div className="admin-mobile-nav" style={{ display:"flex", position:"fixed", bottom:0, left:0, right:0, background:C.card, borderTop:`1px solid ${C.border}`, zIndex:40, paddingBottom:"env(safe-area-inset-bottom, 16px)" }}>
+      <div className="admin-mobile-nav" style={{ display:"flex", position:"fixed", bottom:0, left:0, right:0, background:C.card, borderTop:`1px solid ${C.border}`, zIndex:40, paddingBottom:"env(safe-area-inset-bottom, 0px)" }}>
         {visibleTabs.slice(0,5).map(t => (
           <button key={t.id} onClick={()=>setTab(t.id)}
-            style={{ flex:1, padding:"10px 4px 12px", background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:4, position:"relative" }}>
+            style={{ flex:1, padding:"10px 4px 10px", background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:4, position:"relative" }}>
             {tab===t.id && <div style={{ position:"absolute", top:0, left:"25%", right:"25%", height:2, background:C.grad, borderRadius:"0 0 2px 2px" }}/>}
             <TabIcon id={t.id} active={tab===t.id}/>
             <span style={{ fontSize:10, color:tab===t.id?C.gold:C.textMuted, fontWeight:tab===t.id?600:400 }}>{t.label}</span>
