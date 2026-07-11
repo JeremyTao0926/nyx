@@ -41,7 +41,9 @@ export function AdminUsers({ tab, role, C }: Props) {
     try {
       await grantPremium(u.id, plan);
       setMsg(plan ? `✓ 已授予 ${plan === "premium_plus" ? "Premium+" : "Premium"}` : "✓ 已移除 Premium");
-      load();
+      await load();
+      // Refresh selected user data
+      setSelected(prev => prev ? { ...prev, is_premium: plan !== null, premium_plan: plan } as any : prev);
     } catch (e: any) { setMsg(e.message); }
   }
 

@@ -112,7 +112,7 @@ export function AdminApp() {
 
   /* ── MAIN LAYOUT ── */
   return (
-    <div style={{ minHeight:"100dvh", background:C.bg, fontFamily:"'Noto Sans TC',system-ui,sans-serif" }}>
+    <div style={{ height:"100dvh", background:C.bg, fontFamily:"'Noto Sans TC',system-ui,sans-serif", overflow:"hidden", display:"flex", flexDirection:"column" as const }}>
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes slideIn{from{transform:translateX(-100%)}to{transform:translateX(0)}}
@@ -150,7 +150,7 @@ export function AdminApp() {
       {/* ── SIDEBAR OVERLAY (mobile) ── */}
       {sidebarOpen && <div style={{ position:"fixed", inset:0, zIndex:50, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(8px)" }} onClick={()=>setSidebarOpen(false)}/>}
 
-      <div className="admin-layout" style={{ display:"block" }}>
+      <div className="admin-layout" style={{ display:"block", flex:1, overflow:"hidden" }}>
         {/* ── SIDEBAR ── */}
         <div className="admin-sidebar" style={{
           width:240, background:C.card, borderRight:`1px solid ${C.border}`,
@@ -200,7 +200,7 @@ export function AdminApp() {
         </div>
 
         {/* ── MAIN CONTENT ── */}
-        <div className="admin-content" style={{ flex:1, padding:"16px", overflowY:"auto", minHeight:"100dvh", paddingBottom:"calc(16px + env(safe-area-inset-bottom, 0px))" }}>
+        <div className="admin-content" style={{ flex:1, padding:"16px", overflowY:"auto", paddingBottom:"calc(72px + env(safe-area-inset-bottom, 0px))" }}>
           {tab === "dashboard"  && <AdminDashboard role={role!} C={C} />}
           {(tab === "users" || tab === "test_data") && <AdminUsers tab={tab} role={role!} C={C} />}
           {tab === "reports"    && <AdminReports role={role!} C={C} />}

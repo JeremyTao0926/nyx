@@ -115,7 +115,7 @@ export async function getUsers(opts: {
   isTest?: boolean; isBanned?: boolean; search?: string; limit?: number;
 }): Promise<UserRow[]> {
   let q = sb.from("profiles")
-    .select("id,username,display_name,email,gender,is_test_account,test_label,is_banned,ban_reason,last_active,created_at,avatar_url")
+    .select("id,username,display_name,email,gender,is_test_account,test_label,is_banned,ban_reason,last_active,created_at,avatar_url,is_premium,premium_plan,premium_expires_at")
     .order("created_at", { ascending: false })
     .limit(opts.limit || 50);
   if (opts.isTest !== undefined) q = q.eq("is_test_account", opts.isTest);
