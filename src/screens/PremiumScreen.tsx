@@ -48,6 +48,21 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
       const { data: { user } } = await sb.auth.getUser();
       if (!user) { alert("請先登入"); setLoading(null); return; }
 
+      // Downgrade: Premium+ → Premium (schedule for next billing cycle)
+      const currentPlan = (profile as any)?.premium_plan;
+      if (currentPlan === "premium_plus" && plan.id === "premium") {
+        const { error: downgradeErr } = await sb.functions.invoke("schedule-downgrade", {
+          body: { userId: user.id, newPriceId: plan.priceId, newPlan: plan.id },
+        });
+        if (!downgradeErr) {
+          alert("✓ 已安排降級至 Premium，將於本期到期後生效。");
+        } else {
+          alert("操作失敗，請稍後再試");
+        }
+        setLoading(null);
+        return;
+      }
+
       const { data, error } = await sb.functions.invoke("create-checkout", {
         body: {
           priceId: plan.priceId,
@@ -142,6 +157,7 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
               style={{ width: "100%", padding: "14px", borderRadius: 50, background: loading === plan.id ? "rgba(255,255,255,0.06)" : plan.gradient, border: "none", color: loading === plan.id ? C.textMuted : (plan.id === "premium" ? "#12100C" : "#fff"), fontFamily: "inherit", fontSize: 15, fontWeight: 800, cursor: loading === plan.id ? "default" : "pointer", marginTop: 16, transition: "all .2s", boxShadow: loading === plan.id ? "none" : `0 4px 20px ${plan.color}44` }}>
               {loading === plan.id ? "處理中..."
                 : (profile as any)?.premium_plan === plan.id ? "目前方案 ✓"
+                : (profile as any)?.premium_plan === "premium_plus" && plan.id === "premium" ? "降級至 Premium（下期生效）"
                 : (profile as any)?.is_premium ? `升級至 ${plan.name}`
                 : `升級 ${plan.name}`}
             </button>

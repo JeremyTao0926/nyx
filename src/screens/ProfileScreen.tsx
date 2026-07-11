@@ -357,7 +357,12 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap" as const, marginBottom: 0 }}>
           <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(232,54,93,0.13)", border: "1px solid rgba(232,54,93,0.3)", fontSize: 12, color: C.rose, fontWeight: 600 }}>✦ {mbti}</span>
           <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{gender === "male" ? "♂ 男性" : "♀ 女性"}</span>
-          {(profile as any).is_premium && <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(201,168,76,0.12)", border: "1px solid rgba(201,168,76,0.3)", fontSize: 12, color: C.gold, fontWeight: 600 }}>👑 Premium</span>}
+          {(profile as any).is_premium && (profile as any).premium_plan === "premium_plus" && (
+            <span style={{ padding: "5px 12px", borderRadius: 20, background: "linear-gradient(135deg,rgba(124,58,237,0.15),rgba(167,139,250,0.15))", border: "1px solid rgba(167,139,250,0.4)", fontSize: 12, color: "#A78BFA", fontWeight: 700 }}>✦ Premium+</span>
+          )}
+          {(profile as any).is_premium && (profile as any).premium_plan !== "premium_plus" && (
+            <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(201,168,76,0.12)", border: "1px solid rgba(201,168,76,0.3)", fontSize: 12, color: C.gold, fontWeight: 600 }}>👑 Premium</span>
+          )}
         </div>
       </div>
 

@@ -898,7 +898,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
               <div style={{ fontSize: 10, color: C.textMuted }}>{fmtTime(msg.timestamp)}</div>
-              {isMe && isLastInGroup && <div style={{ fontSize: 10, color: msg.readAt ? C.teal : C.textMuted }}>{msg.readAt ? "✓✓" : "✓"}</div>}
+              {isMe && isLastInGroup && (myProfile as any)?.is_premium && <div style={{ fontSize: 10, color: msg.readAt ? C.teal : C.textMuted }}>{msg.readAt ? "✓✓" : "✓"}</div>}
             </div>
           </div>
         </div>

@@ -112,12 +112,13 @@ export function AdminApp() {
 
   /* ── MAIN LAYOUT ── */
   return (
-    <div style={{ height:"100dvh", background:C.bg, fontFamily:"'Noto Sans TC',system-ui,sans-serif", overflow:"hidden", display:"flex", flexDirection:"column" as const }}>
+    <div style={{ height:"100svh", background:C.bg, fontFamily:"'Noto Sans TC',system-ui,sans-serif", overflow:"hidden", display:"flex", flexDirection:"column" as const, position:"fixed" as const, inset:0 }}>
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes slideIn{from{transform:translateX(-100%)}to{transform:translateX(0)}}
         *{box-sizing:border-box;margin:0;padding:0}
-        html,body,#root{margin:0;padding:0;background:#0C0A08;}
+        html,body{margin:0;padding:0;background:#0C0A08;height:100%;overflow:hidden;}
+        #root{margin:0;padding:0;background:#0C0A08;height:100%;overflow:hidden;}
 
         ::-webkit-scrollbar{width:4px;height:4px}
         ::-webkit-scrollbar-track{background:transparent}

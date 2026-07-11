@@ -244,19 +244,24 @@ export async function recordSwipe(swiperId: string, swipedId: string, dir: "like
 export async function getDailyLikeStatus(uid: string): Promise<DailyLikeStatus> {
   await sb.rpc("reset_daily_likes_if_needed", { uid });
   const { data } = await sb.from("profiles")
-    .select("daily_likes_used,daily_likes_reset_at,is_premium,superlike_used_today")
+    .select("daily_likes_used,daily_likes_reset_at,is_premium,premium_plan,superlike_used_today,clone_used_today")
     .eq("id", uid).single();
   const isPremium = data?.is_premium === true;
+  const plan = data?.premium_plan || "free"; // "free" | "premium" | "premium_plus"
   const used = data?.daily_likes_used || 0;
   const limit = isPremium ? 99999 : DAILY_LIKE_LIMIT;
   const superlikeUsed = data?.superlike_used_today || 0;
   const superlikeLimit = isPremium ? 5 : 1;
+  const cloneUsed = data?.clone_used_today || 0;
+  const cloneLimit = plan === "premium_plus" ? 50 : isPremium ? 20 : 3;
   return {
     used, limit, remaining: Math.max(0, limit - used),
     resetAt: new Date(data?.daily_likes_reset_at || Date.now()),
-    isPremium,
+    isPremium, plan,
     superlikeUsed, superlikeLimit,
-    superlikeRemaining: Math.max(0, superlikeLimit - superlikeUsed)
+    superlikeRemaining: Math.max(0, superlikeLimit - superlikeUsed),
+    cloneUsed, cloneLimit,
+    cloneRemaining: Math.max(0, cloneLimit - cloneUsed),
   };
 }
 

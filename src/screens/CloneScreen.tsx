@@ -397,7 +397,20 @@ export function CloneScreen({ matchId, myUserId, myProfile, other, onClose }: {
   const [session, setSession] = useState<CloneSession|null>(null);
   const [error, setError] = useState("");
 
+  const [cloneStatus, setCloneStatus] = useState<{used:number;limit:number;plan:string}|null>(null);
+
+  useEffect(() => {
+    getDailyLikeStatus(myUserId).then(s => setCloneStatus({used: s.cloneUsed, limit: s.cloneLimit, plan: s.plan}));
+  }, [myUserId]);
+
   async function startMode(m: CloneMode) {
+    // Check clone limit
+    const status = await getDailyLikeStatus(myUserId);
+    if (status.cloneRemaining <= 0) {
+      setError(`今日 Clone 次數已用完（${status.cloneUsed}/${status.cloneLimit}）
+${status.plan === "free" ? "升級 Premium 獲得更多次數" : "明天再試"}`);
+      return;
+    }
     setMode(m); setPhase("loading"); setError("");
     try {
       // Get clone's profile
@@ -431,9 +444,12 @@ export function CloneScreen({ matchId, myUserId, myProfile, other, onClose }: {
         messages_used: importedMsgs.length,
       }).select().single();
 
+      // Increment clone_used_today
+      await sb.from("profiles").update({ clone_used_today: (status.cloneUsed || 0) + 1 }).eq("id", myUserId);
       setSession({
         id: sess.id, cloneName, cloneAvatar, persona, mode: m, importedMsgs
       });
+      setCloneStatus(s => s ? {...s, used: s.used+1} : s);
       setPhase("chat");
     } catch (e: any) {
       setError(e.message || "建立失敗"); setPhase("select");
