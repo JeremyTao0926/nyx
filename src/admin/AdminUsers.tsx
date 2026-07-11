@@ -103,6 +103,11 @@ export function AdminUsers({ tab, role, C }: Props) {
               {u.is_banned
                 ? <span style={{ fontSize:11, background:"rgba(232,54,93,0.15)", color:C.rose, padding:"2px 8px", borderRadius:10 }}>封禁</span>
                 : <span style={{ fontSize:11, background:"rgba(0,201,167,0.12)", color:C.mint, padding:"2px 8px", borderRadius:10 }}>正常</span>}
+              {(u as any).is_premium && (
+                <span style={{ fontSize:11, background:(u as any).premium_plan==="premium_plus"?"rgba(124,58,237,0.15)":"rgba(201,168,76,0.12)", color:(u as any).premium_plan==="premium_plus"?"#A78BFA":"#C9A84C", padding:"2px 8px", borderRadius:10, marginLeft:4, fontWeight:600 }}>
+                  {(u as any).premium_plan==="premium_plus"?"P+":"P"}
+                </span>
+              )}
             </div>
             <div style={{ display:"flex", gap:6, flexWrap:"wrap" as const }}>
               <button onClick={async () => { setSelected(u); const stats = await getUserStats(u.id); setUserStats(stats); }}

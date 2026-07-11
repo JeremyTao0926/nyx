@@ -650,31 +650,23 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       })
       .subscribe();
 
-    // Load other user profile + realtime last_active
-    const loadOtherProfile = (data: any) => {
-      setOtherProfileData({
-        name: data.display_name || data.username, age: data.birthday ? calcAge(data.birthday) : null,
-        avatar: data.avatar_url, cover: (data as any).cover_url || null, bio: data.bio, mbti: data.mbti, location: data.location_text,
-        country: data.country, hobbies: data.hobbies || [], photos: data.photos || [],
-        lastActive: data.last_active, hideOnline: data.hide_online_status,
-        occupation: data.occupation || null, education: data.education || null,
-        income: data.income || null, height_cm: data.height_cm || null,
-        drinking: data.drinking || null, smoking: data.smoking || null,
-        exercise: data.exercise || null, has_pets: data.has_pets || null,
-        want_children: data.want_children || null, relationship_goal: data.relationship_goal || null,
-        love_language: data.love_language || null,
-      });
-    };
+    // Load other user profile
     sb.from("profiles").select("*,cover_url").eq("id", other.id).maybeSingle().then(({ data }) => {
-      if (data) loadOtherProfile(data);
-    });
-    // Poll other's last_active every 30s (lightweight, no realtime channel needed)
-    const profileInterval = setInterval(() => {
-      sb.from("profiles").select("last_active,hide_online_status").eq("id", other.id).maybeSingle()
-        .then(({ data }) => {
-          if (data) setOtherProfileData((prev: any) => prev ? { ...prev, lastActive: data.last_active, hideOnline: data.hide_online_status } : prev);
+      if (data) {
+        setOtherProfileData({
+          name: data.display_name || data.username, age: data.birthday ? calcAge(data.birthday) : null,
+          avatar: data.avatar_url, cover: (data as any).cover_url || null, bio: data.bio, mbti: data.mbti, location: data.location_text,
+          country: data.country, hobbies: data.hobbies || [], photos: data.photos || [],
+          lastActive: data.last_active, hideOnline: data.hide_online_status,
+          occupation: data.occupation || null, education: data.education || null,
+          income: data.income || null, height_cm: data.height_cm || null,
+          drinking: data.drinking || null, smoking: data.smoking || null,
+          exercise: data.exercise || null, has_pets: data.has_pets || null,
+          want_children: data.want_children || null, relationship_goal: data.relationship_goal || null,
+          love_language: data.love_language || null,
         });
-    }, 30000);
+      }
+    });
 
     // Realtime messages
     const msgCh = sb.channel(`chat-${matchId}`)
@@ -898,7 +890,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
               <div style={{ fontSize: 10, color: C.textMuted }}>{fmtTime(msg.timestamp)}</div>
-              {isMe && isLastInGroup && (myProfile as any)?.is_premium && <div style={{ fontSize: 10, color: msg.readAt ? C.teal : C.textMuted }}>{msg.readAt ? "✓✓" : "✓"}</div>}
+              {isMe && isLastInGroup && <div style={{ fontSize: 10, color: msg.readAt ? C.teal : C.textMuted }}>{msg.readAt ? "✓✓" : "✓"}</div>}
             </div>
           </div>
         </div>
@@ -1053,14 +1045,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
         onClose={() => setShowOtherProfile(false)}
         onLike={()=>{}} onSuperlike={()=>{}} onChat={()=>{}}
       />}
-    {showMemory && (
-      <div style={{ position:"fixed",inset:0,zIndex:100 }}
-        onTouchStart={e=>e.stopPropagation()}
-        onTouchMove={e=>e.stopPropagation()}
-        onTouchEnd={e=>e.stopPropagation()}>
-        <MemoryWall matchId={matchId} otherName={other.name} onClose={() => setShowMemory(false)} />
-      </div>
-    )}
+    {showMemory && <MemoryWall matchId={matchId} otherName={other.name} onClose={() => setShowMemory(false)} />}
     {showClone && (
       <div style={{ position:"fixed",inset:0,zIndex:100 }}
         onTouchStart={e=>e.stopPropagation()}
@@ -1102,14 +1087,6 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           {REPORT_CATEGORIES.map((cat, i) => <button key={cat.id} onClick={async () => { await reportUser(myUserId, other.id, cat.label, cat.id); alert("已檢舉，我們將盡快審核"); setShowReport(false); }} style={{ width: "100%", padding: "13px 16px", borderRadius: 14, background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`, color: C.textSub, fontFamily: "inherit", fontSize: 13.5, cursor: "pointer", marginBottom: 8, textAlign: "left", display: "flex", alignItems: "center", gap: 10, transition: "background .15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")} onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}><span style={{fontSize:18}}>{cat.icon}</span>{cat.label}</button>)}
         </div>
         <div style={{ height: 1, background: C.border, marginBottom: 10 }} />
-        <button onClick={async () => {
-            if(!window.confirm(`確定要解除與 ${other.name} 的配對？此操作無法復原。`)) return;
-            await sb.from("matches").delete().eq("id", matchId);
-            setShowReport(false);
-            onBack();
-          }} style={{ width: "100%", padding: "13px", borderRadius: 14, background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`, color: C.textSub, fontFamily: "inherit", fontSize: 14, cursor: "pointer", marginBottom: 8 }}>
-          解除配對 {other.name}
-        </button>
         <button onClick={async () => { await blockUser(myUserId, other.id); setShowReport(false); onBack(); }} style={{ width: "100%", padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.06)", border: "1px solid rgba(255,60,60,0.2)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, cursor: "pointer", marginBottom: 8 }}>封鎖 {other.name}</button>
         <button onClick={() => setShowReport(false)} style={{ width: "100%", padding: "11px", borderRadius: 14, background: "transparent", border: "none", color: C.textMuted, fontFamily: "inherit", fontSize: 14, cursor: "pointer" }}>取消</button>
       </div>

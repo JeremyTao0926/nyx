@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { C, sb, sound, groqChat } from "../utils";
+import { C, sb, sound, groqChat, getDailyLikeStatus } from "../utils";
 import type { UserProfile, MatchItem } from "../types";
 
 /* ─── Types ──────────────────────────────────────────── */
