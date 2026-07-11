@@ -112,13 +112,12 @@ export function AdminApp() {
 
   /* ── MAIN LAYOUT ── */
   return (
-    <div style={{ display:"flex", flexDirection:"column" as const, height:"100dvh", paddingTop:"env(safe-area-inset-top,0px)", background:C.bg, fontFamily:"'Noto Sans TC',system-ui,sans-serif", overflow:"hidden", boxSizing:"border-box" as const, position:"fixed" as const, inset:0 }}>
+    <div style={{ minHeight:"100dvh", background:C.bg, fontFamily:"'Noto Sans TC',system-ui,sans-serif" }}>
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes slideIn{from{transform:translateX(-100%)}to{transform:translateX(0)}}
         *{box-sizing:border-box;margin:0;padding:0}
-        html,body{margin:0;padding:0;background:#0C0A08;height:100%;overflow:hidden;}
-        #root{margin:0;padding:0;background:#0C0A08;height:100%;overflow:hidden;}
+        html,body,#root{margin:0;padding:0;background:#0C0A08;}
 
         ::-webkit-scrollbar{width:4px;height:4px}
         ::-webkit-scrollbar-track{background:transparent}
@@ -136,7 +135,7 @@ export function AdminApp() {
       `}</style>
 
       {/* ── MOBILE TOP BAR ── */}
-      <div className="admin-topbar" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", paddingTop:"calc(12px + env(safe-area-inset-top, 0px))", background:C.card, borderBottom:`1px solid ${C.border}`, flexShrink:0, zIndex:40 }}>
+      <div className="admin-topbar" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", paddingTop:"calc(12px + env(safe-area-inset-top, 0px))", background:C.card, borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, zIndex:40 }}>
         <button onClick={()=>setSidebarOpen(true)} style={{ width:38, height:38, borderRadius:10, background:C.surf, border:`1px solid ${C.border}`, color:C.text, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:4 }}>
           <div style={{ width:16, height:1.5, background:C.text, borderRadius:1 }}/>
           <div style={{ width:12, height:1.5, background:C.text, borderRadius:1 }}/>
@@ -151,7 +150,7 @@ export function AdminApp() {
       {/* ── SIDEBAR OVERLAY (mobile) ── */}
       {sidebarOpen && <div style={{ position:"fixed", inset:0, zIndex:50, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(8px)" }} onClick={()=>setSidebarOpen(false)}/>}
 
-      <div className="admin-layout" style={{ display:"flex", flex:1, overflow:"hidden", minHeight:0 }}>
+      <div className="admin-layout" style={{ display:"block" }}>
         {/* ── SIDEBAR ── */}
         <div className="admin-sidebar" style={{
           width:240, background:C.card, borderRight:`1px solid ${C.border}`,
@@ -201,7 +200,7 @@ export function AdminApp() {
         </div>
 
         {/* ── MAIN CONTENT ── */}
-        <div className="admin-content" style={{ flex:1, padding:"16px", overflowY:"auto", paddingBottom:"calc(72px + env(safe-area-inset-bottom, 0px))" }}>
+        <div className="admin-content" style={{ flex:1, padding:"16px", overflowY:"auto", minHeight:"100dvh", paddingBottom:"calc(16px + env(safe-area-inset-bottom, 0px))" }}>
           {tab === "dashboard"  && <AdminDashboard role={role!} C={C} />}
           {(tab === "users" || tab === "test_data") && <AdminUsers tab={tab} role={role!} C={C} />}
           {tab === "reports"    && <AdminReports role={role!} C={C} />}
@@ -210,7 +209,7 @@ export function AdminApp() {
       </div>
 
       {/* ── MOBILE BOTTOM NAV ── */}
-      <div className="admin-mobile-nav" style={{ display:"flex", background:"rgba(12,10,8,0.98)", backdropFilter:"blur(24px)", borderTop:`1px solid ${C.border}`, paddingBottom:"env(safe-area-inset-bottom,0px)", flexShrink:0, zIndex:40 }}>
+      <div className="admin-mobile-nav" style={{ display:"flex", position:"fixed", bottom:0, left:0, right:0, background:C.card, borderTop:`1px solid ${C.border}`, zIndex:40, paddingBottom:"env(safe-area-inset-bottom, 0px)" }}>
         {visibleTabs.slice(0,5).map(t => (
           <button key={t.id} onClick={()=>setTab(t.id)}
             style={{ flex:1, padding:"10px 4px 10px", background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:4, position:"relative" }}>
@@ -222,7 +221,7 @@ export function AdminApp() {
       </div>
 
       {/* Bottom nav spacer on mobile */}
-      
+      <div className="admin-mobile-nav" style={{ height:"calc(64px + env(safe-area-inset-bottom, 0px))" }}/>
     </div>
   );
 }
