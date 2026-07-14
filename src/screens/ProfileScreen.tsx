@@ -119,6 +119,7 @@ function PhotoGrid({ photos, onAdd, onRemove, uploading }: { photos: string[]; o
 
 export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat }: { profile: UserProfile; userId: string; onLogout: () => void; onUpdate: (p: Partial<UserProfile>) => void; onOpenChat?: (matchId: string, otherId: string, name: string, avatar: string) => void }) {
   const [activeTab, setActiveTab] = useState<"view" | "edit" | "settings">("view");
+  const isPremiumUser = (profile as any)?.is_premium === true;
   const [name, setName] = useState(profile.display_name || profile.username);
   const [bio, setBio] = useState(profile.bio || "");
   const [birthday, setBirthday] = useState(profile.birthday || "");
@@ -381,7 +382,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 4 }}>
                 <Si n={s.ico} s={18} c={s.color} />
-                <span style={{ fontSize: 22, fontWeight: 800, color: C.text }}>{s.val}</span>
+                <span style={{ fontSize: 22, fontWeight: 800, color: C.text, filter: isPremiumUser ? "none" : "blur(7px)", userSelect: "none" as const }}>{isPremiumUser ? s.val : "88"}</span>
               </div>
               <div style={{ fontSize: 11.5, color: C.textMuted }}>{s.label}</div>
             </div>
@@ -494,6 +495,14 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
       {statsPanel && (
         <div style={{ position:"fixed",inset:0,zIndex:200,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.65)",backdropFilter:"blur(16px)" }} onClick={()=>setStatsPanel(null)}>
           <div onClick={e=>e.stopPropagation()} style={{ width:"100%",maxWidth:480,margin:"0 auto",background:"#141210",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",maxHeight:"82vh",display:"flex",flexDirection:"column" as const,position:"absolute",bottom:0,animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
+            {!isPremiumUser && (
+              <div style={{ position:"absolute",inset:0,zIndex:5,display:"flex",flexDirection:"column" as const,alignItems:"center",justifyContent:"center",gap:14,padding:"0 32px",textAlign:"center" as const }}>
+                <div style={{ width:64,height:64,borderRadius:"50%",background:"linear-gradient(135deg,#C9A84C,#E2C068)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,boxShadow:"0 4px 24px rgba(201,168,76,0.45)" }}>🔒</div>
+                <div style={{ fontSize:17,fontWeight:700,color:C.text }}>Premium 專屬功能</div>
+                <div style={{ fontSize:13,color:C.textMuted,lineHeight:1.7 }}>升級 Premium 即可查看喜歡你的人、<br/>你喜歡的人與所有配對</div>
+                <button onClick={()=>{ setStatsPanel(null); setShowPremium(true); }} style={{ padding:"13px 40px",borderRadius:50,background:"linear-gradient(135deg,#C9A84C,#E2C068)",border:"none",color:"#12100C",fontFamily:"inherit",fontSize:15,fontWeight:800,cursor:"pointer",boxShadow:"0 4px 24px rgba(201,168,76,0.4)" }}>升級 Premium</button>
+              </div>
+            )}
             {/* Handle */}
             <div style={{ padding:"14px 0 0",display:"flex",justifyContent:"center" }}><div style={{ width:40,height:5,borderRadius:3,background:"rgba(255,255,255,0.15)" }}/></div>
             {/* Header */}
@@ -503,13 +512,13 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                   {statsPanel==="liked_me"?"喜歡你的人":statsPanel==="i_liked"?"你喜歡的人":"你的配對"}
                 </div>
                 <div style={{ fontSize:12,color:C.textMuted,marginTop:2 }}>
-                  {statsPanel==="liked_me"?`${stats.likesReceived} 人`:statsPanel==="i_liked"?`${stats.likesGiven} 人`:`${stats.matches} 個配對`}
+                  {!isPremiumUser?"Premium 專屬":statsPanel==="liked_me"?`${stats.likesReceived} 人`:statsPanel==="i_liked"?`${stats.likesGiven} 人`:`${stats.matches} 個配對`}
                 </div>
               </div>
               <button onClick={()=>{setStatsPanel(null);setShowAllMatches(false);}} style={{ width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"none",color:C.textMuted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16 }}>✕</button>
             </div>
             {/* Content */}
-            <div style={{ flex:1,overflowY:"auto",padding:"8px 0 32px" }}>
+            <div style={{ flex:1,overflowY:"auto",padding:"8px 0 32px",position:"relative" as const,filter:isPremiumUser?"none":"blur(14px)",pointerEvents:isPremiumUser?"auto":"none",userSelect:isPremiumUser?"auto":"none" as const }}>
               {loadingPanel ? (
                 <div style={{ display:"flex",justifyContent:"center",padding:"48px 0" }}>
                   <div style={{ width:28,height:28,border:`2px solid ${C.border}`,borderTopColor:C.gold,borderRadius:"50%",animation:"spin .7s linear infinite" }}/>

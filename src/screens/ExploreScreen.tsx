@@ -3,6 +3,7 @@ import { C, sound, sb, getExploreProfiles, recordSwipe, updateProfile, getDailyL
 import { Av, MatchAnimation } from "../components/Atoms";
 import { FilterSheet } from "../components/Modals";
 import type { UserProfile, ExploreProfile, MatchItem, WhoLikedItem, DailyLikeStatus } from "../types";
+import { PremiumScreen } from "./PremiumScreen";
 
 type ExploreTab = "recommend" | "nearby" | "new";
 
@@ -465,6 +466,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
   const [whoLiked,setWhoLiked]   = useState<WhoLikedItem[]>([]);
   const [dailyStatus,setDailyStatus] = useState<DailyLikeStatus|null>(null);
   const [showPremiumGate, setShowPremiumGate] = useState<"likes"|"superlike"|"wholiked"|null>(null);
+  const [showPremium, setShowPremium] = useState(false);
   const [matchInfo,setMatchInfo] = useState<{avatar:string;name:string;id:string;matchId?:string;profile?:ExploreProfile}|null>(null);
   const [showIcebreaker,setShowIcebreaker] = useState(false);
   const [showProfile,setShowProfile] = useState<ExploreProfile|null>(null);
@@ -630,7 +632,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
               {showPremiumGate==="superlike" && <span>免費版每天 1 次優先認識<br/>Premium 每天 5 次</span>}
               {showPremiumGate==="wholiked" && <span>升級 Premium<br/>查看所有喜歡你的人</span>}
             </div>
-            <button onClick={()=>setShowPremiumGate(null)}
+            <button onClick={()=>{ setShowPremiumGate(null); setShowPremium(true); }}
               style={{ width:"100%",padding:"15px",borderRadius:50,background:"linear-gradient(135deg,#C9A84C,#E2C068)",border:"none",color:"#12100C",fontFamily:"inherit",fontSize:16,fontWeight:800,cursor:"pointer",boxShadow:"0 4px 24px rgba(201,168,76,0.4)",marginBottom:14 }}>
               升級 Premium
             </button>
@@ -638,6 +640,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
           </div>
         </div>
       )}
+      {showPremium && <div style={{ position:"fixed",inset:0,zIndex:600,background:C.bg }}><PremiumScreen onBack={()=>setShowPremium(false)} profile={profile}/></div>}
 
       {matchInfo && <MatchAnimation myAvatar={profile.avatar_url||""} myName={profile.display_name||profile.username} theirAvatar={matchInfo.avatar} theirName={matchInfo.name}
         onChat={()=>{if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:"",time:"",unread:0} as any);setMatchInfo(null);}}
