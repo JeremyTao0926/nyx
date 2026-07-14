@@ -84,7 +84,7 @@ export function AdminApp() {
   /* ── LOGIN ── */
   if (!authed) return (
     <div style={{ minHeight:"100dvh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:16, fontFamily:"'Noto Sans TC',system-ui,sans-serif" }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}} *{box-sizing:border-box}`}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} *{box-sizing:border-box} html,body,#root{margin:0;padding:0;background:#0C0A08}`}</style>
       <div style={{ width:"100%", maxWidth:400, padding:"36px 28px", background:C.card, border:`1px solid ${C.border}`, borderRadius:20 }}>
         {/* Logo */}
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:28 }}>
@@ -200,7 +200,7 @@ export function AdminApp() {
         </div>
 
         {/* ── MAIN CONTENT ── */}
-        <div className="admin-content" style={{ flex:1, padding:"16px", overflowY:"auto", minHeight:"100dvh", paddingBottom:"calc(16px + env(safe-area-inset-bottom, 0px))" }}>
+        <div className="admin-content" style={{ flex:1, padding:"16px", overflowY:"auto", paddingBottom:"calc(16px + env(safe-area-inset-bottom, 0px))" }}>
           {tab === "dashboard"  && <AdminDashboard role={role!} C={C} />}
           {(tab === "users" || tab === "test_data") && <AdminUsers tab={tab} role={role!} C={C} />}
           {tab === "reports"    && <AdminReports role={role!} C={C} />}
