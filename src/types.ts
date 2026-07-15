@@ -59,6 +59,8 @@ export type UserProfile = {
 
 export type ExploreProfile = {
   id: string;
+  is_premium?: boolean;
+  premium_plan?: string | null;
   name: string;
   age: number | null;
   mbti: string;
