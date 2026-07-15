@@ -240,3 +240,48 @@ export async function softDeleteUser(userId: string) {
 
   await logAction("soft_delete_user", "user", userId);
 }
+
+// ─── 申訴系統 ─────────────────────────────────
+export interface Appeal {
+  id: string; user_id: string; message: string; status: string;
+  admin_note: string | null; created_at: string;
+  username?: string; email?: string; blockType?: string;
+}
+
+export async function getAppeals(pendingOnly = true): Promise<Appeal[]> {
+  let q = sb.from("appeals").select("*").order("created_at", { ascending: false });
+  if (pendingOnly) q = q.eq("status", "pending");
+  const { data, error } = await q;
+  if (error) throw error;
+  const list = data || [];
+  const ids = [...new Set(list.map((a: any) => a.user_id))];
+  const profMap: Record<string, any> = {};
+  if (ids.length) {
+    const { data: profs } = await sb.from("profiles").select("id,username,email,is_banned,is_active,deleted_at").in("id", ids);
+    (profs || []).forEach((p: any) => { profMap[p.id] = p; });
+  }
+  return list.map((a: any) => {
+    const p = profMap[a.user_id];
+    const blockType = !p ? "?" : p.is_banned ? "封禁" : p.deleted_at ? "已刪除" : p.is_active === false ? "停用" : "正常";
+    return { ...a, username: p?.username, email: p?.email, blockType };
+  });
+}
+
+/** 批准 = 恢復帳號（解除封禁/停用/刪除標記）並關閉申訴；駁回 = 僅標記並附說明 */
+export async function resolveAppeal(appealId: string, userId: string, approve: boolean, note: string) {
+  if (approve) {
+    const { data, error } = await sb.from("profiles")
+      .update({ is_active: true, is_banned: false, ban_reason: null, banned_at: null, deleted_at: null, is_paused: false })
+      .eq("id", userId).select("id");
+    if (error) throw error;
+    if (!data || data.length === 0) throw new Error("恢復帳號被 RLS 阻擋");
+  }
+  const { data: me } = await sb.auth.getUser();
+  const { error: e2 } = await sb.from("appeals").update({
+    status: approve ? "approved" : "rejected",
+    admin_note: note || null,
+    resolved_at: new Date().toISOString(),
+    resolved_by: me?.user?.id || null,
+  }).eq("id", appealId);
+  if (e2) throw e2;
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { getReports, authorizeReview, resolveReport, banUser, sb } from "./adminUtils";
-import type { Report, AdminRole } from "./adminUtils";
+import { getReports, authorizeReview, resolveReport, banUser, sb, getAppeals, resolveAppeal } from "./adminUtils";
+import type { Report, AdminRole, Appeal } from "./adminUtils";
 
 interface Props { role: AdminRole; C: any; }
 
@@ -16,12 +16,14 @@ export function AdminReports({ role, C }: Props) {
   const [notes, setNotes]       = useState("");
   const [msg, setMsg]           = useState("");
   const [authorized, setAuthorized] = useState<Set<string>>(new Set());
+  const [appeals, setAppeals] = useState<Appeal[]>([]);
 
   useEffect(() => { load(); }, [showDone]);
 
   async function load() {
     setLoading(true);
     setReports(await getReports(!showDone));
+    try { setAppeals(await getAppeals(!showDone)); } catch { setAppeals([]); }
     setLoading(false);
   }
 
@@ -58,6 +60,41 @@ export function AdminReports({ role, C }: Props) {
       </div>
 
       {msg && <div style={{ background:"rgba(0,201,167,0.1)", border:"1px solid rgba(0,201,167,0.25)", borderRadius:10, padding:"10px 14px", color:C.mint, fontSize:13, marginBottom:16, cursor:"pointer" }} onClick={()=>setMsg("")}>{msg}</div>}
+
+      {/* ── 申訴處理 ── */}
+      {appeals.length > 0 && (
+        <div style={{ marginBottom:28 }}>
+          <div style={{ fontSize:15, fontWeight:800, color:C.text, marginBottom:12 }}>帳號申訴（{appeals.length}）</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {appeals.map(a => (
+              <div key={a.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:6 }}>
+                  <span style={{ fontSize:14, fontWeight:700, color:C.text }}>{a.username || a.user_id.slice(0,8)}</span>
+                  <span style={{ fontSize:11, background:"rgba(245,166,35,0.15)", color:"#F5A623", padding:"2px 8px", borderRadius:10 }}>{a.blockType}</span>
+                  <span style={{ fontSize:11.5, color:C.textMuted }}>{new Date(a.created_at).toLocaleString("zh-TW")}</span>
+                  {a.status !== "pending" && <span style={{ fontSize:11, background: a.status==="approved" ? "rgba(0,201,167,0.12)" : "rgba(232,54,93,0.15)", color: a.status==="approved" ? C.mint : C.rose, padding:"2px 8px", borderRadius:10 }}>{a.status==="approved"?"已批准":"已駁回"}</span>}
+                </div>
+                <div style={{ fontSize:13.5, color:C.textSub, lineHeight:1.6, marginBottom: a.status==="pending" ? 12 : 0, whiteSpace:"pre-wrap" }}>{a.message}</div>
+                {a.status === "pending" && (
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={async ()=>{
+                      if (!confirm(`批准申訴並恢復 ${a.username || "此用戶"} 的帳號？`)) return;
+                      try { await resolveAppeal(a.id, a.user_id, true, "申訴通過，帳號已恢復"); setMsg("✓ 已批准，帳號已恢復"); load(); }
+                      catch (e: any) { setMsg("✗ 批准失敗：" + (e?.message || e)); }
+                    }} style={{ padding:"7px 18px", borderRadius:20, background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.35)", color:C.mint, fontFamily:"inherit", fontSize:12.5, fontWeight:700, cursor:"pointer" }}>批准並恢復帳號</button>
+                    <button onClick={async ()=>{
+                      const note = prompt("駁回原因（會顯示給用戶）：") || "";
+                      if (!note.trim()) return;
+                      try { await resolveAppeal(a.id, a.user_id, false, note.trim()); setMsg("✓ 已駁回"); load(); }
+                      catch (e: any) { setMsg("✗ 駁回失敗：" + (e?.message || e)); }
+                    }} style={{ padding:"7px 18px", borderRadius:20, background:"rgba(232,54,93,0.1)", border:"1px solid rgba(232,54,93,0.35)", color:C.rose, fontFamily:"inherit", fontSize:12.5, fontWeight:700, cursor:"pointer" }}>駁回</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? <div style={{ color:C.textMuted }}>載入中...</div>
       : reports.length === 0 ? (

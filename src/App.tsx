@@ -285,21 +285,8 @@ export default function App() {
 
   if (!authed) return <><style>{GLOBAL_CSS}</style><LoginScreen onLogin={() => setAuthed(true)}/></>;
   if (!splashSeen || resuming) return <><style>{GLOBAL_CSS}</style><SplashScreen onDone={() => { setSplashSeen(true); setResuming(false); }}/></>;
-  {
-    const blocked = profile && ((profile as any).is_banned || (profile as any).is_active === false || (profile as any).deleted_at);
-    if (blocked) {
-      const reason = (profile as any).is_banned
-        ? `此帳號已被封禁${(profile as any).ban_reason ? `：${(profile as any).ban_reason}` : ""}`
-        : (profile as any).deleted_at ? "此帳號已被刪除" : "此帳號已被停用";
-      return <><style>{GLOBAL_CSS}</style>
-        <div style={{ minHeight:"100dvh", background:C.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, padding:"0 32px", textAlign:"center", fontFamily:"'Plus Jakarta Sans','Noto Sans TC',sans-serif" }}>
-          <div style={{ fontSize:44, opacity:.5 }}>🚫</div>
-          <div style={{ fontSize:19, fontWeight:800, color:C.text }}>無法使用此帳號</div>
-          <div style={{ fontSize:14, color:C.textMuted, lineHeight:1.7 }}>{reason}<br/>如有疑問請聯繫客服</div>
-          <button onClick={logout} style={{ marginTop:8, padding:"12px 36px", borderRadius:50, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:14, fontWeight:700, cursor:"pointer" }}>登出</button>
-        </div>
-      </>;
-    }
+  if (profile && ((profile as any).is_banned || (profile as any).is_active === false || (profile as any).deleted_at)) {
+    return <><style>{GLOBAL_CSS}</style><BlockedScreen profile={profile} onLogout={logout}/></>;
   }
 
 
@@ -370,5 +357,77 @@ export default function App() {
       </div>
       {showOnboarding && userId && <OnboardingScreen userId={userId} onDone={() => { setShowOnboarding(false); updateLocal({ onboarding_done:true } as any); }}/>}
     </>
+  );
+}
+
+
+/** 帳號被停用/封禁/刪除時的攔截頁，含申訴通道 */
+function BlockedScreen({ profile, onLogout }: { profile: any; onLogout: () => void }) {
+  const [appeal, setAppeal] = useState<any>(null);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => { (async () => {
+    const { data } = await sb.from("appeals").select("*").eq("user_id", profile.id).order("created_at", { ascending: false }).limit(1);
+    if (data && data[0]) setAppeal(data[0]);
+  })(); }, [profile.id]);
+
+  const reason = profile.is_banned
+    ? `此帳號已被封禁${profile.ban_reason ? `：${profile.ban_reason}` : ""}`
+    : profile.deleted_at ? "此帳號已被刪除" : "此帳號已被停用";
+
+  async function submit() {
+    if (!text.trim() || busy) return;
+    setBusy(true); setErr("");
+    const { data, error } = await sb.from("appeals").insert({ user_id: profile.id, message: text.trim() }).select("*");
+    setBusy(false);
+    if (error) { setErr("提交失敗：" + error.message); return; }
+    setAppeal(data && data[0] ? data[0] : { status: "pending", created_at: new Date().toISOString() });
+    setShowForm(false); setText("");
+  }
+
+  const pending = appeal?.status === "pending";
+  const rejected = appeal?.status === "rejected";
+
+  return (
+    <div style={{ minHeight:"100dvh", background:C.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, padding:"0 32px", textAlign:"center", fontFamily:"'Plus Jakarta Sans','Noto Sans TC',sans-serif" }}>
+      <div style={{ fontSize:44, opacity:.5 }}>🚫</div>
+      <div style={{ fontSize:19, fontWeight:800, color:C.text }}>無法使用此帳號</div>
+      <div style={{ fontSize:14, color:C.textMuted, lineHeight:1.7 }}>{reason}</div>
+
+      {pending && (
+        <div style={{ background:"rgba(201,168,76,0.1)", border:"1px solid rgba(201,168,76,0.3)", borderRadius:12, padding:"12px 18px", fontSize:13, color:C.gold, lineHeight:1.6 }}>
+          申訴已提交，等待審核<br/>
+          <span style={{ opacity:.7 }}>{new Date(appeal.created_at).toLocaleString("zh-TW")}</span>
+        </div>
+      )}
+      {rejected && !showForm && (
+        <div style={{ background:"rgba(232,54,93,0.08)", border:"1px solid rgba(232,54,93,0.3)", borderRadius:12, padding:"12px 18px", fontSize:13, color:C.rose, lineHeight:1.6, maxWidth:320 }}>
+          上次申訴已被駁回{appeal.admin_note ? `：${appeal.admin_note}` : ""}
+        </div>
+      )}
+
+      {!pending && !showForm && (
+        <button onClick={()=>setShowForm(true)} style={{ padding:"12px 36px", borderRadius:50, background:"transparent", border:`1px solid ${C.gold}`, color:C.gold, fontFamily:"inherit", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+          {rejected ? "再次申訴" : "提交申訴"}
+        </button>
+      )}
+
+      {showForm && (
+        <div style={{ width:"100%", maxWidth:340, display:"flex", flexDirection:"column", gap:10 }}>
+          <textarea value={text} onChange={e=>setText(e.target.value)} rows={4} placeholder="請說明情況（例如：我認為這是誤判，原因是⋯）"
+            style={{ width:"100%", boxSizing:"border-box", background:"#141210", border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontFamily:"inherit", fontSize:14, resize:"vertical", outline:"none" }}/>
+          {err && <div style={{ fontSize:12.5, color:C.rose }}>{err}</div>}
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={()=>{ setShowForm(false); setErr(""); }} style={{ flex:1, padding:"12px", borderRadius:50, background:"transparent", border:`1px solid ${C.border}`, color:C.textMuted, fontFamily:"inherit", fontSize:14, cursor:"pointer" }}>取消</button>
+            <button onClick={submit} disabled={busy || !text.trim()} style={{ flex:1, padding:"12px", borderRadius:50, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:14, fontWeight:700, cursor:"pointer", opacity: busy || !text.trim() ? .5 : 1 }}>{busy ? "提交中…" : "送出申訴"}</button>
+          </div>
+        </div>
+      )}
+
+      <button onClick={onLogout} style={{ marginTop:4, padding:"12px 36px", borderRadius:50, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:14, fontWeight:700, cursor:"pointer" }}>登出</button>
+    </div>
   );
 }
