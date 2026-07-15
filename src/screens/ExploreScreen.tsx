@@ -462,13 +462,15 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
   const [profiles,setProfiles]   = useState<ExploreProfile[]>([]);
   const [idx,setIdx]             = useState(0);
   const [loading,setLoading]     = useState(true);
-  const [viewMode,setViewMode]   = useState<"swipe"|"grid">("swipe");
   const [exploreTab,setExploreTab] = useState<ExploreTab>("recommend");
+  const viewMode: "swipe"|"grid" = exploreTab === "recommend" ? "swipe" : "grid";
+  const FREE_GRID_LIMIT = 6;
+  const isPremiumMe = (profile as any)?.is_premium === true;
   const [showFilter,setShowFilter] = useState(false);
   const [showWhoLiked,setShowWhoLiked] = useState(false);
   const [whoLiked,setWhoLiked]   = useState<WhoLikedItem[]>([]);
   const [dailyStatus,setDailyStatus] = useState<DailyLikeStatus|null>(null);
-  const [showPremiumGate, setShowPremiumGate] = useState<"likes"|"superlike"|"wholiked"|null>(null);
+  const [showPremiumGate, setShowPremiumGate] = useState<"likes"|"superlike"|"wholiked"|"grid"|null>(null);
   const [showPremium, setShowPremium] = useState(false);
   const [matchInfo,setMatchInfo] = useState<{avatar:string;name:string;id:string;matchId?:string;profile?:ExploreProfile}|null>(null);
   const [showIcebreaker,setShowIcebreaker] = useState(false);
@@ -529,9 +531,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
               ♥{whoLiked.length>0&&<div style={{ position:"absolute",top:-3,right:-3,width:15,height:15,borderRadius:"50%",background:C.gradRose,fontSize:8.5,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${C.bg}` }}>{whoLiked.length}</div>}
             </button>
             {/* Grid toggle */}
-            <button onClick={()=>setViewMode(m=>m==="swipe"?"grid":"swipe")} style={{ width:34,height:34,borderRadius:"50%",background:C.surf,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
-              {viewMode==="swipe"?"⊞":"⊟"}
-            </button>
+            
             {/* Filter */}
             <button onClick={()=>setShowFilter(true)} style={{ width:34,height:34,borderRadius:"50%",background:C.surf,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
@@ -564,7 +564,21 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
               </div>
             ) : (
               <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
-                {profiles.map(p=><GridCard key={p.id} p={p} myMbti={myMbti} onClick={()=>setShowProfile(p)}/>)}
+                {profiles.map((p,gi)=>{
+                  const locked = !isPremiumMe && gi >= FREE_GRID_LIMIT;
+                  return (
+                    <div key={p.id} style={{ position:"relative" }}>
+                      <div style={{ filter:locked?"blur(13px)":"none",pointerEvents:locked?"none":"auto",transition:"filter .2s" }}>
+                        <GridCard p={p} myMbti={myMbti} onClick={()=>setShowProfile(p)}/>
+                      </div>
+                      {locked && (
+                        <div onClick={()=>setShowPremiumGate("grid")} style={{ position:"absolute",inset:0,zIndex:2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",borderRadius:16 }}>
+                          <div style={{ width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#C9A84C,#E2C068)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,boxShadow:"0 4px 20px rgba(201,168,76,0.45)" }}>🔒</div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -623,9 +637,9 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
       {/* ── Premium Gate ── */}
       {showPremiumGate && (
         <PremiumGateSheet
-          icon={showPremiumGate==="wholiked"?"♥":showPremiumGate==="superlike"?"★":"∞"}
-          title={showPremiumGate==="likes"?"今日喜歡已用完":showPremiumGate==="superlike"?"今日優先認識已用完":"查看所有喜歡你的人"}
-          desc={showPremiumGate==="likes"?<span>免費版每天可喜歡 30 人<br/>升級 Premium 享無限喜歡</span>:showPremiumGate==="superlike"?<span>免費版每天 1 次優先認識<br/>Premium 每天 5 次</span>:<span>升級 Premium<br/>查看所有喜歡你的人</span>}
+          icon={showPremiumGate==="wholiked"?"♥":showPremiumGate==="superlike"?"★":showPremiumGate==="grid"?"🔒":"∞"}
+          title={showPremiumGate==="likes"?"今日喜歡已用完":showPremiumGate==="superlike"?"今日優先認識已用完":showPremiumGate==="grid"?"解鎖更多附近的人":"查看所有喜歡你的人"}
+          desc={showPremiumGate==="likes"?<span>免費版每天可喜歡 30 人<br/>升級 Premium 享無限喜歡</span>:showPremiumGate==="superlike"?<span>免費版每天 1 次優先認識<br/>Premium 每天 5 次</span>:showPremiumGate==="grid"?<span>免費版可瀏覽 6 位用戶<br/>升級 Premium 無限瀏覽附近與新加入的人</span>:<span>升級 Premium<br/>查看所有喜歡你的人</span>}
           onUpgrade={()=>{ setShowPremiumGate(null); setShowPremium(true); }}
           onClose={()=>setShowPremiumGate(null)}
         />

@@ -103,6 +103,12 @@ export function AdminUsers({ tab, role, C }: Props) {
               {u.is_banned
                 ? <span style={{ fontSize:11, background:"rgba(232,54,93,0.15)", color:C.rose, padding:"2px 8px", borderRadius:10 }}>封禁</span>
                 : <span style={{ fontSize:11, background:"rgba(0,201,167,0.12)", color:C.mint, padding:"2px 8px", borderRadius:10 }}>正常</span>}
+              {(u as any).is_active === false && !(u as any).deleted_at && (
+                <span style={{ fontSize:11, background:"rgba(245,166,35,0.15)", color:"#F5A623", padding:"2px 8px", borderRadius:10, marginLeft:4 }}>停用</span>
+              )}
+              {(u as any).deleted_at && (
+                <span style={{ fontSize:11, background:"rgba(150,150,150,0.15)", color:"#999", padding:"2px 8px", borderRadius:10, marginLeft:4 }}>已刪除</span>
+              )}
               {(u as any).is_premium && (
                 <span style={{ fontSize:11, background:(u as any).premium_plan==="premium_plus"?"rgba(124,58,237,0.15)":"rgba(201,168,76,0.12)", color:(u as any).premium_plan==="premium_plus"?"#A78BFA":"#C9A84C", padding:"2px 8px", borderRadius:10, marginLeft:4, fontWeight:600 }}>
                   {(u as any).premium_plan==="premium_plus"?"P+":"P"}
@@ -191,9 +197,8 @@ export function AdminUsers({ tab, role, C }: Props) {
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                     <button
                       onClick={async () => {
-                        await disableUser(selected.id);
-                        setMsg("✓ 帳號已停用");
-                        load();
+                        try { await disableUser(selected.id); setMsg("✓ 帳號已停用"); load(); }
+                        catch (e: any) { setMsg("✗ 停用失敗：" + (e?.message || e)); }
                       }}
                       style={{ padding:"8px 12px", borderRadius:8, background:"rgba(245,166,35,0.15)", border:"1px solid rgba(245,166,35,0.3)", color:"#F5A623", cursor:"pointer", fontFamily:"inherit" }}
                     >
@@ -202,9 +207,8 @@ export function AdminUsers({ tab, role, C }: Props) {
 
                     <button
                       onClick={async () => {
-                        await restoreUser(selected.id);
-                        setMsg("✓ 帳號已恢復");
-                        load();
+                        try { await restoreUser(selected.id); setMsg("✓ 帳號已恢復"); load(); }
+                        catch (e: any) { setMsg("✗ 恢復失敗：" + (e?.message || e)); }
                       }}
                       style={{ padding:"8px 12px", borderRadius:8, background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.25)", color:C.mint, cursor:"pointer", fontFamily:"inherit" }}
                     >
@@ -214,10 +218,8 @@ export function AdminUsers({ tab, role, C }: Props) {
                     <button
                       onClick={async () => {
                         if (!confirm("確定軟刪除此帳號？")) return;
-                        await softDeleteUser(selected.id);
-                        setMsg("✓ 帳號已軟刪除");
-                        setSelected(null);
-                        load();
+                        try { await softDeleteUser(selected.id); setMsg("✓ 帳號已軟刪除"); setSelected(null); load(); }
+                        catch (e: any) { setMsg("✗ 軟刪除失敗：" + (e?.message || e)); }
                       }}
                       style={{ padding:"8px 12px", borderRadius:8, background:"rgba(232,54,93,0.12)", border:"1px solid rgba(232,54,93,0.25)", color:C.rose, cursor:"pointer", fontFamily:"inherit" }}
                     >

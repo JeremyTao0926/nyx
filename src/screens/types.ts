@@ -58,6 +58,8 @@ export type UserProfile = {
 };
 
 export type ExploreProfile = {
+  is_premium?: boolean;
+  premium_plan?: string | null;
   id: string;
   name: string;
   age: number | null;
@@ -71,6 +73,18 @@ export type ExploreProfile = {
   hobbies: string[];
   verified: boolean;
   distance?: number;
+  // Extended fields
+  occupation?: string | null;
+  education?: string | null;
+  income?: string | null;
+  height_cm?: string | null;
+  drinking?: string | null;
+  smoking?: string | null;
+  exercise?: string | null;
+  has_pets?: string | null;
+  want_children?: string | null;
+  relationship_goal?: string | null;
+  love_language?: string | null;
 };
 
 export type MatchItem = {
@@ -105,9 +119,8 @@ export type WhoLikedItem = {
 export type ReportCategory = 'fake' | 'harassment' | 'nudity' | 'scam' | 'other';
 
 export type DailyLikeStatus = {
-  used: number;
-  limit: number;
-  remaining: number;
-  resetAt: Date;
-  isPremium: boolean;
+  used: number; limit: number; remaining: number; resetAt: Date;
+  isPremium: boolean; plan: string;
+  superlikeUsed: number; superlikeLimit: number; superlikeRemaining: number;
+  cloneUsed: number; cloneLimit: number; cloneRemaining: number;
 };

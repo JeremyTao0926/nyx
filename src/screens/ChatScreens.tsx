@@ -542,7 +542,7 @@ export function ChatListScreen({ profile, matches, unreadPerMatch, typingMatchId
 
   const all = [
     { id: "nyx", isNyx: true, name: "Nyx ✦", lastMsg: nyxLastMsg, time: nyxTime, unread: 0, avatar: "", online: true, lastActive: null },
-    ...sortedMatches.map(m => ({ id: m.id, matchId: m.matchId, isNyx: false, name: m.name, lastMsg: previewMsg(m.lastMsg), time: m.time, unread: unreadPerMatch[m.matchId] || 0, avatar: m.avatar, online: false, lastActive: (m as any).lastActive || null }))
+    ...sortedMatches.map(m => ({ id: m.id, matchId: m.matchId, isNyx: false, name: m.name, lastMsg: previewMsg(m.lastMsg), time: m.time, unread: unreadPerMatch[m.matchId] || 0, avatar: m.avatar, online: false, lastActive: (m as any).lastActive || null, isPremium: (m as any).isPremium || false, premiumPlan: (m as any).premiumPlan || null }))
   ].filter(i => !search || i.name.toLowerCase().includes(search.toLowerCase()));
 
   return <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease" }}>
@@ -1041,6 +1041,8 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           want_children: otherProfileData.want_children||null,
           relationship_goal: otherProfileData.relationship_goal||null,
           love_language: otherProfileData.love_language||null,
+          is_premium: otherProfileData.is_premium||false,
+          premium_plan: otherProfileData.premium_plan||null,
         }}
         myMbti=""
         myProfile={null}

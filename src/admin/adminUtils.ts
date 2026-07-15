@@ -116,7 +116,7 @@ export async function getUsers(opts: {
   isTest?: boolean; isBanned?: boolean; search?: string; limit?: number;
 }): Promise<UserRow[]> {
   let q = sb.from("profiles")
-    .select("id,username,display_name,email,gender,is_test_account,test_label,is_banned,ban_reason,last_active,created_at,avatar_url,is_premium,premium_plan,premium_expires_at")
+    .select("id,username,display_name,email,gender,is_test_account,test_label,is_banned,ban_reason,last_active,created_at,avatar_url,is_premium,premium_plan,premium_expires_at,is_active,deleted_at")
     .order("created_at", { ascending: false })
     .limit(opts.limit || 50);
   if (opts.isTest !== undefined) q = q.eq("is_test_account", opts.isTest);
@@ -218,31 +218,25 @@ export async function getUserStats(userId: string): Promise<UserStats> {
 }
 
 export async function disableUser(userId: string) {
-  const { error } = await sb.rpc("disable_user", {
-    p_user_id: userId,
-  });
-
+  const { data, error } = await sb.from("profiles").update({ is_active: false }).eq("id", userId).select("id");
   if (error) throw error;
+  if (!data || data.length === 0) throw new Error("更新被 RLS 阻擋（0 行受影響）");
 
   await logAction("disable_user", "user", userId);
 }
 
 export async function restoreUser(userId: string) {
-  const { error } = await sb.rpc("restore_user", {
-    p_user_id: userId,
-  });
-
+  const { data, error } = await sb.from("profiles").update({ is_active: true, deleted_at: null }).eq("id", userId).select("id");
   if (error) throw error;
+  if (!data || data.length === 0) throw new Error("更新被 RLS 阻擋（0 行受影響）");
 
   await logAction("restore_user", "user", userId);
 }
 
 export async function softDeleteUser(userId: string) {
-  const { error } = await sb.rpc("soft_delete_user", {
-    p_user_id: userId,
-  });
-
+  const { data, error } = await sb.from("profiles").update({ deleted_at: new Date().toISOString(), is_active: false, is_paused: true }).eq("id", userId).select("id");
   if (error) throw error;
+  if (!data || data.length === 0) throw new Error("更新被 RLS 阻擋（0 行受影響）");
 
   await logAction("soft_delete_user", "user", userId);
 }

@@ -285,6 +285,23 @@ export default function App() {
 
   if (!authed) return <><style>{GLOBAL_CSS}</style><LoginScreen onLogin={() => setAuthed(true)}/></>;
   if (!splashSeen || resuming) return <><style>{GLOBAL_CSS}</style><SplashScreen onDone={() => { setSplashSeen(true); setResuming(false); }}/></>;
+  {
+    const blocked = profile && ((profile as any).is_banned || (profile as any).is_active === false || (profile as any).deleted_at);
+    if (blocked) {
+      const reason = (profile as any).is_banned
+        ? `此帳號已被封禁${(profile as any).ban_reason ? `：${(profile as any).ban_reason}` : ""}`
+        : (profile as any).deleted_at ? "此帳號已被刪除" : "此帳號已被停用";
+      return <><style>{GLOBAL_CSS}</style>
+        <div style={{ minHeight:"100dvh", background:C.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, padding:"0 32px", textAlign:"center", fontFamily:"'Plus Jakarta Sans','Noto Sans TC',sans-serif" }}>
+          <div style={{ fontSize:44, opacity:.5 }}>🚫</div>
+          <div style={{ fontSize:19, fontWeight:800, color:C.text }}>無法使用此帳號</div>
+          <div style={{ fontSize:14, color:C.textMuted, lineHeight:1.7 }}>{reason}<br/>如有疑問請聯繫客服</div>
+          <button onClick={logout} style={{ marginTop:8, padding:"12px 36px", borderRadius:50, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:14, fontWeight:700, cursor:"pointer" }}>登出</button>
+        </div>
+      </>;
+    }
+  }
+
 
   return (
     <>
