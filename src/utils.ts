@@ -337,6 +337,7 @@ export async function getExploreProfiles(uid: string, p: UserProfile): Promise<E
     .map(({ r }: any) => ({
       id: r.id, name: r.display_name || r.username, age: r.birthday ? calcAge(r.birthday) : null,
       mbti: r.mbti || "INFP", bio: r.bio || "", avatar: r.avatar_url || "",
+      is_premium: r.is_premium || false, premium_plan: r.premium_plan || null,
       photos: r.photos || [], location: r.location_text || "", country: r.country || "",
       ethnicity: r.ethnicity || [], hobbies: r.hobbies || [], verified: r.is_verified || false,
       distance: p.latitude && p.longitude && r.latitude && r.longitude
@@ -356,7 +357,7 @@ export async function getMatches(uid: string): Promise<MatchItem[]> {
   if (!data) return [];
   return Promise.all(data.map(async (m: any) => {
     const otherId = m.user1_id === uid ? m.user2_id : m.user1_id;
-    const { data: prof } = await sb.from("profiles").select("id,display_name,username,avatar_url,last_active,hide_online_status").eq("id", otherId).maybeSingle();
+    const { data: prof } = await sb.from("profiles").select("id,display_name,username,avatar_url,last_active,hide_online_status,is_premium,premium_plan").eq("id", otherId).maybeSingle();
     const { data: last } = await sb.from("chat_messages").select("content,created_at,sender_id").eq("match_id", m.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const isMyMsg = last?.sender_id === uid;
     const lastMsg = last?.content
@@ -368,6 +369,8 @@ export async function getMatches(uid: string): Promise<MatchItem[]> {
       time: new Date(last?.created_at || m.created_at).getTime(),
       lastActive: (prof as any)?.last_active || null,
       hideOnline: (prof as any)?.hide_online_status || false,
+      isPremium: (prof as any)?.is_premium || false,
+      premiumPlan: (prof as any)?.premium_plan || null,
     } as any;
   }));
 }

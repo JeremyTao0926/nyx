@@ -9,6 +9,7 @@ import { MemoryWall } from "./MemoryWall";
 import { CloneScreen } from "./CloneScreen";
 import type { UserProfile, MatchItem, ChatMsg, ImgItem } from "../types";
 import { ProfileSheet } from './ExploreScreen';
+import { PremiumBadge } from '../components/PremiumBadge';
 
 const MAX_W = { maxWidth: 480, margin: "0 auto", width: "100%" };
 
@@ -569,6 +570,7 @@ export function ChatListScreen({ profile, matches, unreadPerMatch, typingMatchId
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <div style={{ fontSize: 15, fontWeight: hasUnread ? 800 : 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{item.name}</div>
+                  {!item.isNyx && <PremiumBadge plan={(item as any).isPremium ? ((item as any).premiumPlan || "premium") : null} mini />}
                   {!item.isNyx && status.dot && <span style={{ width: 7, height: 7, borderRadius: "50%", background: status.color, flexShrink: 0 }} />}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginLeft: 8 }}>
@@ -658,6 +660,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           avatar: data.avatar_url, cover: (data as any).cover_url || null, bio: data.bio, mbti: data.mbti, location: data.location_text,
           country: data.country, hobbies: data.hobbies || [], photos: data.photos || [],
           lastActive: data.last_active, hideOnline: data.hide_online_status,
+          is_premium: (data as any).is_premium || false, premium_plan: (data as any).premium_plan || null,
           occupation: data.occupation || null, education: data.education || null,
           income: data.income || null, height_cm: data.height_cm || null,
           drinking: data.drinking || null, smoking: data.smoking || null,
@@ -944,7 +947,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", fontFamily: "inherit", width: 36 }}>‹</button>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer", minWidth: 0 }} onClick={() => setShowOtherProfile(true)}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{other.name}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{other.name}</div><PremiumBadge plan={(other as any).isPremium ? ((other as any).premiumPlan || "premium") : null} mini /></div>
           {otherStatus.dot && <span style={{ width: 8, height: 8, borderRadius: "50%", background: C.teal, boxShadow: `0 0 6px ${C.teal}`, flexShrink: 0 }} />}
         </div>
         <div style={{ fontSize: 11.5, color: otherTyping ? C.teal : (otherStatus.label ? otherStatus.color : C.textMuted) }}>

@@ -4,6 +4,8 @@ import { Av, MatchAnimation } from "../components/Atoms";
 import { FilterSheet } from "../components/Modals";
 import type { UserProfile, ExploreProfile, MatchItem, WhoLikedItem, DailyLikeStatus } from "../types";
 import { PremiumScreen } from "./PremiumScreen";
+import { PremiumGateSheet } from "../components/PremiumGateSheet";
+import { PremiumBadge } from "../components/PremiumBadge";
 
 type ExploreTab = "recommend" | "nearby" | "new";
 
@@ -250,6 +252,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
               <div style={{ flex:1,minWidth:0 }}>
                 <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:3 }}>
                   <span style={{ fontSize:28,fontWeight:800,color:"#fff",letterSpacing:"-0.02em" }}>{p.name}</span>
+                  <PremiumBadge plan={(p as any).is_premium ? ((p as any).premium_plan || "premium") : null} />
                   {p.verified&&<svg width="20" height="20" viewBox="0 0 24 24" fill={C.gold}><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 0 1.946-.806 3.42 3.42 0 0 1 4.438 0 3.42 3.42 0 0 0 1.946.806 3.42 3.42 0 0 1 3.138 3.138 3.42 3.42 0 0 0 .806 1.946 3.42 3.42 0 0 1 0 4.438 3.42 3.42 0 0 0-.806 1.946 3.42 3.42 0 0 1-3.138 3.138 3.42 3.42 0 0 0-1.946.806 3.42 3.42 0 0 1-4.438 0 3.42 3.42 0 0 0-1.946-.806 3.42 3.42 0 0 1-3.138-3.138 3.42 3.42 0 0 0-.806-1.946 3.42 3.42 0 0 1 0-4.438 3.42 3.42 0 0 0 .806-1.946 3.42 3.42 0 0 1 3.138-3.138z"/></svg>}
                 </div>
                 <div style={{ fontSize:14.5,color:"rgba(255,255,255,0.68)",marginBottom:2 }}>{[p.age?`${p.age} 歲`:null,p.location||null].filter(Boolean).join(" · ")}</div>
@@ -411,7 +414,7 @@ function SwipeCard({ p, isTop, myMbti, onSwipe, onOpenProfile }: { p: ExplorePro
           {/* Info overlay */}
           <div style={{ position:"absolute",bottom:18,left:18,right:18,pointerEvents:"none" }}>
             <div style={{ display:"flex",alignItems:"baseline",gap:8,marginBottom:6 }}>
-              <div style={{ fontSize:25,fontWeight:800,color:"#fff" }}>{p.name}</div>
+              <div style={{ display:"flex",alignItems:"center",gap:8 }}><div style={{ fontSize:25,fontWeight:800,color:"#fff" }}>{p.name}</div><PremiumBadge plan={(p as any).is_premium ? ((p as any).premium_plan || "premium") : null} /></div>
               {p.age && <div style={{ fontSize:18,color:"rgba(255,255,255,0.75)" }}>{p.age}</div>}
             </div>
             <div style={{ fontSize:13,color:"rgba(255,255,255,0.65)",marginBottom:6 }}>
@@ -619,26 +622,13 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
 
       {/* ── Premium Gate ── */}
       {showPremiumGate && (
-        <div style={{ position:"fixed",inset:0,zIndex:500,background:"rgba(0,0,0,0.82)",backdropFilter:"blur(20px)",display:"flex",alignItems:"flex-end",justifyContent:"center" }} onClick={()=>setShowPremiumGate(null)}>
-          <div onClick={e=>e.stopPropagation()} style={{ width:"100%",maxWidth:480,background:"#141210",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,padding:"32px 24px 52px",textAlign:"center" as const,animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
-            <div style={{ width:60,height:60,borderRadius:"50%",background:"linear-gradient(135deg,#C9A84C,#E2C068)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,margin:"0 auto 18px",color:"#12100C",fontWeight:800 }}>
-              {showPremiumGate==="wholiked"?"♥":showPremiumGate==="superlike"?"★":"∞"}
-            </div>
-            <div style={{ fontSize:20,fontWeight:800,color:C.text,marginBottom:10 }}>
-              {showPremiumGate==="likes"?"今日喜歡已用完":showPremiumGate==="superlike"?"今日優先認識已用完":"查看所有喜歡你的人"}
-            </div>
-            <div style={{ fontSize:14,color:C.textMuted,lineHeight:1.65,marginBottom:28 }}>
-              {showPremiumGate==="likes" && <span>免費版每天可喜歡 30 人<br/>升級 Premium 享無限喜歡</span>}
-              {showPremiumGate==="superlike" && <span>免費版每天 1 次優先認識<br/>Premium 每天 5 次</span>}
-              {showPremiumGate==="wholiked" && <span>升級 Premium<br/>查看所有喜歡你的人</span>}
-            </div>
-            <button onClick={()=>{ setShowPremiumGate(null); setShowPremium(true); }}
-              style={{ width:"100%",padding:"15px",borderRadius:50,background:"linear-gradient(135deg,#C9A84C,#E2C068)",border:"none",color:"#12100C",fontFamily:"inherit",fontSize:16,fontWeight:800,cursor:"pointer",boxShadow:"0 4px 24px rgba(201,168,76,0.4)",marginBottom:14 }}>
-              升級 Premium
-            </button>
-            <button onClick={()=>setShowPremiumGate(null)} style={{ background:"none",border:"none",color:C.textMuted,fontFamily:"inherit",fontSize:14,cursor:"pointer" }}>稍後再說</button>
-          </div>
-        </div>
+        <PremiumGateSheet
+          icon={showPremiumGate==="wholiked"?"♥":showPremiumGate==="superlike"?"★":"∞"}
+          title={showPremiumGate==="likes"?"今日喜歡已用完":showPremiumGate==="superlike"?"今日優先認識已用完":"查看所有喜歡你的人"}
+          desc={showPremiumGate==="likes"?<span>免費版每天可喜歡 30 人<br/>升級 Premium 享無限喜歡</span>:showPremiumGate==="superlike"?<span>免費版每天 1 次優先認識<br/>Premium 每天 5 次</span>:<span>升級 Premium<br/>查看所有喜歡你的人</span>}
+          onUpgrade={()=>{ setShowPremiumGate(null); setShowPremium(true); }}
+          onClose={()=>setShowPremiumGate(null)}
+        />
       )}
       {showPremium && <div style={{ position:"fixed",inset:0,zIndex:600,background:C.bg }}><PremiumScreen onBack={()=>setShowPremium(false)} profile={profile}/></div>}
 
