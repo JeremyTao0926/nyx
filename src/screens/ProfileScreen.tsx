@@ -87,17 +87,17 @@ function SettingRow({ icon, label, sub, right, onClick, last }: { icon: string; 
 
 const INP = { width:"100%",padding:"12px 14px",background:"rgba(255,255,255,0.04)",border:`1px solid ${C.border}`,borderRadius:12,color:C.text,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box" as const,transition:"border-color .2s" };
 
-function CityInput({ value, onChange, onSelect }: { value: string; onChange: (v: string) => void; onSelect: (city: string, lat: number, lon: number) => void }) {
-  const [res, setRes] = useState<{ name: string; country: string; lat: number; lon: number }[]>([]);
+function CityInput({ value, onChange, onSelect, near }: { value: string; onChange: (v: string) => void; onSelect: (city: string, lat: number, lon: number) => void; near?: { lat: number; lon: number } | null }) {
+  const [res, setRes] = useState<{ name: string; state: string; country: string; lat: number; lon: number }[]>([]);
   const [open, setOpen] = useState(false);
   const timer = useRef<any>(null);
-  function handle(v: string) { onChange(v); clearTimeout(timer.current); if (v.length < 2) { setRes([]); setOpen(false); return; } timer.current = setTimeout(async () => { const r = await searchCities(v); setRes(r); setOpen(r.length > 0); }, 380); }
+  function handle(v: string) { onChange(v); clearTimeout(timer.current); if (v.length < 2) { setRes([]); setOpen(false); return; } timer.current = setTimeout(async () => { const r = await searchCities(v, near); setRes(r); setOpen(r.length > 0); }, 380); }
   return <div style={{ position: "relative" }}>
     <input value={value} onChange={e => handle(e.target.value)} placeholder="輸入城市名稱..." style={INP} onFocus={e => (e.target.style.borderColor = C.rose)} onBlur={e => { e.target.style.borderColor = C.border; setTimeout(() => setOpen(false), 200); }} />
     {open && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "rgba(20,18,14,0.99)", backdropFilter: "blur(24px)", border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", zIndex: 100, boxShadow: "0 16px 48px rgba(0,0,0,0.5)" }}>
       {res.map((r, i) => <div key={i} onMouseDown={() => { onSelect(r.name, r.lat, r.lon); onChange(r.name); setOpen(false); }} style={{ padding: "12px 16px", cursor: "pointer", borderBottom: i < res.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }} onMouseEnter={e => (e.currentTarget.style.background = C.surf)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
         <span style={{ fontSize: 14, color: C.text }}>📍 {r.name}</span>
-        <span style={{ fontSize: 12, color: C.textMuted }}>{r.country}</span>
+        <span style={{ fontSize: 12, color: C.textMuted }}>{[r.state, r.country].filter(Boolean).join(", ")}</span>
       </div>)}
     </div>}
   </div>;
@@ -129,6 +129,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const [loc, setLoc] = useState(profile.location_text || "");
   const [pinLat, setPinLat] = useState<number | null>(profile.latitude ?? null);
   const [pinLon, setPinLon] = useState<number | null>(profile.longitude ?? null);
+  const [geocoding, setGeocoding] = useState(false);
   const [ethnicity, setEthnicity] = useState<string[]>(profile.ethnicity || []);
   const [hobbies, setHobbies] = useState<string[]>(profile.hobbies || []);
   const [mbti, setMbti] = useState(profile.mbti || "INFP");
@@ -170,6 +171,23 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const coverRef = useRef<HTMLInputElement>(null);
   const [editField, setEditField] = useState<string|null>(null);
   const [editText, setEditText] = useState("");
+
+  // Hinge-style swipe right to go back (settings sub-page)
+  const settingsSwipeStartX = useRef(0);
+  const settingsSwipeStartY = useRef(0);
+  const [settingsSwipeDx, setSettingsSwipeDx] = useState(0);
+  const isSettingsSwiping = useRef(false);
+  function onSettingsSwipeTouchStart(e: React.TouchEvent) { settingsSwipeStartX.current = e.touches[0].clientX; settingsSwipeStartY.current = e.touches[0].clientY; isSettingsSwiping.current = false; }
+  function onSettingsSwipeTouchMove(e: React.TouchEvent) {
+    const dx = e.touches[0].clientX - settingsSwipeStartX.current;
+    const dy = Math.abs(e.touches[0].clientY - settingsSwipeStartY.current);
+    if (settingsSwipeStartX.current < 40 && dx > 0 && dy < 60) { isSettingsSwiping.current = true; setSettingsSwipeDx(dx); }
+  }
+  function onSettingsSwipeTouchEnd() {
+    if (isSettingsSwiping.current && settingsSwipeDx > 100) setActiveTab("view"); else setSettingsSwipeDx(0);
+    isSettingsSwiping.current = false;
+  }
+
   const age = calcAge(birthday);
   const comp = calcCompletion({ ...profile, display_name: name, bio, birthday: birthday || null, location_text: loc || null, avatar_url: avatarUrl || null, hobbies, photos });
 
@@ -820,19 +838,24 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         <BottomSheet onClose={() => setEditField(null)}>
           <div style={{ padding: "8px 20px 40px" }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>所在地</div>
-            <CityInput value={editText} onChange={setEditText} onSelect={(city, lat, lon) => { setLoc(city); setEditText(city); setPinLat(lat); setPinLon(lon); updateProfile(userId, { latitude: lat, longitude: lon }); }} />
+            <CityInput value={editText} onChange={setEditText} onSelect={(city, lat, lon) => { setLoc(city); setEditText(city); setPinLat(lat); setPinLon(lon); updateProfile(userId, { latitude: lat, longitude: lon }); }} near={pinLat != null && pinLon != null ? { lat: pinLat, lon: pinLon } : null} />
             <div style={{ display: "flex", gap: 10, marginTop: 16, marginBottom: 16 }}>
               <button onClick={handleLocate} disabled={locating} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(232,54,93,0.08)", border: `1px solid rgba(232,54,93,0.25)`, color: C.rose, fontFamily: "inherit", fontSize: 14, cursor: "pointer", opacity: locating ? .6 : 1 }}>
                 {locating ? "定位中..." : "📍 GPS 定位"}
               </button>
               <button onClick={() => { setLoc(editText); setEditField(null); }} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>確認</button>
             </div>
-            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>或在地圖上點選/拖曳大頭針微調精確位置</div>
+            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>或在地圖上點選/拖曳大頭針微調精確位置{geocoding && " · 更新地址中..."}</div>
             <div style={{ height: 220, borderRadius: 16, overflow: "hidden", border: `1px solid ${C.border}` }}>
               <LocationPickerMap
                 latitude={pinLat ?? 25.0330}
                 longitude={pinLon ?? 121.5654}
-                onChange={(lat, lon) => { setPinLat(lat); setPinLon(lon); updateProfile(userId, { latitude: lat, longitude: lon }); }}
+                onChange={(lat, lon) => {
+                  setPinLat(lat); setPinLon(lon);
+                  updateProfile(userId, { latitude: lat, longitude: lon });
+                  setGeocoding(true);
+                  reverseGeocode(lat, lon).then(({ city }) => { if (city) { setLoc(city); setEditText(city); } }).finally(() => setGeocoding(false));
+                }}
               />
             </div>
           </div>
@@ -929,7 +952,10 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
 
   /* ── SETTINGS MODE ── */
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease" }}>
+    <div onTouchStart={onSettingsSwipeTouchStart} onTouchMove={onSettingsSwipeTouchMove} onTouchEnd={onSettingsSwipeTouchEnd}
+      style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease",
+        touchAction: "pan-y", transform: `translateX(${settingsSwipeDx}px)`, transition: settingsSwipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
+        boxShadow: settingsSwipeDx > 10 ? "-10px 0 30px rgba(0,0,0,0.6)" : "none" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 18px 12px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <button onClick={() => setActiveTab("view")} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>‹</button>
         <span style={{ fontSize: 16, fontWeight: 700, color: C.text }}>設定</span>

@@ -1,9 +1,30 @@
+import { useRef, useState } from "react";
 import { C } from "../utils";
 
 export function TermsScreen({ onBack, type = "terms" }: { onBack: () => void; type?: "terms" | "privacy" }) {
   const isTerms = type === "terms";
+
+  // Hinge-style swipe right to go back
+  const swipeStartX = useRef(0);
+  const swipeStartY = useRef(0);
+  const [swipeDx, setSwipeDx] = useState(0);
+  const isSwiping = useRef(false);
+  function onSwipeTouchStart(e: React.TouchEvent) { swipeStartX.current = e.touches[0].clientX; swipeStartY.current = e.touches[0].clientY; isSwiping.current = false; }
+  function onSwipeTouchMove(e: React.TouchEvent) {
+    const dx = e.touches[0].clientX - swipeStartX.current;
+    const dy = Math.abs(e.touches[0].clientY - swipeStartY.current);
+    if (swipeStartX.current < 40 && dx > 0 && dy < 60) { isSwiping.current = true; setSwipeDx(dx); }
+  }
+  function onSwipeTouchEnd() {
+    if (isSwiping.current && swipeDx > 100) onBack(); else setSwipeDx(0);
+    isSwiping.current = false;
+  }
+
   return (
-    <div style={{ position:"fixed",inset:0,zIndex:300,background:C.bg,display:"flex",flexDirection:"column" as const }}>
+    <div onTouchStart={onSwipeTouchStart} onTouchMove={onSwipeTouchMove} onTouchEnd={onSwipeTouchEnd}
+      style={{ position:"fixed",inset:0,zIndex:300,background:C.bg,display:"flex",flexDirection:"column" as const,
+        touchAction:"pan-y",transform:`translateX(${swipeDx}px)`,transition:swipeDx===0?"transform .3s cubic-bezier(.32,.72,0,1)":"none",
+        boxShadow:swipeDx>10?"-10px 0 30px rgba(0,0,0,0.6)":"none" }}>
       <div style={{ display:"flex",alignItems:"center",gap:12,padding:"16px 18px",borderBottom:`1px solid ${C.border}`,flexShrink:0 }}>
         <button onClick={onBack} style={{ background:"none",border:"none",color:C.textMuted,fontSize:22,cursor:"pointer",lineHeight:1 }}>‹</button>
         <span style={{ fontSize:16,fontWeight:700,color:C.text }}>{isTerms ? "服務條款" : "隱私政策"}</span>

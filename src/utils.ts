@@ -532,12 +532,50 @@ export async function reverseGeocode(lat: number, lon: number): Promise<{ city: 
     return { city, country: cm[a.country] || a.country || "" };
   } catch { return { city: "", country: "" }; }
 }
-export async function searchCities(q: string): Promise<{ name: string; country: string; lat: number; lon: number }[]> {
+export async function searchCities(q: string, near?: { lat: number; lon: number } | null): Promise<{ name: string; state: string; country: string; lat: number; lon: number }[]> {
   if (q.length < 2) return [];
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&featuretype=city&accept-language=zh-TW`, { headers: { "User-Agent": "NYX-App/1.0" } });
+    // No featuretype filter — otherwise country names and many towns/regions
+    // never match, since Nominatim only tags a subset of places as "city".
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1&accept-language=zh-TW`, { headers: { "User-Agent": "NYX-App/1.0" } });
     const d = await r.json();
-    return d.map((item: any) => ({ name: item.display_name.split(",")[0], country: item.display_name.split(",").slice(-1)[0].trim(), lat: parseFloat(item.lat), lon: parseFloat(item.lon) }));
+    // zh-TW replies sometimes join simplified/traditional variants with ";"
+    // (e.g. "美国;美國") — keep only the first.
+    const clean = (s: string) => s.split(";")[0].trim();
+    const results = d.map((item: any, i: number) => {
+      const a = item.address || {};
+      // Nominatim's display_name always leads with the actually-matched
+      // place's own name — trust that over the address hierarchy, which can
+      // otherwise surface an unrelated containing county/village name
+      // instead (e.g. searching "chino" wrongly showing "Santa Bárbara",
+      // the Mexican *county* that happens to contain a peak called Chino).
+      const primaryName = clean(item.display_name.split(",")[0]);
+      const name = primaryName || clean(a.city || a.town || a.village || a.municipality || a.county || a.state || a.country || "");
+      const country = clean(a.country || item.display_name.split(",").slice(-1)[0]);
+      // Province/state, when the country actually uses that admin level —
+      // skip it if it duplicates the city name or the country itself
+      // (e.g. Taiwan's special municipalities, city-states like Singapore).
+      const stateRaw = clean(a.state || a.province || "");
+      const state = stateRaw && stateRaw !== name && stateRaw !== country ? stateRaw : "";
+      return { name, state, country, lat: parseFloat(item.lat), lon: parseFloat(item.lon), _rank: i };
+    });
+    // Same name can exist worldwide (e.g. "Chino" in California vs. Nagano,
+    // Japan) — text match always wins first: among results whose name
+    // actually matches what was typed, nearer ones rank first. Looser/fuzzy
+    // matches (Nominatim's own alternate-name matching, e.g. a differently
+    // scripted city name) keep Nominatim's original relevance order rather
+    // than being reshuffled by raw distance alone.
+    if (near) {
+      const qLower = q.trim().toLowerCase();
+      const isTextMatch = (r: any) => r.name.toLowerCase().startsWith(qLower);
+      results.sort((x: any, y: any) => {
+        const xm = isTextMatch(x), ym = isTextMatch(y);
+        if (xm !== ym) return xm ? -1 : 1;
+        if (xm && ym) return haversine(near.lat, near.lon, x.lat, x.lon) - haversine(near.lat, near.lon, y.lat, y.lon);
+        return x._rank - y._rank;
+      });
+    }
+    return results.map(({ _rank, ...rest }: any) => rest);
   } catch { return []; }
 }
 

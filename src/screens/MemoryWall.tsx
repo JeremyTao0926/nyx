@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { C, getMemories, getBondInfo, fmtDate } from "../utils";
 import type { Memory, BondInfo } from "../utils";
 
@@ -36,9 +36,28 @@ export function MemoryWall({ matchId, otherName, onClose }: { matchId: string; o
     });
   }, [matchId]);
 
+  // Hinge-style swipe right to go back
+  const swipeStartX = useRef(0);
+  const swipeStartY = useRef(0);
+  const [swipeDx, setSwipeDx] = useState(0);
+  const isSwiping = useRef(false);
+  function onSwipeTouchStart(e: React.TouchEvent) { swipeStartX.current = e.touches[0].clientX; swipeStartY.current = e.touches[0].clientY; isSwiping.current = false; }
+  function onSwipeTouchMove(e: React.TouchEvent) {
+    const dx = e.touches[0].clientX - swipeStartX.current;
+    const dy = Math.abs(e.touches[0].clientY - swipeStartY.current);
+    if (swipeStartX.current < 40 && dx > 0 && dy < 60) { isSwiping.current = true; setSwipeDx(dx); }
+  }
+  function onSwipeTouchEnd() {
+    if (isSwiping.current && swipeDx > 100) onClose(); else setSwipeDx(0);
+    isSwiping.current = false;
+  }
+
   return (
     <div style={{ position:"fixed", inset:0, zIndex:250, background:"rgba(0,0,0,0.6)", display:"flex", justifyContent:"center", animation:"fadeIn .2s ease" }}>
-      <div style={{ width:"100%", maxWidth:480, background:C.bg, display:"flex", flexDirection:"column", height:"100%", position:"relative" }}>
+      <div onTouchStart={onSwipeTouchStart} onTouchMove={onSwipeTouchMove} onTouchEnd={onSwipeTouchEnd}
+        style={{ width:"100%", maxWidth:480, background:C.bg, display:"flex", flexDirection:"column", height:"100%", position:"relative",
+          touchAction:"pan-y", transform:`translateX(${swipeDx}px)`, transition:swipeDx===0?"transform .3s cubic-bezier(.32,.72,0,1)":"none",
+          boxShadow:swipeDx>10?"-10px 0 30px rgba(0,0,0,0.6)":"none" }}>
       {/* Header */}
       <div style={{ padding:"52px 16px 16px", background:"rgba(12,10,8,0.97)", backdropFilter:"blur(20px)", borderBottom:`1px solid ${C.border}` }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>

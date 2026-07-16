@@ -356,6 +356,23 @@ function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => vo
   const TOTAL_REQUIRED = 5; // steps 1-5 have progress bar
   const TOTAL = 8;
 
+  // Hinge-style swipe right to go back a step (or out, on step 1)
+  const swipeStartX = useRef(0);
+  const swipeStartY = useRef(0);
+  const [swipeDx, setSwipeDx] = useState(0);
+  const isSwiping = useRef(false);
+  function onSwipeTouchStart(e: React.TouchEvent) { swipeStartX.current = e.touches[0].clientX; swipeStartY.current = e.touches[0].clientY; isSwiping.current = false; }
+  function onSwipeTouchMove(e: React.TouchEvent) {
+    const dx = e.touches[0].clientX - swipeStartX.current;
+    const dy = Math.abs(e.touches[0].clientY - swipeStartY.current);
+    if (swipeStartX.current < 40 && dx > 0 && dy < 60) { isSwiping.current = true; setSwipeDx(dx); }
+  }
+  function onSwipeTouchEnd() {
+    if (isSwiping.current && swipeDx > 100) { if (step === 1) onBack(); else setStep(s => s - 1); }
+    else setSwipeDx(0);
+    isSwiping.current = false;
+  }
+
   async function finalize(hobbies: string[]) {
     data.current.hobbies = hobbies;
     const d = data.current;
@@ -411,7 +428,8 @@ function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => vo
   );
 
   return (
-    <div>
+    <div onTouchStart={onSwipeTouchStart} onTouchMove={onSwipeTouchMove} onTouchEnd={onSwipeTouchEnd}
+      style={{ touchAction: "pan-y", transform: `translateX(${swipeDx}px)`, transition: swipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none" }}>
       <div style={{ display: "flex", alignItems: "center", marginBottom: 24 }}>
         <button onClick={step === 1 ? onBack : () => setStep(s => s - 1)} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", fontFamily: "inherit", marginRight: 12, lineHeight: 1 }}>‹</button>
         <div style={{ flex: 1 }}><StepBar step={step} total={TOTAL} /></div>

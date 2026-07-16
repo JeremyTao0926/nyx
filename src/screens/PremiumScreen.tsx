@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { C, sb } from "../utils";
 import type { UserProfile } from "../types";
 
@@ -41,6 +41,22 @@ const PLANS = [
 
 export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile?: UserProfile }) {
   const [loading, setLoading] = useState<string | null>(null);
+
+  // Hinge-style swipe right to go back
+  const swipeStartX = useRef(0);
+  const swipeStartY = useRef(0);
+  const [swipeDx, setSwipeDx] = useState(0);
+  const isSwiping = useRef(false);
+  function onSwipeTouchStart(e: React.TouchEvent) { swipeStartX.current = e.touches[0].clientX; swipeStartY.current = e.touches[0].clientY; isSwiping.current = false; }
+  function onSwipeTouchMove(e: React.TouchEvent) {
+    const dx = e.touches[0].clientX - swipeStartX.current;
+    const dy = Math.abs(e.touches[0].clientY - swipeStartY.current);
+    if (swipeStartX.current < 40 && dx > 0 && dy < 60) { isSwiping.current = true; setSwipeDx(dx); }
+  }
+  function onSwipeTouchEnd() {
+    if (isSwiping.current && swipeDx > 100) onBack(); else setSwipeDx(0);
+    isSwiping.current = false;
+  }
 
   async function handleUpgrade(plan: typeof PLANS[0]) {
     setLoading(plan.id);
@@ -90,7 +106,10 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "flex-end" }}>
-      <div style={{ width: "100%", maxWidth: 480, background: C.bg, height: "100%", display: "flex", flexDirection: "column" as const, overflowY: "auto" }}>
+      <div onTouchStart={onSwipeTouchStart} onTouchMove={onSwipeTouchMove} onTouchEnd={onSwipeTouchEnd}
+        style={{ width: "100%", maxWidth: 480, background: C.bg, height: "100%", display: "flex", flexDirection: "column" as const, overflowY: "auto",
+          touchAction: "pan-y", transform: `translateX(${swipeDx}px)`, transition: swipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
+          boxShadow: swipeDx > 10 ? "-10px 0 30px rgba(0,0,0,0.6)" : "none" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", padding: "16px 18px 8px", flexShrink: 0 }}>
         <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>‹</button>
