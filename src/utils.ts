@@ -329,8 +329,17 @@ export async function getExploreProfiles(uid: string, p: UserProfile): Promise<E
   q = q.order("last_active", { ascending: false }).limit(50);
   const { data } = await q;
   if (!data) return [];
+  // Distance filter: only enforced when both sides have coordinates and the
+  // user hasn't dragged the slider to "unlimited" (>=500km)
+  const maxDist = p.filter_max_distance || 100;
+  const withinRange = (r: any) => {
+    if (maxDist >= 500) return true;
+    if (!(p.latitude && p.longitude && r.latitude && r.longitude)) return true;
+    return haversine(p.latitude, p.longitude, r.latitude, r.longitude) <= maxDist;
+  };
   // Score and sort
   const scored = data
+    .filter(withinRange)
     .map((r: any) => ({ r, score: scoreProfile(r, p) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 30)
@@ -342,6 +351,7 @@ export async function getExploreProfiles(uid: string, p: UserProfile): Promise<E
       ethnicity: r.ethnicity || [], hobbies: r.hobbies || [], verified: r.is_verified || false,
       distance: p.latitude && p.longitude && r.latitude && r.longitude
         ? haversine(p.latitude, p.longitude, r.latitude, r.longitude) : undefined,
+      latitude: r.latitude ?? null, longitude: r.longitude ?? null,
       occupation: r.occupation || null, education: r.education || null,
       income: r.income || null, height_cm: r.height_cm || null,
       drinking: r.drinking || null, smoking: r.smoking || null,

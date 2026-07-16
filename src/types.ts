@@ -73,6 +73,8 @@ export type ExploreProfile = {
   hobbies: string[];
   verified: boolean;
   distance?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   // Extended fields
   occupation?: string | null;
   education?: string | null;

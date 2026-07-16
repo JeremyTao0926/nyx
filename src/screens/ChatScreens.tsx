@@ -542,7 +542,7 @@ export function ChatListScreen({ profile, matches, unreadPerMatch, typingMatchId
 
   const all = [
     { id: "nyx", isNyx: true, name: "Nyx ✦", lastMsg: nyxLastMsg, time: nyxTime, unread: 0, avatar: "", online: true, lastActive: null },
-    ...sortedMatches.map(m => ({ id: m.id, matchId: m.matchId, isNyx: false, name: m.name, lastMsg: previewMsg(m.lastMsg), time: m.time, unread: unreadPerMatch[m.matchId] || 0, avatar: m.avatar, online: false, lastActive: (m as any).lastActive || null, isPremium: (m as any).isPremium || false, premiumPlan: (m as any).premiumPlan || null }))
+    ...sortedMatches.map(m => ({ id: m.id, matchId: m.matchId, isNyx: false, name: m.name, lastMsg: previewMsg(m.lastMsg), time: m.time, unread: unreadPerMatch[m.matchId] || 0, avatar: m.avatar, online: false, lastActive: (m as any).lastActive || null, hideOnline: (m as any).hideOnline || false, isPremium: (m as any).isPremium || false, premiumPlan: (m as any).premiumPlan || null }))
   ].filter(i => !search || i.name.toLowerCase().includes(search.toLowerCase()));
 
   return <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease" }}>
@@ -556,7 +556,7 @@ export function ChatListScreen({ profile, matches, unreadPerMatch, typingMatchId
     <div style={{ flex: 1, overflowY: "auto" }}>
       {all.map((item, idx) => {
         const hasUnread = item.unread > 0;
-        const status = item.isNyx ? { label: "在線", color: C.teal, dot: true } : onlineStatus(item.lastActive, hideOnline);
+        const status = item.isNyx ? { label: "在線", color: C.teal, dot: true } : onlineStatus(item.lastActive, hideOnline || (item as any).hideOnline);
         return <div key={item.id} style={{ animation: `nyxIn .3s ${idx * .05}s ease both` }}>
           <div onClick={() => { sound.tap(); item.isNyx ? onOpenNyx() : onOpenMatch(matches.find(m => m.id === item.id)!); }}
             style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 20px", cursor: "pointer", transition: "background .15s", background: hasUnread ? "rgba(255,56,92,0.04)" : "transparent" }}
@@ -626,6 +626,13 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingCh = useRef<any>(null);
   const hideOnline = (myProfile as any).hide_online_status;
+  const [, setTick] = useState(0);
+
+  // Re-render periodically so the relative "幾分鐘前" label keeps counting up
+  useEffect(() => {
+    const t = setInterval(() => setTick(x => x + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     loadChatMsgs(matchId).then(m => { setMsgs(m); setLoaded(true); });
@@ -640,6 +647,14 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
     const midnightTimer = setTimeout(() => {
       getTodaySpark(matchId, myUserId, other.id).then(s => setSpark(s));
     }, msToMidnight);
+
+    // Realtime: keep the other person's last_active/hide_online_status live while chat stays open
+    const otherProfileCh = sb.channel(`profile-status-${other.id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${other.id}` }, payload => {
+        const p = payload.new as any;
+        setOtherProfileData((prev: any) => prev ? { ...prev, lastActive: p.last_active, hideOnline: p.hide_online_status } : prev);
+      })
+      .subscribe();
 
     // Realtime: use Broadcast channel (no RLS needed) to notify other person
     const encounterCh = sb.channel(`encounter-notify-${matchId}`, { config: { broadcast: { self: false } } })
@@ -705,7 +720,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
         }
       }).subscribe();
 
-    return () => { sb.removeChannel(msgCh); if (typingCh.current) sb.removeChannel(typingCh.current); sb.removeChannel(encounterCh); clearTimeout(midnightTimer); };
+    return () => { sb.removeChannel(msgCh); if (typingCh.current) sb.removeChannel(typingCh.current); sb.removeChannel(encounterCh); sb.removeChannel(otherProfileCh); clearTimeout(midnightTimer); };
   }, [matchId]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, otherTyping]);

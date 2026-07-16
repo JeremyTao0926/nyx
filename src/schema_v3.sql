@@ -70,6 +70,11 @@ create policy "own notifications" on notifications for all using (auth.uid()=use
 -- （還需要在 Supabase Dashboard → Database → Replication → 開啟 chat_messages）
 alter publication supabase_realtime add table chat_messages;
 
+-- Enable Realtime for profiles (needed so the chat screen sees the other
+-- person's last_active / hide_online_status update live, not just on open)
+-- （還需要在 Supabase Dashboard → Database → Replication → 開啟 profiles）
+alter publication supabase_realtime add table profiles;
+
 -- Indexes
 create index if not exists idx_notif_user on notifications(user_id, read, created_at);
 create index if not exists idx_blocks on blocked_users(blocker_id);

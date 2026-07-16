@@ -265,8 +265,9 @@ function Step5({ onNext }: { onNext: (avatarUrl: string, blob: Blob) => void }) 
 }
 
 // Step 6: City (optional but recommended)
-function Step6({ onNext, userId }: { onNext: (city: string) => void; userId: string }) {
+function Step6({ onNext, userId }: { onNext: (city: string, lat?: number, lon?: number) => void; userId: string }) {
   const [city, setCity] = useState("");
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locating, setLocating] = useState(false);
 
   async function locate() {
@@ -276,6 +277,7 @@ function Step6({ onNext, userId }: { onNext: (city: string) => void; userId: str
       const pos = await new Promise<GeolocationPosition>((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000 }));
       const { city: c } = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
       if (c) setCity(c);
+      setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
     } catch { }
     setLocating(false);
   }
@@ -284,11 +286,11 @@ function Step6({ onNext, userId }: { onNext: (city: string) => void; userId: str
     <div style={{ fontSize: 24, fontWeight: 800, color: C.text, marginBottom: 6 }}>你在哪裡？</div>
     <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 32 }}>幫你找到附近的人</div>
     <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-      <input value={city} onChange={e => setCity(e.target.value)} placeholder="輸入城市名稱" style={{ ...INP, flex: 1 }} onFocus={e => (e.target.style.borderColor = C.borderFocus)} onBlur={e => (e.target.style.borderColor = C.border)} />
+      <input value={city} onChange={e => { setCity(e.target.value); setCoords(null); }} placeholder="輸入城市名稱" style={{ ...INP, flex: 1 }} onFocus={e => (e.target.style.borderColor = C.borderFocus)} onBlur={e => (e.target.style.borderColor = C.border)} />
       <button onClick={locate} disabled={locating} style={{ padding: "14px 16px", borderRadius: 14, background: C.roseSoft, border: `1px solid rgba(232,54,93,0.25)`, color: C.rose, cursor: "pointer", fontFamily: "inherit", fontSize: 18, flexShrink: 0, opacity: locating ? .6 : 1 }}>{locating ? "⏳" : "📍"}</button>
     </div>
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <button onClick={() => onNext(city)}
+      <button onClick={() => onNext(city, coords?.lat, coords?.lon)}
         style={{ width: "100%", padding: "15px", borderRadius: 50, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
         {city ? "繼續 →" : "跳過"}
       </button>
@@ -349,7 +351,7 @@ function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => vo
   const [sent, setSent] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   // Collected data
-  const data = useRef({ email: "", pass: "", name: "", username: "", birthday: "", gender: "male" as "male" | "female", lookingFor: "female", avatarUrl: "", avatarBlob: null as Blob | null, city: "", mbti: "INFP", hobbies: [] as string[] });
+  const data = useRef({ email: "", pass: "", name: "", username: "", birthday: "", gender: "male" as "male" | "female", lookingFor: "female", avatarUrl: "", avatarBlob: null as Blob | null, city: "", lat: undefined as number | undefined, lon: undefined as number | undefined, mbti: "INFP", hobbies: [] as string[] });
 
   const TOTAL_REQUIRED = 5; // steps 1-5 have progress bar
   const TOTAL = 8;
@@ -384,6 +386,7 @@ function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => vo
         username: d.username, display_name: d.name, email: d.email,
         birthday: d.birthday || null, gender: d.gender, looking_for_gender: d.lookingFor,
         avatar_url: finalAvatarUrl, location_text: d.city || null,
+        latitude: d.lat ?? null, longitude: d.lon ?? null,
         mbti: d.mbti, hobbies: d.hobbies, onboarding_done: true,
       };
       const { error: updateErr } = await sb.from("profiles").update(profilePayload).eq("id", uid);
@@ -418,7 +421,7 @@ function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => vo
       {step === 3 && <Step3 onNext={g => { data.current.gender = g; setStep(4); }} />}
       {step === 4 && <Step4 onNext={lf => { data.current.lookingFor = lf; setStep(5); }} />}
       {step === 5 && <Step5 onNext={(url, blob) => { data.current.avatarUrl = url; data.current.avatarBlob = blob; setStep(6); }} />}
-      {step === 6 && <Step6 userId="temp" onNext={city => { data.current.city = city; setStep(7); }} />}
+      {step === 6 && <Step6 userId="temp" onNext={(city, lat, lon) => { data.current.city = city; data.current.lat = lat; data.current.lon = lon; setStep(7); }} />}
       {step === 7 && <Step7 onNext={mbti => { data.current.mbti = mbti; setStep(8); }} />}
       {step === 8 && <Step8 onNext={finalize} />}
     </div>

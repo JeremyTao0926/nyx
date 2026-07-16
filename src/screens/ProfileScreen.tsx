@@ -3,6 +3,7 @@ import { C, sound, sb, updateProfile, uploadAvatar, uploadCover, uploadPhoto, de
 import { Av } from "../components/Atoms";
 import { ImageCropper } from "../components/ImageCropper";
 import { MbtiSheet, MultiSelect, BottomSheet } from "../components/Modals";
+import { LocationPickerMap } from "../components/LocationMap";
 import type { UserProfile, Lang, WhoLikedItem } from "../types";
 import { getWhoLikedMe } from "../utils";
 import { PremiumScreen } from "./PremiumScreen";
@@ -126,6 +127,8 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const [bio, setBio] = useState(profile.bio || "");
   const [birthday, setBirthday] = useState(profile.birthday || "");
   const [loc, setLoc] = useState(profile.location_text || "");
+  const [pinLat, setPinLat] = useState<number | null>(profile.latitude ?? null);
+  const [pinLon, setPinLon] = useState<number | null>(profile.longitude ?? null);
   const [ethnicity, setEthnicity] = useState<string[]>(profile.ethnicity || []);
   const [hobbies, setHobbies] = useState<string[]>(profile.hobbies || []);
   const [mbti, setMbti] = useState(profile.mbti || "INFP");
@@ -275,7 +278,8 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
     try {
       const pos = await new Promise<GeolocationPosition>((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000, enableHighAccuracy: true }));
       const { city } = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-      if (city) setLoc(city);
+      if (city) { setLoc(city); setEditText(city); }
+      setPinLat(pos.coords.latitude); setPinLon(pos.coords.longitude);
       await updateProfile(userId, { latitude: pos.coords.latitude, longitude: pos.coords.longitude, location_text: city || loc } as any);
     } catch (e: any) {
       if (e.code === 1) alert("請允許瀏覽器使用定位權限"); else alert("定位失敗，請手動輸入城市");
@@ -816,12 +820,20 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         <BottomSheet onClose={() => setEditField(null)}>
           <div style={{ padding: "8px 20px 40px" }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>所在地</div>
-            <CityInput value={editText} onChange={setEditText} onSelect={(city, lat, lon) => { setLoc(city); setEditText(city); updateProfile(userId, { latitude: lat, longitude: lon }); setEditField(null); }} />
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+            <CityInput value={editText} onChange={setEditText} onSelect={(city, lat, lon) => { setLoc(city); setEditText(city); setPinLat(lat); setPinLon(lon); updateProfile(userId, { latitude: lat, longitude: lon }); }} />
+            <div style={{ display: "flex", gap: 10, marginTop: 16, marginBottom: 16 }}>
               <button onClick={handleLocate} disabled={locating} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(232,54,93,0.08)", border: `1px solid rgba(232,54,93,0.25)`, color: C.rose, fontFamily: "inherit", fontSize: 14, cursor: "pointer", opacity: locating ? .6 : 1 }}>
                 {locating ? "定位中..." : "📍 GPS 定位"}
               </button>
               <button onClick={() => { setLoc(editText); setEditField(null); }} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>確認</button>
+            </div>
+            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>或在地圖上點選/拖曳大頭針微調精確位置</div>
+            <div style={{ height: 220, borderRadius: 16, overflow: "hidden", border: `1px solid ${C.border}` }}>
+              <LocationPickerMap
+                latitude={pinLat ?? 25.0330}
+                longitude={pinLon ?? 121.5654}
+                onChange={(lat, lon) => { setPinLat(lat); setPinLon(lon); updateProfile(userId, { latitude: lat, longitude: lon }); }}
+              />
             </div>
           </div>
         </BottomSheet>

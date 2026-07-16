@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { C, sound, sb, getExploreProfiles, recordSwipe, updateProfile, getDailyLikeStatus, getWhoLikedMe, generateIcebreaker, mbtiCompatibility } from "../utils";
 import { Av, MatchAnimation } from "../components/Atoms";
 import { FilterSheet } from "../components/Modals";
+import { NearbyMap } from "../components/LocationMap";
 import type { UserProfile, ExploreProfile, MatchItem, WhoLikedItem, DailyLikeStatus } from "../types";
 import { PremiumScreen } from "./PremiumScreen";
 import { PremiumGateSheet } from "../components/PremiumGateSheet";
@@ -463,6 +464,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
   const [idx,setIdx]             = useState(0);
   const [loading,setLoading]     = useState(true);
   const [exploreTab,setExploreTab] = useState<ExploreTab>("recommend");
+  const [mapView,setMapView] = useState(false);
   const viewMode: "swipe"|"grid" = exploreTab === "recommend" ? "swipe" : "grid";
   const FREE_GRID_LIMIT = 6;
   const isPremiumMe = (profile as any)?.is_premium === true;
@@ -530,8 +532,12 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
             <button onClick={()=>{ if(!dailyStatus?.isPremium){ setShowPremiumGate("wholiked"); return; } setShowWhoLiked(true); }} style={{ position:"relative",width:34,height:34,borderRadius:"50%",background:C.roseSoft,border:`1px solid rgba(232,54,93,0.2)`,color:C.rose,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
               ♥{whoLiked.length>0&&<div style={{ position:"absolute",top:-3,right:-3,width:15,height:15,borderRadius:"50%",background:C.gradRose,fontSize:8.5,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${C.bg}` }}>{whoLiked.length}</div>}
             </button>
-            {/* Grid toggle */}
-            
+            {/* Grid/Map toggle */}
+            {viewMode==="grid" && (
+              <button onClick={()=>setMapView(v=>!v)} style={{ width:34,height:34,borderRadius:"50%",background:mapView?C.roseSoft:C.surf,border:`1px solid ${mapView?"rgba(232,54,93,0.3)":C.border}`,color:mapView?C.rose:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+                {mapView ? "☰" : "🗺️"}
+              </button>
+            )}
             {/* Filter */}
             <button onClick={()=>setShowFilter(true)} style={{ width:34,height:34,borderRadius:"50%",background:C.surf,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
@@ -554,6 +560,22 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
             <div style={{ width:36,height:36,border:`2px solid ${C.border}`,borderTopColor:C.gold,borderRadius:"50%",animation:"spin .7s linear infinite" }}/>
             <div style={{ fontSize:13,color:C.textMuted }}>探索中...</div>
           </div>
+        ) : viewMode==="grid" && mapView ? (
+          !profile.latitude || !profile.longitude ? (
+            <div style={{ display:"flex",alignItems:"center",justifyContent:"center",height:"100%",textAlign:"center",padding:"0 32px",color:C.textMuted }}>
+              <div>
+                <div style={{ fontSize:36,opacity:.3,color:C.gold,marginBottom:12 }}>📍</div>
+                <div style={{ fontSize:16,fontWeight:700,color:C.text,marginBottom:8 }}>尚未設定你的位置</div>
+                <div style={{ fontSize:14 }}>前往「我的」→ 編輯資料 設定所在地後即可查看地圖</div>
+              </div>
+            </div>
+          ) : (
+            <NearbyMap
+              me={{ latitude: profile.latitude, longitude: profile.longitude }}
+              others={profiles.filter(p=>p.latitude!=null && p.longitude!=null).map(p=>({ id:p.id, name:p.name, distance:p.distance, latitude:p.latitude!, longitude:p.longitude! }))}
+              onSelect={id=>{ const p=profiles.find(pr=>pr.id===id); if(p) setShowProfile(p); }}
+            />
+          )
         ) : viewMode==="grid" ? (
           <div style={{ overflowY:"auto",height:"100%",padding:"14px 12px 80px" }}>
             {profiles.length===0 ? (
