@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { C, sound, sb, getExploreProfiles, recordSwipe, updateProfile, getDailyLikeStatus, getWhoLikedMe, generateIcebreaker, mbtiCompatibility } from "../utils";
+import { C, sound, sb, getExploreProfiles, recordSwipe, updateProfile, getDailyLikeStatus, getWhoLikedMe, generateIcebreaker, mbtiCompatibility, recordProfileView } from "../utils";
 import { Av, MatchAnimation } from "../components/Atoms";
 import { FilterSheet } from "../components/Modals";
 import { NearbyMap } from "../components/LocationMap";
@@ -480,6 +480,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
   const [filters,setFilters]     = useState<Partial<UserProfile>>({ looking_for_gender:profile.looking_for_gender||"female", filter_min_age:profile.filter_min_age||18, filter_max_age:profile.filter_max_age||35, filter_max_distance:profile.filter_max_distance||100 });
 
   useEffect(()=>{ load(); loadSocial(); },[]);
+  useEffect(()=>{ if (showProfile) recordProfileView(userId, showProfile.id); },[showProfile?.id]);
 
   async function load() {
     setLoading(true);

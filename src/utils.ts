@@ -441,6 +441,16 @@ export async function getWhoLikedMe(uid: string): Promise<WhoLikedItem[]> {
   }
 }
 
+/* ─── Profile views ("誰看過我") ─────────────────────── */
+export async function recordProfileView(viewerId: string, viewedId: string) {
+  if (viewerId === viewedId) return;
+  try { await sb.from("profile_views").insert({ viewer_id: viewerId, viewed_id: viewedId }); } catch { /* best-effort */ }
+}
+export async function getProfileViewCount(uid: string): Promise<number> {
+  const { count } = await sb.from("profile_views").select("id", { count: "exact", head: true }).eq("viewed_id", uid);
+  return count || 0;
+}
+
 /* ─── Nyx analysis history ───────────────────────────── */
 export async function saveAnalysis(uid: string, msgId: string, msgText: string, isUserMsg: boolean, result: string) {
   await sb.from("nyx_analyses").insert({ user_id: uid, msg_id: msgId, msg_text: msgText.slice(0, 500), is_user_msg: isUserMsg, result });
@@ -492,6 +502,24 @@ export function calcAge(b: string | null): number | null {
   let age = today.getFullYear() - born.getFullYear();
   if (today < new Date(today.getFullYear(), born.getMonth(), born.getDate())) age--;
   return age;
+}
+export function zodiacSign(b: string | null): string | null {
+  if (!b) return null;
+  const d = new Date(b);
+  const m = d.getMonth() + 1, day = d.getDate();
+  if ((m === 12 && day >= 22) || (m === 1 && day <= 19)) return "魔羯座";
+  if ((m === 1 && day >= 20) || (m === 2 && day <= 18)) return "水瓶座";
+  if ((m === 2 && day >= 19) || (m === 3 && day <= 20)) return "雙魚座";
+  if ((m === 3 && day >= 21) || (m === 4 && day <= 19)) return "牡羊座";
+  if ((m === 4 && day >= 20) || (m === 5 && day <= 20)) return "金牛座";
+  if ((m === 5 && day >= 21) || (m === 6 && day <= 21)) return "雙子座";
+  if ((m === 6 && day >= 22) || (m === 7 && day <= 22)) return "巨蟹座";
+  if ((m === 7 && day >= 23) || (m === 8 && day <= 22)) return "獅子座";
+  if ((m === 8 && day >= 23) || (m === 9 && day <= 22)) return "處女座";
+  if ((m === 9 && day >= 23) || (m === 10 && day <= 22)) return "天秤座";
+  if ((m === 10 && day >= 23) || (m === 11 && day <= 21)) return "天蠍座";
+  if ((m === 11 && day >= 22) || (m === 12 && day <= 21)) return "射手座";
+  return null;
 }
 export function haversine(la1: number, lo1: number, la2: number, lo2: number): number {
   const R = 6371, dLa = (la2 - la1) * Math.PI / 180, dLo = (lo2 - lo1) * Math.PI / 180;

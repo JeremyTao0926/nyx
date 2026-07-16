@@ -101,3 +101,18 @@ begin
   return false;
 end;
 $$ language plpgsql security definer;
+
+-- Profile views ("誰看過我" stat on the profile page)
+create table if not exists profile_views (
+  id uuid default gen_random_uuid() primary key,
+  viewer_id uuid references profiles(id) on delete cascade,
+  viewed_id uuid references profiles(id) on delete cascade,
+  created_at timestamptz default now()
+);
+create index if not exists idx_profile_views_viewed on profile_views(viewed_id);
+
+alter table profile_views enable row level security;
+drop policy if exists "insert own profile views" on profile_views;
+drop policy if exists "read profile views involving you" on profile_views;
+create policy "insert own profile views" on profile_views for insert with check (auth.uid() = viewer_id);
+create policy "read profile views involving you" on profile_views for select using (auth.uid() = viewed_id or auth.uid() = viewer_id);

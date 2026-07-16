@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { C, sound, sb, updateProfile, uploadAvatar, uploadCover, uploadPhoto, deleteAccount, calcAge, calcCompletion, ETHNICITY, HOBBIES, reverseGeocode, searchCities, exportUserData } from "../utils";
+import { C, sound, sb, updateProfile, uploadAvatar, uploadPhoto, deleteAccount, calcAge, calcCompletion, zodiacSign, getProfileViewCount, ETHNICITY, HOBBIES, reverseGeocode, searchCities, exportUserData } from "../utils";
 import { Av } from "../components/Atoms";
 import { ImageCropper } from "../components/ImageCropper";
 import { MbtiSheet, MultiSelect, BottomSheet } from "../components/Modals";
@@ -43,6 +43,8 @@ const IC: Record<string,string> = {
   chevron:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`,
   question:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
   chat:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  gift:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>`,
+  bookmark:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`,
 };
 function Si({ n, s=18, c="currentColor" }: { n: string; s?: number; c?: string }) {
   const raw = IC[n] || IC.info;
@@ -136,7 +138,6 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const [gender, setGender] = useState<"male" | "female">(profile.gender || "male");
   const [lookingFor, setLookingFor] = useState(profile.looking_for_gender || "female");
   const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url || "");
-  const [coverUrl, setCoverUrl] = useState((profile as any).cover_url || "");
   const [photos, setPhotos] = useState<string[]>(profile.photos || []);
   const [uploading, setUploading] = useState(false);
   const [showMbti, setShowMbti] = useState(false);
@@ -156,7 +157,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const [relGoal, setRelGoal] = useState((profile as any).relationship_goal || "");
   const [loveLanguage, setLoveLanguage] = useState((profile as any).love_language || "");
   const [saving, setSaving] = useState(false);
-  const [stats, setStats] = useState({ likesReceived: 0, likesGiven: 0, matches: 0 });
+  const [stats, setStats] = useState({ likesReceived: 0, likesGiven: 0, matches: 0, profileViews: 0 });
   const [statsPanel, setStatsPanel] = useState<"liked_me"|"i_liked"|"matches"|null>(null);
   const [whoLikedMe, setWhoLikedMe] = useState<WhoLikedItem[]>([]);
   const [iLiked, setILiked] = useState<WhoLikedItem[]>([]);
@@ -164,11 +165,10 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const [showAllMatches, setShowAllMatches] = useState(false);
   const [loadingPanel, setLoadingPanel] = useState(false);
   const [locating, setLocating] = useState(false);
-  const [cropFile, setCropFile] = useState<{ file: File; type: "avatar" | "cover" | "photo" } | null>(null);
+  const [cropFile, setCropFile] = useState<{ file: File; type: "avatar" | "photo" } | null>(null);
   const [showPremium, setShowPremium] = useState(false);
   const [showTerms, setShowTerms] = useState<"terms" | "privacy" | null>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
-  const coverRef = useRef<HTMLInputElement>(null);
   const [editField, setEditField] = useState<string|null>(null);
   const [editText, setEditText] = useState("");
 
@@ -196,7 +196,8 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
       sb.from("swipes").select("id", { count: "exact", head: true }).eq("swiped_id", userId).in("direction", ["like", "superlike"]),
       sb.from("swipes").select("id", { count: "exact", head: true }).eq("swiper_id", userId).in("direction", ["like", "superlike"]),
       sb.from("matches").select("id", { count: "exact", head: true }).or(`user1_id.eq.${userId},user2_id.eq.${userId}`),
-    ]).then(([r, g, m]) => setStats({ likesReceived: r.count || 0, likesGiven: g.count || 0, matches: m.count || 0 }));
+      getProfileViewCount(userId),
+    ]).then(([r, g, m, v]) => setStats({ likesReceived: r.count || 0, likesGiven: g.count || 0, matches: m.count || 0, profileViews: v }));
   }, [userId]);
 
   async function openStatsPanel(panel: "liked_me"|"i_liked"|"matches") {
@@ -279,8 +280,6 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
 
   function handleAvatar(file: File) { setCropFile({ file, type: "avatar" }); }
   async function doUploadAvatar(blob: Blob) { setUploading(true); setCropFile(null); try { const f = new File([blob], "avatar.jpg", { type: "image/jpeg" }); const url = await uploadAvatar(f, userId); setAvatarUrl(url); await updateProfile(userId, { avatar_url: url }); onUpdate({ avatar_url: url }); } catch (e) { console.error(e); } setUploading(false); }
-  function handleCover(file: File) { setCropFile({ file, type: "cover" }); }
-  async function doUploadCover(blob: Blob) { setUploading(true); setCropFile(null); try { const f = new File([blob], "cover.jpg", { type: "image/jpeg" }); const url = await uploadCover(f, userId); setCoverUrl(url); await updateProfile(userId, { cover_url: url } as any); onUpdate({ cover_url: url } as any); } catch (e) { console.error(e); } setUploading(false); }
   async function handlePhoto(file: File) { if (photos.length >= 6) return; setUploading(true); try { const url = await uploadPhoto(file, userId, photos.length); setPhotos(p => [...p, url]); } catch (e) { console.error(e); } setUploading(false); }
   async function save() {
     setSaving(true);
@@ -308,205 +307,103 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const edu: Record<string, string> = { high_school: "高中", college: "大專", bachelor: "本科", master: "碩士", phd: "博士" };
   const incomeLabel = income === "<20" ? "20萬以下" : income === ">100" ? "100萬 +" : income ? `${income}萬` : "";
 
-  /* ── Hobby background images ── */
-  const hobbyBg: Record<string, string> = {
-    "旅行": "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=200&q=60",
-    "音樂": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&q=60",
-    "電影": "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=200&q=60",
-    "閱讀": "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=200&q=60",
-    "運動": "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=200&q=60",
-    "美食": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=200&q=60",
-    "遊戲": "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=200&q=60",
-    "攝影": "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=200&q=60",
-    "藝術": "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=200&q=60",
-    "健身": "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&q=60",
-    "瑜伽": "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=200&q=60",
-    "舞蹈": "https://images.unsplash.com/photo-1547153760-18fc86324498?w=200&q=60",
-    "寵物": "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&q=60",
-    "烹飪": "https://images.unsplash.com/photo-1466637574441-749b8f19452f?w=200&q=60",
-    "戶外": "https://images.unsplash.com/photo-1533240332313-0db49b459ad6?w=200&q=60",
-    "咖啡": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=200&q=60",
-    "科技": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&q=60",
-    "時尚": "https://images.unsplash.com/photo-1445205170230-053b83016050?w=200&q=60",
-    "語言": "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=200&q=60",
-    "電競": "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=200&q=60",
-  };
-
   /* ── VIEW MODE ── */
+  const zodiac = zodiacSign(birthday);
   if (activeTab === "view") return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, overflowY: "auto", animation: "tabSwitch .3s ease" }}>
 
-      {/* Cover + Avatar */}
-      <div style={{ position: "relative", flexShrink: 0 }}>
-        <input ref={coverRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleCover(e.target.files[0]); }} />
-        <div style={{ height: 200, background: coverUrl ? `url(${coverUrl}) center/cover` : "linear-gradient(135deg,rgba(201,168,76,0.22) 0%,rgba(12,10,8,1) 100%)", position: "relative" }}>
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom,transparent 40%,rgba(12,10,8,0.7) 75%,rgba(12,10,8,1) 100%)" }} />
-          {/* Top-right buttons */}
-          <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 8, zIndex: 5 }}>
-            <button onClick={() => setActiveTab("edit")} style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(12,10,8,0.6)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.12)", color: C.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Si n="pencil" s={16} c={C.text} />
-            </button>
-            <button onClick={() => setActiveTab("settings")} style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(12,10,8,0.6)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.12)", color: C.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Si n="gear" s={16} c={C.text} />
-            </button>
-          </div>
-        </div>
-        {/* Avatar */}
-        <div style={{ position: "absolute", bottom: -40, left: 18 }}>
-          <input ref={avatarRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleAvatar(e.target.files[0]); }} />
-          <div style={{ position: "relative", cursor: "pointer" }} onClick={() => avatarRef.current?.click()}>
-            <div style={{ width: 90, height: 90, borderRadius: "50%", border: `3px solid ${C.gold}`, overflow: "hidden", background: C.bgCard }}>
-              {avatarUrl ? <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" as const }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><Si n="user" s={36} c={C.textMuted} /></div>}
-            </div>
-            {/* Verified badge */}
-            {profile.is_verified && <div style={{ position: "absolute", bottom: 2, right: 2, width: 24, height: 24, borderRadius: "50%", background: C.gold, border: `2px solid ${C.bg}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ color: "#12100C", fontSize: 11, fontWeight: 800 }}>V</span>
-            </div>}
-            {/* Camera icon (no verified) */}
-            {!profile.is_verified && <div style={{ position: "absolute", bottom: 2, right: 2, width: 26, height: 26, borderRadius: "50%", background: C.bgCard, border: `2px solid ${C.bg}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Si n="camera" s={13} c={C.gold} />
-            </div>}
-            {uploading && <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ width: 18, height: 18, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin .7s linear infinite" }} /></div>}
-          </div>
-        </div>
+      {/* Top bar */}
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "52px 20px 0" }}>
+        <button onClick={() => setActiveTab("settings")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Si n="gear" s={22} c={C.gold} />
+        </button>
       </div>
 
-      {/* Name row */}
-      <div style={{ marginTop: 52, padding: "0 18px 16px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
-          <span style={{ fontSize: 22, fontWeight: 800, color: C.text }}>{name}</span>
-        </div>
-        <div style={{ fontSize: 13.5, color: C.textMuted, marginBottom: 10 }}>
-          {[age ? `${age} 歲` : null, occupation || null, loc || null].filter(Boolean).join(" · ")}
-        </div>
-        {/* Chips */}
-        <div style={{ display: "flex", gap: 7, flexWrap: "wrap" as const, marginBottom: 0 }}>
-          <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(232,54,93,0.13)", border: "1px solid rgba(232,54,93,0.3)", fontSize: 12, color: C.rose, fontWeight: 600 }}>✦ {mbti}</span>
-          <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{gender === "male" ? "♂ 男性" : "♀ 女性"}</span>
-          {(profile as any).is_premium && (profile as any).premium_plan === "premium_plus" && (
-            <span style={{ padding: "5px 12px", borderRadius: 20, background: "linear-gradient(135deg,rgba(124,58,237,0.15),rgba(167,139,250,0.15))", border: "1px solid rgba(167,139,250,0.4)", fontSize: 12, color: "#A78BFA", fontWeight: 700 }}>✦ Premium+</span>
+      {/* Profile header — tap to edit */}
+      <div onClick={() => setActiveTab("edit")} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "6px 20px 18px", cursor: "pointer" }}>
+        <input ref={avatarRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleAvatar(e.target.files[0]); }} />
+        <div style={{ position: "relative", flexShrink: 0 }} onClick={e => { e.stopPropagation(); avatarRef.current?.click(); }}>
+          <div style={{ width: 84, height: 84, borderRadius: "50%", overflow: "hidden", background: C.bgCard, border: `2px solid ${C.border}` }}>
+            {avatarUrl ? <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" as const }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><Si n="user" s={30} c={C.textMuted} /></div>}
+          </div>
+          {profile.is_verified ? (
+            <div style={{ position: "absolute", bottom: 2, right: 2, width: 22, height: 22, borderRadius: "50%", background: C.gold, border: `2.5px solid ${C.bg}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ color: "#12100C", fontSize: 10, fontWeight: 800 }}>V</span>
+            </div>
+          ) : (
+            <span style={{ position: "absolute", bottom: 3, right: 3, width: 16, height: 16, borderRadius: "50%", background: "#06d6a0", border: `2.5px solid ${C.bg}`, boxShadow: "0 0 6px rgba(6,214,160,.5)" }} />
           )}
-          {(profile as any).is_premium && (profile as any).premium_plan !== "premium_plus" && (
-            <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(201,168,76,0.12)", border: "1px solid rgba(201,168,76,0.3)", fontSize: 12, color: C.gold, fontWeight: 600 }}>👑 Premium</span>
-          )}
+          {uploading && <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ width: 16, height: 16, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin .7s linear infinite" }} /></div>}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span style={{ fontSize: 21, fontWeight: 800, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{name}</span>
+            <Si n="chevron" s={18} c={C.textMuted} />
+          </div>
+          <div style={{ fontSize: 13, color: C.textMuted, marginTop: 2 }}>@{profile.username}</div>
+          {bio && <div style={{ fontSize: 13.5, color: C.textSub, marginTop: 8, lineHeight: 1.5 }}>{bio}</div>}
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" as const, marginTop: 10 }}>
+            {age != null && <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{age}</span>}
+            {loc && <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub, display: "flex", alignItems: "center", gap: 4 }}><Si n="globe" s={12} c={C.textMuted} />{loc}</span>}
+            {zodiac && <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{zodiac}</span>}
+          </div>
         </div>
       </div>
 
       <div style={{ padding: "0 16px 48px" }}>
 
-        {/* Stats card — clickable */}
+        {/* Premium upsell banner */}
+        {!isPremiumUser && (
+          <div onClick={() => setShowPremium(true)} style={{ display: "flex", alignItems: "center", gap: 14, background: "linear-gradient(135deg,rgba(201,168,76,0.14),rgba(201,168,76,0.05))", border: "1px solid rgba(201,168,76,0.3)", borderRadius: 18, padding: "14px 16px", marginBottom: 14, cursor: "pointer" }}>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(201,168,76,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Si n="crown" s={22} c={C.gold} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: C.gold }}>NYX Premium</div>
+              <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>解鎖無限喜歡・誰喜歡了你・更多專屬特權</div>
+            </div>
+            <div style={{ padding: "9px 18px", borderRadius: 20, background: "linear-gradient(135deg,#C9A84C,#E2C068)", color: "#12100C", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>升級</div>
+          </div>
+        )}
+
+        {/* Stats card — clickable, premium-gated */}
         <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, display: "flex", marginBottom: 14, overflow: "hidden" }}>
           {[
-            { ico: "heart", val: stats.likesReceived, label: "喜歡我", color: "#e8365d", panel: "liked_me" as const },
-            { ico: "star", val: stats.likesGiven, label: "我喜歡", color: C.gold, panel: "i_liked" as const },
-            { ico: "users", val: stats.matches, label: "我的配對", color: "#6c88f5", panel: "matches" as const },
+            { ico: "heart", val: stats.likesReceived, label: "喜歡我的", color: "#e8365d", panel: "liked_me" as const },
+            { ico: "star", val: stats.likesGiven, label: "我喜歡的", color: C.gold, panel: "i_liked" as const },
+            { ico: "chat", val: stats.matches, label: "配對成功", color: "#6c88f5", panel: "matches" as const },
+            { ico: "eye", val: stats.profileViews, label: "誰看過我", color: C.mint, panel: null },
           ].map((s, i) => (
-            <div key={s.label} onClick={() => openStatsPanel(s.panel)}
-              style={{ flex: 1, textAlign: "center" as const, padding: "18px 0", borderRight: i < 2 ? `1px solid ${C.border}` : "none", cursor: "pointer", transition: "background .15s" }}
+            <div key={s.label} onClick={() => s.panel ? openStatsPanel(s.panel) : (!isPremiumUser && setStatsGate(true))}
+              style={{ flex: 1, textAlign: "center" as const, padding: "16px 0", borderRight: i < 3 ? `1px solid ${C.border}` : "none", cursor: "pointer", transition: "background .15s" }}
               onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 4 }}>
-                <Si n={s.ico} s={18} c={s.color} />
-                <span style={{ fontSize: 22, fontWeight: 800, color: C.text, filter: isPremiumUser ? "none" : "blur(7px)", userSelect: "none" as const }}>{isPremiumUser ? s.val : "88"}</span>
+                <Si n={s.ico} s={17} c={s.color} />
+                <span style={{ fontSize: 19, fontWeight: 800, color: C.text, filter: isPremiumUser ? "none" : "blur(7px)", userSelect: "none" as const }}>{isPremiumUser ? s.val : "88"}</span>
               </div>
-              <div style={{ fontSize: 11.5, color: C.textMuted }}>{s.label}</div>
+              <div style={{ fontSize: 11, color: C.textMuted }}>{s.label}</div>
             </div>
           ))}
         </div>
 
-        {/* Completion card */}
-        <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, padding: "16px 18px", marginBottom: 14, cursor: "pointer" }} onClick={() => setActiveTab("edit")}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ fontSize: 14, color: C.text, fontWeight: 700 }}>資料完整度</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 15, color: comp >= 80 ? "#00d4aa" : C.gold, fontWeight: 800 }}>{comp}%</span>
-              <Si n="chevron" s={16} c={C.textMuted} />
-            </div>
-          </div>
-          {/* Two-tone progress bar */}
-          <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 3, marginBottom: 10 }}>
-            <div style={{ height: "100%", width: `${comp}%`, background: comp >= 80 ? "linear-gradient(90deg,#00d4aa,#00b892)" : "linear-gradient(90deg,#e8365d,#ff6b8a)", borderRadius: 3, transition: "width .8s" }} />
-          </div>
-          {comp < 100 && <div style={{ fontSize: 12, color: C.textMuted }}>
-            再完成 <span style={{ color: "#00d4aa", fontWeight: 600 }}>{Math.ceil((100 - comp) / 10)}</span> 項資料可提升曝光率 <span style={{ color: "#00d4aa", fontWeight: 600 }}>25%</span>
-            <button style={{ marginLeft: 8, width: 18, height: 18, borderRadius: "50%", background: "rgba(255,255,255,0.08)", border: "none", color: C.textMuted, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", verticalAlign: "middle" }}>
-              <Si n="question" s={11} c={C.textMuted} />
-            </button>
-          </div>}
+        {/* Menu group 1 */}
+        <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 14 }}>
+          <SettingRow icon="user" label="個人資料" onClick={() => setActiveTab("edit")}
+            right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 13, color: comp >= 80 ? "#00d4aa" : C.gold, fontWeight: 700 }}>{comp}%</span><Si n="chevron" s={16} c={C.textMuted} /></div>} />
+          <SettingRow icon="image" label="相冊管理" onClick={() => setActiveTab("edit")}
+            right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 13, color: C.textMuted }}>{photos.length}/6</span><Si n="chevron" s={16} c={C.textMuted} /></div>} />
+          <SettingRow icon="bookmark" label="我的收藏" right={<span style={{ fontSize: 11.5, color: C.textDim }}>即將推出</span>} />
+          <SettingRow icon="gear" label="一般設定" onClick={() => setActiveTab("settings")} right={<Si n="chevron" s={16} c={C.textMuted} />} />
+          <SettingRow icon="shield" label="隱私與安全" onClick={() => setActiveTab("settings")} right={<Si n="chevron" s={16} c={C.textMuted} />} last />
         </div>
 
-        {/* 基本資料 card */}
-        <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, padding: "16px 18px", marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>基本資料</span>
-            <button onClick={() => setActiveTab("edit")} style={{ background: "none", border: "none", color: C.gold, fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
-              <Si n="chevron" s={14} c={C.textMuted} />
-            </button>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px" }}>
-            {[
-              birthday && { ico: "calendar", label: birthday },
-              heightCm && { ico: "ruler", label: `${heightCm} cm` },
-              occupation && { ico: "briefcase", label: occupation },
-              education && edu[education] && { ico: "graduation", label: edu[education] },
-              income && { ico: "wallet", label: incomeLabel },
-            ].filter(Boolean).map((item: any, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Si n={item.ico} s={16} c={C.textMuted} />
-                <span style={{ fontSize: 13.5, color: C.textSub }}>{item.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 我的生活方式 card */}
-        {[drinking, smoking, exercise, hasPets].some(Boolean) && <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, padding: "16px 18px", marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>我的生活方式</span>
-            <button onClick={() => setActiveTab("edit")} style={{ background: "none", border: "none", color: C.gold, fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
-              <Si n="chevron" s={14} c={C.textMuted} />
-            </button>
-          </div>
-          <div style={{ display: "flex", gap: 20, flexWrap: "wrap" as const }}>
-            {[
-              smoking === "never" && { ico: "nosmoking", label: "不抽菸" },
-              smoking && smoking !== "never" && { ico: "smoking", label: smoking === "sometimes" ? "偶爾抽菸" : "常抽菸" },
-              drinking && drinking !== "never" && { ico: "wine", label: drinking === "sometimes" ? "偶爾喝酒" : "常喝酒" },
-              exercise && exercise !== "never" && { ico: "dumbbell", label: exercise === "weekly" ? "每週運動" : "每天運動" },
-              hasPets && hasPets !== "none" && { ico: "paw", label: hasPets === "cat" ? "有養貓" : "有養狗" },
-            ].filter(Boolean).map((item: any, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <Si n={item.ico} s={18} c={C.textSub} />
-                <span style={{ fontSize: 13, color: C.textSub }}>{item.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>}
-
-        {/* 興趣愛好 card */}
-        {hobbies.length > 0 && <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, padding: "16px 18px", marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>興趣愛好</span>
-            <button onClick={() => setActiveTab("edit")} style={{ background: "none", border: "none", color: C.gold, fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
-              <Si n="chevron" s={14} c={C.textMuted} />
-            </button>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
-            {hobbies.slice(0, 5).map(h => (
-              <div key={h} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", background: `url(${hobbyBg[h] || ""}) center/cover`, backgroundColor: "#2A2218" }}>
-                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(transparent 35%,rgba(0,0,0,0.75))" }} />
-                <div style={{ position: "absolute", bottom: 5, left: 0, right: 0, textAlign: "center" as const, fontSize: 10.5, color: "#fff", fontWeight: 600 }}>{h}</div>
-              </div>
-            ))}
-          </div>
-        </div>}
-
-        {/* 照片與影音 card */}
-        <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, padding: "16px 18px", marginBottom: 20, cursor: "pointer" }} onClick={() => setActiveTab("edit")}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>照片與影音</span>
-            <Si n="chevron" s={16} c={C.textMuted} />
-          </div>
+        {/* Menu group 2 */}
+        <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 20 }}>
+          <SettingRow icon="crown" label="NYX Premium" onClick={() => setShowPremium(true)}
+            right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12, color: C.gold, fontWeight: 700 }}>查看方案</span><Si n="chevron" s={16} c={C.textMuted} /></div>} />
+          <SettingRow icon="gift" label="邀請好友" onClick={() => alert("邀請好友功能即將推出，敬請期待！")}
+            right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12, color: C.gold, fontWeight: 700 }}>獲得 NYX+</span><Si n="chevron" s={16} c={C.textMuted} /></div>} last />
         </div>
 
         {/* Logout */}
@@ -514,7 +411,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         <button onClick={() => setShowDelete(true)} style={{ width: "100%", padding: "11px", borderRadius: 14, background: "transparent", border: "none", color: C.textDim, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}>刪除帳號</button>
       </div>
 
-      {cropFile && <ImageCropper file={cropFile.file} aspectRatio={cropFile.type === "cover" ? 2.5 : 1} shape={cropFile.type === "avatar" ? "circle" : "rect"} onConfirm={blob => { if (cropFile.type === "avatar") doUploadAvatar(blob); else if (cropFile.type === "cover") doUploadCover(blob); }} onCancel={() => setCropFile(null)} />}
+      {cropFile && <ImageCropper file={cropFile.file} aspectRatio={1} shape={cropFile.type === "avatar" ? "circle" : "rect"} onConfirm={blob => { if (cropFile.type === "avatar") doUploadAvatar(blob); }} onCancel={() => setCropFile(null)} />}
 
       {/* ── Stats Panel ── */}
       {statsPanel && (
@@ -785,7 +682,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         </div>
       </div>
 
-      {cropFile && <ImageCropper file={cropFile.file} aspectRatio={cropFile.type === "cover" ? 2.5 : 1} shape={cropFile.type === "avatar" ? "circle" : "rect"} onConfirm={blob => { if (cropFile.type === "avatar") doUploadAvatar(blob); else if (cropFile.type === "cover") doUploadCover(blob); }} onCancel={() => setCropFile(null)} />}
+      {cropFile && <ImageCropper file={cropFile.file} aspectRatio={1} shape={cropFile.type === "avatar" ? "circle" : "rect"} onConfirm={blob => { if (cropFile.type === "avatar") doUploadAvatar(blob); }} onCancel={() => setCropFile(null)} />}
       {showMbti && <MbtiSheet mbti={mbti} onSelect={m => setMbti(m)} onClose={() => setShowMbti(false)} />}
 
       {/* ── Field pickers ── */}
