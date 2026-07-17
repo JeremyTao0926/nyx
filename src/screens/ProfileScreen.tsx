@@ -391,11 +391,8 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 14 }}>
           <SettingRow icon="user" label="個人資料" onClick={() => setActiveTab("edit")}
             right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 13, color: comp >= 80 ? "#00d4aa" : C.gold, fontWeight: 700 }}>{comp}%</span><Si n="chevron" s={16} c={C.textMuted} /></div>} />
-          <SettingRow icon="image" label="相冊管理" onClick={() => setActiveTab("edit")}
-            right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 13, color: C.textMuted }}>{photos.length}/6</span><Si n="chevron" s={16} c={C.textMuted} /></div>} />
           <SettingRow icon="bookmark" label="我的收藏" right={<span style={{ fontSize: 11.5, color: C.textDim }}>即將推出</span>} />
-          <SettingRow icon="gear" label="一般設定" onClick={() => setActiveTab("settings")} right={<Si n="chevron" s={16} c={C.textMuted} />} />
-          <SettingRow icon="shield" label="隱私與安全" onClick={() => setActiveTab("settings")} right={<Si n="chevron" s={16} c={C.textMuted} />} last />
+          <SettingRow icon="gear" label="一般設定" onClick={() => setActiveTab("settings")} right={<Si n="chevron" s={16} c={C.textMuted} />} last />
         </div>
 
         {/* Menu group 2 */}

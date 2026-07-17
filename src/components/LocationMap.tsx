@@ -50,7 +50,10 @@ export function NearbyMap({ me, others, onSelect }: {
 }) {
   const center: [number, number] = [me.latitude, me.longitude];
   return (
-    <div style={{ width: "100%", height: "100%" }}>
+    // isolation:isolate contains Leaflet's internal pane z-indices (up to ~700)
+    // inside this box, so its markers/popups can never paint over sheets/modals
+    // elsewhere in the app (e.g. the profile detail sheet opened from a marker).
+    <div style={{ width: "100%", height: "100%", position: "relative", isolation: "isolate" as const }}>
       <MapContainer center={center} zoom={12} style={{ width: "100%", height: "100%", background: C.bg }} zoomControl={false}>
         <TileLayer url={TILE_URL} attribution={TILE_ATTR} />
         <Marker position={center} icon={pinIcon("📍", C.rose, 38)}>
@@ -75,7 +78,7 @@ export function LocationPickerMap({ latitude, longitude, onChange }: {
   latitude: number; longitude: number; onChange: (lat: number, lon: number) => void;
 }) {
   return (
-    <div style={{ width: "100%", height: "100%" }}>
+    <div style={{ width: "100%", height: "100%", position: "relative", isolation: "isolate" as const }}>
       <MapContainer center={[latitude, longitude]} zoom={11} style={{ width: "100%", height: "100%" }} zoomControl={false}>
         <TileLayer url={TILE_URL} attribution={TILE_ATTR} />
         <Marker position={[latitude, longitude]} icon={pinIcon("📍", C.rose, 38)} draggable

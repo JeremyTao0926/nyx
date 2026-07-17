@@ -533,8 +533,8 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
             <button onClick={()=>{ if(!dailyStatus?.isPremium){ setShowPremiumGate("wholiked"); return; } setShowWhoLiked(true); }} style={{ position:"relative",width:34,height:34,borderRadius:"50%",background:C.roseSoft,border:`1px solid rgba(232,54,93,0.2)`,color:C.rose,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
               ♥{whoLiked.length>0&&<div style={{ position:"absolute",top:-3,right:-3,width:15,height:15,borderRadius:"50%",background:C.gradRose,fontSize:8.5,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${C.bg}` }}>{whoLiked.length}</div>}
             </button>
-            {/* Grid/Map toggle */}
-            {viewMode==="grid" && (
+            {/* Grid/Map toggle — nearby tab only */}
+            {exploreTab==="nearby" && (
               <button onClick={()=>setMapView(v=>!v)} style={{ width:34,height:34,borderRadius:"50%",background:mapView?C.roseSoft:C.surf,border:`1px solid ${mapView?"rgba(232,54,93,0.3)":C.border}`,color:mapView?C.rose:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
                 {mapView ? "☰" : "🗺️"}
               </button>
@@ -561,7 +561,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
             <div style={{ width:36,height:36,border:`2px solid ${C.border}`,borderTopColor:C.gold,borderRadius:"50%",animation:"spin .7s linear infinite" }}/>
             <div style={{ fontSize:13,color:C.textMuted }}>探索中...</div>
           </div>
-        ) : viewMode==="grid" && mapView ? (
+        ) : viewMode==="grid" && mapView && exploreTab==="nearby" ? (
           !profile.latitude || !profile.longitude ? (
             <div style={{ display:"flex",alignItems:"center",justifyContent:"center",height:"100%",textAlign:"center",padding:"0 32px",color:C.textMuted }}>
               <div>
