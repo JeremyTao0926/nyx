@@ -667,7 +667,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
           onClose={()=>setShowPremiumGate(null)}
         />
       )}
-      {showPremium && <div style={{ position:"fixed",inset:0,zIndex:600,background:C.bg }}><PremiumScreen onBack={()=>setShowPremium(false)} profile={profile}/></div>}
+      {showPremium && <PremiumScreen onBack={()=>setShowPremium(false)} profile={profile}/>}
 
       {matchInfo && <MatchAnimation myAvatar={profile.avatar_url||""} myName={profile.display_name||profile.username} theirAvatar={matchInfo.avatar} theirName={matchInfo.name}
         onChat={()=>{if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:"",time:"",unread:0} as any);setMatchInfo(null);}}

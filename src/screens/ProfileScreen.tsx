@@ -309,7 +309,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
 
   /* ── VIEW MODE ── */
   const zodiac = zodiacSign(birthday);
-  if (activeTab === "view") return (
+  const viewJSX = (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, overflowY: "auto", animation: "tabSwitch .3s ease" }}>
 
       {/* Top bar */}
@@ -551,12 +551,12 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           onClose={()=>setStatsGate(false)}
         />
       )}
-      {showPremium && <div style={{ position: "fixed", inset: 0, zIndex: 300, background: C.bg }}><PremiumScreen onBack={() => setShowPremium(false)} profile={profile} /></div>}
+      {showPremium && <PremiumScreen onBack={() => setShowPremium(false)} profile={profile} />}
     </div>
   );
 
   /* ── EDIT MODE ── */
-  if (activeTab === "edit") return (
+  const editJSX = (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease" }}>
       {/* Edit header bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 12px", borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: C.bg }}>
@@ -848,7 +848,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   );
 
   /* ── SETTINGS MODE ── */
-  return (
+  const settingsJSX = (
     <div onTouchStart={onSettingsSwipeTouchStart} onTouchMove={onSettingsSwipeTouchMove} onTouchEnd={onSettingsSwipeTouchEnd}
       style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease",
         touchAction: "pan-y", transform: `translateX(${settingsSwipeDx}px)`, transition: settingsSwipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
@@ -884,8 +884,8 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           onClose={()=>setStatsGate(false)}
         />
       )}
-      {showPremium && <div style={{ position: "fixed", inset: 0, zIndex: 300, background: C.bg }}><PremiumScreen onBack={() => setShowPremium(false)} profile={profile} /></div>}
-      {showTerms && <div style={{ position: "fixed", inset: 0, zIndex: 300, background: C.bg }}><TermsScreen onBack={() => setShowTerms(null)} type={showTerms} /></div>}
+      {showPremium && <PremiumScreen onBack={() => setShowPremium(false)} profile={profile} />}
+      {showTerms && <TermsScreen onBack={() => setShowTerms(null)} type={showTerms} />}
       {showDelete && <BottomSheet onClose={() => setShowDelete(false)}>
         <div style={{ padding: "20px 24px 52px", textAlign: "center" }}>
           <div style={{ fontSize: 38, marginBottom: 16 }}>⚠️</div>
@@ -897,6 +897,16 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           </div>
         </div>
       </BottomSheet>}
+    </div>
+  );
+
+  // "view" stays mounted underneath edit/settings so the swipe-back gesture
+  // reveals the real previous screen instead of plain black.
+  if (activeTab === "view") return viewJSX;
+  return (
+    <div style={{ position: "relative", height: "100%", overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0 }}>{viewJSX}</div>
+      <div style={{ position: "absolute", inset: 0, zIndex: 1 }}>{activeTab === "edit" ? editJSX : settingsJSX}</div>
     </div>
   );
 }
