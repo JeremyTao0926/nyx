@@ -321,7 +321,11 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
 
       {/* Profile header — tap to edit */}
       <div onClick={() => setActiveTab("edit")} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "6px 20px 18px", cursor: "pointer" }}>
-        <input ref={avatarRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleAvatar(e.target.files[0]); }} />
+        {/* stopPropagation here too: avatarRef.current.click() dispatches its
+            own bubbling click event on this input, separate from the click
+            that landed on the avatar circle below — without this it would
+            still reach the row's onClick and jump to edit mode. */}
+        <input ref={avatarRef} type="file" accept="image/*" style={{ display: "none" }} onClick={e => e.stopPropagation()} onChange={e => { if (e.target.files?.[0]) handleAvatar(e.target.files[0]); }} />
         <div style={{ position: "relative", flexShrink: 0 }} onClick={e => { e.stopPropagation(); avatarRef.current?.click(); }}>
           <div style={{ width: 84, height: 84, borderRadius: "50%", overflow: "hidden", background: C.bgCard, border: `2px solid ${C.border}` }}>
             {avatarUrl ? <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" as const }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><Si n="user" s={30} c={C.textMuted} /></div>}
@@ -392,7 +396,10 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <SettingRow icon="user" label="個人資料" onClick={() => setActiveTab("edit")}
             right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 13, color: comp >= 80 ? "#00d4aa" : C.gold, fontWeight: 700 }}>{comp}%</span><Si n="chevron" s={16} c={C.textMuted} /></div>} />
           <SettingRow icon="bookmark" label="我的收藏" right={<span style={{ fontSize: 11.5, color: C.textDim }}>即將推出</span>} />
-          <SettingRow icon="gear" label="一般設定" onClick={() => setActiveTab("settings")} right={<Si n="chevron" s={16} c={C.textMuted} />} last />
+          <SettingRow icon="gear" label="一般設定" onClick={() => setActiveTab("settings")} right={<Si n="chevron" s={16} c={C.textMuted} />} />
+          <SettingRow icon="shield" label="隱私政策" onClick={() => setShowTerms("privacy")} right={<Si n="chevron" s={16} c={C.textMuted} />} />
+          <SettingRow icon="scroll" label="服務條款" onClick={() => setShowTerms("terms")} right={<Si n="chevron" s={16} c={C.textMuted} />} />
+          <SettingRow icon="info" label="關於 NYX" right={<span style={{ fontSize: 12, color: C.textMuted }}>v1.0.0</span>} last />
         </div>
 
         {/* Menu group 2 */}
@@ -549,6 +556,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         />
       )}
       {showPremium && <PremiumScreen onBack={() => setShowPremium(false)} profile={profile} />}
+      {showTerms && <TermsScreen onBack={() => setShowTerms(null)} type={showTerms} />}
     </div>
   );
 
@@ -860,14 +868,10 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <SettingRow icon="globe" label="語言" right={<div style={{ display: "flex", gap: 6 }}>{(["zh", "en"] as Lang[]).map(l => <button key={l} onClick={() => { setLang(l); updateProfile(userId, { language: l } as any); sound.tap(); }} style={{ padding: "5px 13px", borderRadius: 20, background: lang === l ? C.grad : "transparent", border: `1px solid ${lang === l ? "transparent" : C.border}`, color: lang === l ? "#fff" : C.textMuted, fontFamily: "inherit", fontSize: 12, fontWeight: lang === l ? 600 : 400, cursor: "pointer" }}>{l === "zh" ? "中文" : "EN"}</button>)}</div>} />
           <SettingRow icon="eye" label="隱藏在線狀態" sub="開啟後你也看不到其他人的在線狀態" right={<Toggle on={hideOnline} onChange={() => { const v = !hideOnline; setHideOnline(v); updateProfile(userId, { hide_online_status: v } as any); onUpdate({ hide_online_status: v } as any); }} />} />
           <SettingRow icon="bell" label="推播通知" sub="打包 iOS 後開放" right={<span style={{ fontSize: 11.5, color: C.textDim }}>即將推出</span>} />
-          <SettingRow icon="moon" label="暫停帳號" sub="暫停後你不會出現在探索頁" right={<Toggle on={(profile as any).is_paused || false} onChange={() => { const v = !((profile as any).is_paused || false); updateProfile(userId, { is_paused: v } as any); onUpdate({ is_paused: v } as any); sound.tap(); }} />} />
-          <SettingRow icon="crown" label="升級 Premium" right={<span style={{ fontSize: 12, color: C.rose, fontWeight: 700 }}>解鎖全部功能</span>} onClick={() => setShowPremium(true)} />
-          <SettingRow icon="shield" label="隱私政策" right={<Si n="chevron" s={16} c={C.textMuted} />} onClick={() => setShowTerms("privacy")} />
-          <SettingRow icon="scroll" label="服務條款" right={<Si n="chevron" s={16} c={C.textMuted} />} onClick={() => setShowTerms("terms")} last />
+          <SettingRow icon="moon" label="暫停帳號" sub="暫停後你不會出現在探索頁" right={<Toggle on={(profile as any).is_paused || false} onChange={() => { const v = !((profile as any).is_paused || false); updateProfile(userId, { is_paused: v } as any); onUpdate({ is_paused: v } as any); sound.tap(); }} />} last />
         </div>
         <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 24 }}>
-          <SettingRow icon="box" label="導出我的數據" sub="下載你的所有資料（JSON）" right={<Si n="chevron" s={16} c={C.textMuted} />} onClick={async () => { await exportUserData(userId); }} />
-          <SettingRow icon="info" label="關於 NYX" right={<span style={{ fontSize: 12, color: C.textMuted }}>v1.0.0</span>} last />
+          <SettingRow icon="box" label="導出我的數據" sub="下載你的所有資料（JSON）" right={<Si n="chevron" s={16} c={C.textMuted} />} onClick={async () => { await exportUserData(userId); }} last />
         </div>
         <button onClick={onLogout} style={{ width: "100%", padding: "15px", borderRadius: 14, background: "transparent", border: "1px solid rgba(232,54,93,0.35)", color: C.rose, fontFamily: "inherit", fontSize: 15, fontWeight: 600, cursor: "pointer", marginBottom: 8, transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(232,54,93,0.07)"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>登出帳號</button>
         <button onClick={() => setShowDelete(true)} style={{ width: "100%", padding: "11px", borderRadius: 14, background: "transparent", border: "none", color: C.textDim, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}>刪除帳號</button>
@@ -881,8 +885,6 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           onClose={()=>setStatsGate(false)}
         />
       )}
-      {showPremium && <PremiumScreen onBack={() => setShowPremium(false)} profile={profile} />}
-      {showTerms && <TermsScreen onBack={() => setShowTerms(null)} type={showTerms} />}
       {showDelete && <BottomSheet onClose={() => setShowDelete(false)}>
         <div style={{ padding: "20px 24px 52px", textAlign: "center" }}>
           <div style={{ fontSize: 38, marginBottom: 16 }}>⚠️</div>
