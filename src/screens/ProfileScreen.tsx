@@ -184,8 +184,29 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
     if (settingsSwipeStartX.current < 40 && dx > 0 && dy < 60) { isSettingsSwiping.current = true; setSettingsSwipeDx(dx); }
   }
   function onSettingsSwipeTouchEnd() {
-    if (isSettingsSwiping.current && settingsSwipeDx > 100) setActiveTab("view"); else setSettingsSwipeDx(0);
+    // Always reset, even on a successful swipe — otherwise this state
+    // persists across visits (this component never unmounts between tabs)
+    // and the panel reappears already mid-dragged next time it's opened.
+    if (isSettingsSwiping.current && settingsSwipeDx > 100) setActiveTab("view");
+    setSettingsSwipeDx(0);
     isSettingsSwiping.current = false;
+  }
+
+  // Hinge-style swipe right to go back (edit sub-page)
+  const editSwipeStartX = useRef(0);
+  const editSwipeStartY = useRef(0);
+  const [editSwipeDx, setEditSwipeDx] = useState(0);
+  const isEditSwiping = useRef(false);
+  function onEditSwipeTouchStart(e: React.TouchEvent) { editSwipeStartX.current = e.touches[0].clientX; editSwipeStartY.current = e.touches[0].clientY; isEditSwiping.current = false; }
+  function onEditSwipeTouchMove(e: React.TouchEvent) {
+    const dx = e.touches[0].clientX - editSwipeStartX.current;
+    const dy = Math.abs(e.touches[0].clientY - editSwipeStartY.current);
+    if (editSwipeStartX.current < 40 && dx > 0 && dy < 60) { isEditSwiping.current = true; setEditSwipeDx(dx); }
+  }
+  function onEditSwipeTouchEnd() {
+    if (isEditSwiping.current && editSwipeDx > 100) setActiveTab("view");
+    setEditSwipeDx(0);
+    isEditSwiping.current = false;
   }
 
   const age = calcAge(birthday);
@@ -562,17 +583,15 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
 
   /* ── EDIT MODE ── */
   const editJSX = (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease" }}>
+    <div onTouchStart={onEditSwipeTouchStart} onTouchMove={onEditSwipeTouchMove} onTouchEnd={onEditSwipeTouchEnd}
+      style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease",
+        touchAction: "pan-y", transform: `translateX(${editSwipeDx}px)`, transition: editSwipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
+        boxShadow: editSwipeDx > 10 ? "-10px 0 30px rgba(0,0,0,0.6)" : "none" }}>
       {/* Edit header bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 12px", borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: C.bg }}>
-        <button onClick={() => setActiveTab("view")} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 14, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>取消</button>
+        <button onClick={() => setActiveTab("view")} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>‹</button>
         <span style={{ fontSize: 16, fontWeight: 700, color: C.text }}>編輯資料</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={save} disabled={saving} style={{ background: "none", border: "none", color: C.rose, fontSize: 14, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, opacity: saving ? .6 : 1 }}>{saving ? "儲存中..." : "儲存"}</button>
-          <button onClick={() => setActiveTab("settings")} style={{ width: 32, height: 32, borderRadius: "50%", background: C.bgCard, border: `1px solid ${C.border}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Si n="gear" s={15} c={C.textMuted} />
-          </button>
-        </div>
+        <button onClick={save} disabled={saving} style={{ background: "none", border: "none", color: C.rose, fontSize: 14, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, opacity: saving ? .6 : 1 }}>{saving ? "儲存中..." : "儲存"}</button>
       </div>
 
       <div style={{ flex: 1, overflowY: "auto" }}>

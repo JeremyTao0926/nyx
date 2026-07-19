@@ -41,10 +41,10 @@ function WhoLikedPanel({ items, onClose, onLike }: { items: WhoLikedItem[]; onCl
 }
 
 /* ─── Icebreaker Sheet ───────────────────────────────── */
-function IcebreakerSheet({ them, myMbti, onClose, onUse }: { them: ExploreProfile; myMbti: string; onClose: () => void; onUse: (text: string) => void }) {
+function IcebreakerSheet({ them, myMbti, myHobbies, onClose, onUse }: { them: ExploreProfile; myMbti: string; myHobbies: string[]; onClose: () => void; onUse: (text: string) => void }) {
   const [lines,setLines]=useState<string[]>([]);
   const [loading,setLoading]=useState(true);
-  const compat=mbtiCompatibility(myMbti,them.mbti);
+  const compat=mbtiCompatibility(myMbti,them.mbti,myHobbies,them.hobbies||[]);
   useEffect(()=>{ generateIcebreaker(myMbti,{name:them.name,mbti:them.mbti,hobbies:them.hobbies,bio:them.bio}).then(r=>{setLines(r.split("\n").filter(l=>l.trim()));setLoading(false);}); },[]);
   return (
     <div style={{ position:"fixed",inset:0,zIndex:300,background:"rgba(0,0,0,0.7)",backdropFilter:"blur(20px)",display:"flex",alignItems:"flex-end",justifyContent:"center" }} onClick={onClose}>
@@ -78,7 +78,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
 }) {
   const [photoIdx, setPhotoIdx] = useState(0);
   const [lbIdx, setLbIdx] = useState<number|null>(null);
-  const compat = mbtiCompatibility(myMbti, p.mbti);
+  const compat = mbtiCompatibility(myMbti, p.mbti, myProfile?.hobbies || [], p.hobbies || []);
   const allPhotos = [p.avatar, ...p.photos.filter(x => x !== p.avatar)].filter(Boolean);
 
   // swipe-right to close
@@ -372,13 +372,13 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
 }
 
 
-function SwipeCard({ p, isTop, myMbti, onSwipe, onOpenProfile }: { p: ExploreProfile; isTop: boolean; myMbti: string; onSwipe: (d: "like"|"pass"|"superlike") => void; onOpenProfile: () => void }) {
+function SwipeCard({ p, isTop, myMbti, myHobbies, onSwipe, onOpenProfile }: { p: ExploreProfile; isTop: boolean; myMbti: string; myHobbies: string[]; onSwipe: (d: "like"|"pass"|"superlike") => void; onOpenProfile: () => void }) {
   const [pos,setPos]=useState({x:0,y:0});
   const [drag,setDrag]=useState(false);
   const [photoIdx,setPhotoIdx]=useState(0);
   const start=useRef({x:0,y:0});
   const THRESH=80;
-  const compat=mbtiCompatibility(myMbti,p.mbti);
+  const compat=mbtiCompatibility(myMbti,p.mbti,myHobbies,p.hobbies||[]);
   const allPhotos=[p.avatar,...p.photos.filter(ph=>ph!==p.avatar)].filter(Boolean);
   const onS=(x:number,y:number)=>{if(!isTop)return;start.current={x,y};setDrag(true);};
   const onM=(x:number,y:number)=>{if(!drag)return;setPos({x:x-start.current.x,y:y-start.current.y});};
@@ -443,8 +443,8 @@ function SwipeCard({ p, isTop, myMbti, onSwipe, onOpenProfile }: { p: ExplorePro
 }
 
 /* ─── Grid Card ──────────────────────────────────────── */
-function GridCard({ p, myMbti, onClick }: { p: ExploreProfile; myMbti: string; onClick: () => void }) {
-  const compat = mbtiCompatibility(myMbti, p.mbti);
+function GridCard({ p, myMbti, myHobbies, onClick }: { p: ExploreProfile; myMbti: string; myHobbies: string[]; onClick: () => void }) {
+  const compat = mbtiCompatibility(myMbti, p.mbti, myHobbies, p.hobbies || []);
   return (
     <div onClick={onClick} style={{ borderRadius:16,overflow:"hidden",cursor:"pointer",position:"relative",aspectRatio:"0.72",background:C.bgCard }}>
       <div style={{ position:"absolute",inset:0,background:p.avatar?`url(${p.avatar}) center/cover no-repeat`:`linear-gradient(145deg,#2A2218,#1C1610)` }}/>
@@ -592,7 +592,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
                   return (
                     <div key={p.id} style={{ position:"relative" }}>
                       <div style={{ filter:locked?"blur(13px)":"none",pointerEvents:locked?"none":"auto",transition:"filter .2s" }}>
-                        <GridCard p={p} myMbti={myMbti} onClick={()=>setShowProfile(p)}/>
+                        <GridCard p={p} myMbti={myMbti} myHobbies={profile.hobbies||[]} onClick={()=>setShowProfile(p)}/>
                       </div>
                       {locked && (
                         <div onClick={()=>setShowPremiumGate("grid")} style={{ position:"absolute",inset:0,zIndex:2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",borderRadius:16 }}>
@@ -616,7 +616,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
               </div>
             ) : (
               <div style={{ position:"relative",width:"100%",maxWidth:360,height:540,overflow:"hidden" }}>
-                {remaining.map((p,i)=><SwipeCard key={p.id} p={p} isTop={i===remaining.length-1} myMbti={myMbti} onSwipe={doSwipe} onOpenProfile={()=>setShowProfile(p)}/>)}
+                {remaining.map((p,i)=><SwipeCard key={p.id} p={p} isTop={i===remaining.length-1} myMbti={myMbti} myHobbies={profile.hobbies||[]} onSwipe={doSwipe} onOpenProfile={()=>setShowProfile(p)}/>)}
               </div>
             )}
           </div>
@@ -673,7 +673,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
         onChat={()=>{if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:"",time:"",unread:0} as any);setMatchInfo(null);}}
         onIcebreaker={()=>setShowIcebreaker(true)}
         onContinue={()=>{setMatchInfo(null);setIdx(i=>i+1);}}/>}
-      {showIcebreaker&&matchInfo?.profile&&<IcebreakerSheet them={matchInfo.profile} myMbti={myMbti} onClose={()=>setShowIcebreaker(false)} onUse={text=>{if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:text,time:"",unread:0,prefillMsg:text} as any);setShowIcebreaker(false);setMatchInfo(null);}}/>}
+      {showIcebreaker&&matchInfo?.profile&&<IcebreakerSheet them={matchInfo.profile} myMbti={myMbti} myHobbies={profile.hobbies||[]} onClose={()=>setShowIcebreaker(false)} onUse={text=>{if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:text,time:"",unread:0,prefillMsg:text} as any);setShowIcebreaker(false);setMatchInfo(null);}}/>}
       {showWhoLiked && <WhoLikedPanel items={whoLiked} onClose={()=>setShowWhoLiked(false)} onLike={likeFromWhoLiked}/>}
       {showFilter && <FilterSheet filters={filters} onSave={f=>{setFilters(f);updateProfile(userId,f);onUpdate(f);setShowFilter(false);load();}} onClose={()=>setShowFilter(false)}/>}
     </div>

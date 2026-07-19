@@ -79,16 +79,32 @@ const MBTI_COMPAT: Record<string, string[]> = {
   ESTP: ["ISFJ","ISTJ","ESFP","ISTP"], ESTJ: ["ISTP","ISTJ","ESFJ","ESFP"],
 };
 
-export function mbtiCompatibility(a: string, b: string): { score: number; label: string; desc: string } {
+export function mbtiCompatibility(a: string, b: string, hobbiesA: string[] = [], hobbiesB: string[] = []): { score: number; label: string; desc: string } {
   const topMatches = MBTI_COMPAT[a] || [];
-  const score = topMatches.indexOf(b);
-  if (score === 0) return { score: 98, label: "天作之合", desc: `${a} 與 ${b} 是最理想的搭配，互補且深度共鳴。` };
-  if (score === 1) return { score: 88, label: "高度相容", desc: `${a} 與 ${b} 在價值觀和溝通上高度契合。` };
-  if (score <= 3) return { score: 75, label: "相當不錯", desc: `${a} 與 ${b} 有不少共同點，需要一些磨合。` };
-  // Check reverse
-  const reverse = MBTI_COMPAT[b] || [];
-  if (reverse.includes(a)) return { score: 70, label: "有潛力", desc: `${a} 與 ${b} 可以互相學習成長。` };
-  return { score: 55, label: "需要磨合", desc: `${a} 與 ${b} 性格差異較大，但差異也可以是吸引力。` };
+  const rank = topMatches.indexOf(b);
+  // rank is -1 when b isn't in a's top-4 list — that must NOT fall through
+  // to the "rank <= 3" branch below (a bug that made almost every pairing
+  // that wasn't an exact top-match land on the same 75%, since -1 <= 3).
+  let base: number;
+  if (rank === 0) base = 96;
+  else if (rank === 1) base = 88;
+  else if (rank === 2 || rank === 3) base = 76;
+  else {
+    const reverse = MBTI_COMPAT[b] || [];
+    base = reverse.includes(a) ? 68 : 55;
+  }
+  // Real shared interests nudge two specific people's score up or down from
+  // the generic MBTI-pair baseline, instead of everyone with the same MBTI
+  // pairing always landing on an identical number.
+  const shared = hobbiesA.filter(h => hobbiesB.includes(h)).length;
+  const score = Math.max(40, Math.min(99, base + shared * 3));
+  const label = score >= 90 ? "天作之合" : score >= 80 ? "高度相容" : score >= 65 ? "相當不錯" : score >= 55 ? "有潛力" : "需要磨合";
+  const desc = score >= 90 ? `${a} 與 ${b} 是最理想的搭配，互補且深度共鳴。`
+    : score >= 80 ? `${a} 與 ${b} 在價值觀和溝通上高度契合。`
+    : score >= 65 ? `${a} 與 ${b} 有不少共同點，需要一些磨合。`
+    : score >= 55 ? `${a} 與 ${b} 可以互相學習成長。`
+    : `${a} 與 ${b} 性格差異較大，但差異也可以是吸引力。`;
+  return { score, label, desc };
 }
 
 /* ─── Sound Engine ───────────────────────────────────── */

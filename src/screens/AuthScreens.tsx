@@ -368,8 +368,10 @@ function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => vo
     if (swipeStartX.current < 40 && dx > 0 && dy < 60) { isSwiping.current = true; setSwipeDx(dx); }
   }
   function onSwipeTouchEnd() {
+    // Always reset — this component persists across steps, so a leftover
+    // drag offset would otherwise reappear mid-dragged on the next step.
     if (isSwiping.current && swipeDx > 100) { if (step === 1) onBack(); else setStep(s => s - 1); }
-    else setSwipeDx(0);
+    setSwipeDx(0);
     isSwiping.current = false;
   }
 
