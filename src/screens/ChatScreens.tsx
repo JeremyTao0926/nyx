@@ -1013,7 +1013,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
     </div>}
 
     {/* Input */}
-    <div style={{ padding: "10px 14px 16px", background: "rgba(9,9,15,0.96)", backdropFilter: "blur(20px)", borderTop: `1px solid ${C.border}` }}>
+    <div style={{ padding: "10px 14px calc(12px + env(safe-area-inset-bottom, 0px))", background: "rgba(9,9,15,0.96)", backdropFilter: "blur(20px)", borderTop: `1px solid ${C.border}` }}>
       <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) addImg(e.target.files[0]); }} />
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) addImg(e.target.files[0]); }} />
       <div ref={inputRef} style={{ position: "relative" }}>

@@ -28,7 +28,7 @@ const TAB_LABELS: Record<Tab, string> = { explore:"探索", chat:"消息", profi
 function BottomTabBar({ tab, setTab, unread }: { tab: Tab; setTab: (t: Tab) => void; unread: number }) {
   const tabs: Tab[] = ["explore", "chat", "profile"];
   return (
-    <nav aria-label="主要導覽" style={{ display:"flex", margin:"0 10px calc(8px + env(safe-area-inset-bottom,0px))", padding:4, background:"rgba(28,25,20,0.76)", backdropFilter:"blur(28px) saturate(145%)", WebkitBackdropFilter:"blur(28px) saturate(145%)", border:`1px solid ${C.borderHigh}`, borderRadius:24, boxShadow:"0 16px 40px rgba(0,0,0,.42), inset 0 1px rgba(255,255,255,.05)", flexShrink:0 }}>
+    <nav aria-label="主要導覽" style={{ display:"flex", margin:0, padding:"5px 10px calc(5px + env(safe-area-inset-bottom,0px))", background:"rgba(18,16,13,0.88)", backdropFilter:"blur(28px) saturate(145%)", WebkitBackdropFilter:"blur(28px) saturate(145%)", borderTop:`1px solid ${C.borderHigh}`, boxShadow:"0 -14px 38px rgba(0,0,0,.32), inset 0 1px rgba(255,255,255,.035)", flexShrink:0 }}>
       {tabs.map(id => (
         <button key={id} type="button" aria-label={TAB_LABELS[id]} aria-current={tab===id ? "page" : undefined} onClick={() => setTab(id)} style={{ flex:1, minHeight:54, padding:"7px 0 5px", background:tab===id?"linear-gradient(180deg,rgba(224,186,90,.16),rgba(224,186,90,.055))":"transparent", border:tab===id?`1px solid ${C.borderHigh}`:"1px solid transparent", borderRadius:19, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, fontFamily:"inherit", position:"relative", transition:"background .22s, border-color .22s, transform .22s" }}>
           <div style={{ position:"relative" }}>
@@ -294,7 +294,7 @@ export default function App() {
     <>
       <style>{GLOBAL_CSS}</style>
       <InstallBanner/>
-      <div style={{ display:"flex", flexDirection:"column", height:"100dvh", paddingTop:"env(safe-area-inset-top,0px)", ...WRAP, background:C.bg, overflow:"hidden", boxSizing:"border-box" as const }}
+      <div className="nyx-app-shell" style={{ display:"flex", flexDirection:"column", ...WRAP, background:C.bg, overflow:"hidden", boxSizing:"border-box" as const }}
         onTouchStart={e=>{
           // only trigger from edge (left <30px or right >screen-30px)
           const x = e.touches[0].clientX;
@@ -335,7 +335,7 @@ export default function App() {
               <div style={{ position:"absolute", inset:0 }}>
                 <ChatListScreen profile={profile} matches={matches} unreadPerMatch={unreadPerMatch} typingMatchIds={typingMatchIds} onOpenNyx={() => setInChat(true)} onOpenMatch={openMatch}/>
               </div>
-              {inChat && <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", justifyContent:"center" }}><div style={{ width:"100%", maxWidth:480, height:"100%", position:"relative" }}>
+              {inChat && <div className="nyx-fullscreen-layer" style={{ position:"fixed", inset:0, zIndex:50, display:"flex", justifyContent:"center", background:C.bg }}><div style={{ width:"100%", maxWidth:480, height:"100%", position:"relative" }}>
                 {!activeMatch
                   ? <NyxChatScreen userId={userId} profile={profile} onBack={() => setInChat(false)}/>
                   : <RealChatScreen matchId={activeMatch.matchId} myUserId={userId} myProfile={profile} other={activeMatch} onBack={() => { setInChat(false); setActiveMatch(null); loadUnread(); getMatches(userId!).then(setMatches); }}/>
