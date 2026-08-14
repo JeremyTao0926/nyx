@@ -8,6 +8,7 @@ import { NyxChatScreen } from "./screens/NyxChatScreen";
 import { ExploreScreen } from "./screens/ExploreScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { OnboardingScreen } from "./screens/OnboardingScreen";
+import { isNativeApp } from "./platform";
 
 type Tab = "explore" | "chat" | "profile";
 
@@ -27,9 +28,9 @@ const TAB_LABELS: Record<Tab, string> = { explore:"探索", chat:"消息", profi
 function BottomTabBar({ tab, setTab, unread }: { tab: Tab; setTab: (t: Tab) => void; unread: number }) {
   const tabs: Tab[] = ["explore", "chat", "profile"];
   return (
-    <div style={{ display:"flex", background:"rgba(12,10,8,0.98)", backdropFilter:"blur(24px)", borderTop:`1px solid ${C.border}`, paddingBottom:"env(safe-area-inset-bottom,0px)", flexShrink:0 }}>
+    <nav aria-label="主要導覽" style={{ display:"flex", margin:"0 10px calc(8px + env(safe-area-inset-bottom,0px))", padding:4, background:"rgba(28,25,20,0.76)", backdropFilter:"blur(28px) saturate(145%)", WebkitBackdropFilter:"blur(28px) saturate(145%)", border:`1px solid ${C.borderHigh}`, borderRadius:24, boxShadow:"0 16px 40px rgba(0,0,0,.42), inset 0 1px rgba(255,255,255,.05)", flexShrink:0 }}>
       {tabs.map(id => (
-        <button key={id} onClick={() => setTab(id)} style={{ flex:1, padding:"10px 0 7px", background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:4, fontFamily:"inherit", position:"relative" }}>
+        <button key={id} type="button" aria-label={TAB_LABELS[id]} aria-current={tab===id ? "page" : undefined} onClick={() => setTab(id)} style={{ flex:1, minHeight:54, padding:"7px 0 5px", background:tab===id?"linear-gradient(180deg,rgba(224,186,90,.16),rgba(224,186,90,.055))":"transparent", border:tab===id?`1px solid ${C.borderHigh}`:"1px solid transparent", borderRadius:19, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, fontFamily:"inherit", position:"relative", transition:"background .22s, border-color .22s, transform .22s" }}>
           <div style={{ position:"relative" }}>
             <TabIcon tab={id} active={tab===id}/>
             {id==="chat" && unread>0 && <div style={{ position:"absolute", top:-4, right:-6, minWidth:16, height:16, borderRadius:8, background:C.gradRose, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#fff", fontWeight:700, border:`2px solid ${C.bg}`, padding:"0 3px" }}>{unread>99?"99+":unread}</div>}
@@ -37,7 +38,7 @@ function BottomTabBar({ tab, setTab, unread }: { tab: Tab; setTab: (t: Tab) => v
           <span style={{ fontSize:10.5, color:tab===id?C.gold:"rgba(245,237,214,0.28)", fontWeight:tab===id?600:400, transition:"color .2s" }}>{TAB_LABELS[id]}</span>
         </button>
       ))}
-    </div>
+    </nav>
   );
 }
 
@@ -46,14 +47,13 @@ function BottomTabBar({ tab, setTab, unread }: { tab: Tab; setTab: (t: Tab) => v
 /* ── PWA Install Banner ── */
 function InstallBanner() {
   const [show, setShow] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
+  const [isIOS] = useState(() => /iphone|ipad|ipod/i.test(navigator.userAgent));
 
   useEffect(() => {
-    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isNativeApp) return;
     const standalone = (window.navigator as any).standalone === true
       || window.matchMedia("(display-mode: standalone)").matches;
     if (standalone) return;
-    setIsIOS(ios);
     const dismissed = localStorage.getItem("nyx-install-dismissed");
     if (dismissed) return;
     const t = setTimeout(() => setShow(true), 3000);
@@ -75,7 +75,7 @@ function InstallBanner() {
           ? <div style={{ fontSize:12,color:"rgba(245,237,214,0.55)",lineHeight:1.5 }}>點底部 <span style={{ fontSize:13 }}>⎙</span> 分享 → 「加入主畫面」</div>
           : <div style={{ fontSize:12,color:"rgba(245,237,214,0.55)",lineHeight:1.5 }}>瀏覽器右上角 ⋮ → 「加入主畫面」</div>}
       </div>
-      <button onClick={()=>{ setShow(false); localStorage.setItem("nyx-install-dismissed","1"); }}
+      <button type="button" aria-label="關閉安裝提示" onClick={()=>{ setShow(false); localStorage.setItem("nyx-install-dismissed","1"); }}
         style={{ background:"none",border:"none",color:"rgba(245,237,214,0.35)",fontSize:18,cursor:"pointer",padding:"0 4px",flexShrink:0,lineHeight:1 }}>✕</button>
     </div>
   );

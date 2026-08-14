@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { C, sb } from "../utils";
 import type { UserProfile } from "../types";
+import { isIOSNative } from "../platform";
+import { purchaseIOSPlan, restoreIOSPurchases } from "../purchases";
 
 const PLANS = [
   {
@@ -63,6 +65,14 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
     try {
       const { data: { user } } = await sb.auth.getUser();
       if (!user) { alert("請先登入"); setLoading(null); return; }
+
+      if (isIOSNative) {
+        const active = await purchaseIOSPlan(user.id, plan.id);
+        if (!active) throw new Error("購買完成，但 Premium 權限尚未同步");
+        alert("訂閱已啟用 ✓");
+        setLoading(null);
+        return;
+      }
 
       // Downgrade: Premium+ → Premium (schedule for next billing cycle)
       const currentPlan = (profile as any)?.premium_plan;
@@ -183,11 +193,26 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
           </div>
         ))}
 
+        {isIOSNative && (
+          <button type="button" onClick={async () => {
+            const { data: { user } } = await sb.auth.getUser();
+            if (!user) return;
+            setLoading("restore");
+            try {
+              const active = await restoreIOSPurchases(user.id);
+              alert(active ? "已恢復購買 ✓" : "找不到可恢復的訂閱");
+            } catch { alert("恢復購買失敗，請稍後再試"); }
+            finally { setLoading(null); }
+          }} style={{ width:"100%", minHeight:46, border:"none", background:"transparent", color:C.gold, fontWeight:700, cursor:"pointer" }}>
+            {loading === "restore" ? "恢復中…" : "恢復購買"}
+          </button>
+        )}
+
         {/* Note */}
         <div style={{ fontSize: 11.5, color: C.textDim, textAlign: "center" as const, lineHeight: 1.7, marginTop: 8 }}>
           訂閱將從你的帳戶中扣除費用。<br />
           可在訂閱期結束前 24 小時取消自動續費。<br />
-          付款由 Stripe 安全處理。
+          {isIOSNative ? "付款由 Apple App Store 安全處理。" : "付款由 Stripe 安全處理。"}
         </div>
       </div>
     </div>

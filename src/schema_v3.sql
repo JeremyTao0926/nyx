@@ -116,3 +116,26 @@ drop policy if exists "insert own profile views" on profile_views;
 drop policy if exists "read profile views involving you" on profile_views;
 create policy "insert own profile views" on profile_views for insert with check (auth.uid() = viewer_id);
 create policy "read profile views involving you" on profile_views for select using (auth.uid() = viewed_id or auth.uid() = viewer_id);
+
+-- reportUser() has always sent a `category`, but the reports table never
+-- had the column (schema drift) — add it so those calls stop silently
+-- dropping the category.
+alter table reports add column if not exists category text default 'other';
+
+-- iOS review (and basic safety) requires more than a client-side age
+-- check on signup — enforce 18+ at the database level too.
+alter table profiles drop constraint if exists profiles_age_check;
+create or replace function enforce_adult_profile()
+returns trigger as $$
+begin
+  if new.birthday is not null and new.birthday > (current_date - interval '18 years') then
+    raise exception 'NYX is only available to users aged 18 or older';
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists profiles_enforce_adult on profiles;
+create trigger profiles_enforce_adult
+before insert or update of birthday on profiles
+for each row execute function enforce_adult_profile();

@@ -1,5 +1,7 @@
 // NYX Web Push — Client side
 
+import { isNativeApp } from './platform';
+
 const VAPID_PUBLIC = 'BF2EDLbL292Wn-EuER8fWLbBFCjnoEOlqqP9d9jNNEjREmTYduDh4XtziaX3b9uvEpNMcnaDQbYTXVhe6woPxQM';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -20,6 +22,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 export async function initPush(userId: string): Promise<PushSubscription | null> {
+  if (isNativeApp) return null;
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
   try {
     // Register SW — don't await ready here, it can hang
@@ -66,6 +69,7 @@ async function savePushSubscription(userId: string, sub: PushSubscription) {
 }
 
 export async function removePush(userId: string) {
+  if (isNativeApp) return;
   if (!('serviceWorker' in navigator)) return;
   try {
     const reg = await navigator.serviceWorker.getRegistration('/sw.js');

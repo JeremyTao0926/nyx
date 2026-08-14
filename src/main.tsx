@@ -1,13 +1,17 @@
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
-import { AdminApp } from "./admin/AdminApp";
+import "./index.css";
 
 const root = document.getElementById("root")!;
 
-// Route to admin panel if URL starts with /admin
-if (window.location.pathname.startsWith("/admin")) {
-  ReactDOM.createRoot(root).render(<StrictMode><AdminApp /></StrictMode>);
-} else {
+async function bootstrap() {
+  if (window.location.pathname.startsWith("/admin")) {
+    const { AdminApp } = await import("./admin/AdminApp");
+    ReactDOM.createRoot(root).render(<StrictMode><AdminApp /></StrictMode>);
+    return;
+  }
+  const { default: App } = await import("./App");
   ReactDOM.createRoot(root).render(<StrictMode><App /></StrictMode>);
 }
+
+void bootstrap();

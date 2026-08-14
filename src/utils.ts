@@ -2,9 +2,6 @@ import { createClient } from "@supabase/supabase-js";
 import type { GMsg, UserProfile, ExploreProfile, MatchItem, Msg, ChatMsg, WhoLikedItem, NyxAnalysis, DailyLikeStatus } from "./types";
 
 /* ─── Config ─────────────────────────────────────────── */
-export const GROQ_KEY =
-  import.meta.env.VITE_GROQ_API_KEY;
-
 export const SUPABASE_URL =
   import.meta.env.VITE_SUPABASE_URL;
 
@@ -18,15 +15,15 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /* ═══ DESIGN TOKENS — Premium Dark Gold (v10) ════════════ */
 export const C = {
-  bg:           "#0C0A08",
-  bgCard:       "#141210",
-  bgElevated:   "#1C1916",
-  bgGold:       "#1E1A0E",
+  bg:           "#090907",
+  bgCard:       "rgba(24,22,19,0.82)",
+  bgElevated:   "rgba(33,30,25,0.92)",
+  bgGold:       "#201B0E",
   surf:         "rgba(255,255,255,0.04)",
   surfHigh:     "rgba(255,255,255,0.07)",
   surfGold:     "rgba(201,168,76,0.07)",
-  gold:         "#C9A84C",
-  goldLight:    "#E2C068",
+  gold:         "#DDB757",
+  goldLight:    "#F0D27C",
   goldSoft:     "rgba(201,168,76,0.12)",
   goldGlow:     "rgba(201,168,76,0.25)",
   rose:         "#E8365D",
@@ -42,14 +39,14 @@ export const C = {
   get pinkGlow()  { return this.roseGlow; },
   get teal()      { return this.mint; },
   get tealSoft()  { return this.mintSoft; },
-  text:         "#F5EDD6",
-  textSub:      "rgba(245,237,214,0.65)",
-  textMuted:    "rgba(245,237,214,0.38)",
+  text:         "#F7F1E3",
+  textSub:      "rgba(247,241,227,0.68)",
+  textMuted:    "rgba(247,241,227,0.42)",
   textDim:      "rgba(245,237,214,0.18)",
-  border:       "rgba(201,168,76,0.12)",
-  borderHigh:   "rgba(201,168,76,0.22)",
+  border:       "rgba(224,186,90,0.14)",
+  borderHigh:   "rgba(224,186,90,0.26)",
   borderFocus:  "rgba(201,168,76,0.45)",
-  grad:         "linear-gradient(135deg,#C9A84C,#E2C068)",
+  grad:         "linear-gradient(135deg,#D7AE4D,#F0D27C)",
   gradRose:     "linear-gradient(135deg,#E8365D,#FF6B6B)",
   gradMint:     "linear-gradient(135deg,#00C9A7,#00E5C0)",
   gradGold:     "linear-gradient(135deg,#C9A84C,#E2C068)",
@@ -166,15 +163,19 @@ export async function groqChat(messages: GMsg[], systemPrompt?: string, fullHist
     : systemPrompt
       ? [{ role: "system" as const, content: systemPrompt }, ...messages]
       : messages;
-  const r = await fetch(GROQ_URL, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_KEY}` }, body: JSON.stringify({ model: TEXT_MODEL, messages: payload, temperature: 0.9, max_tokens: maxTokens }) });
-  const d = await r.json(); if (!r.ok) throw new Error(d.error?.message ?? "Groq error");
-  return d.choices[0].message.content as string;
+  const { data, error } = await sb.functions.invoke("groq-proxy", {
+    body: { model: TEXT_MODEL, messages: payload, temperature: 0.9, max_tokens: maxTokens },
+  });
+  if (error) throw new Error(error.message || "Groq error");
+  return data.choices[0].message.content as string;
 }
 export async function groqVision(imgs: string[], prompt: string, sys: string): Promise<string> {
   const content: any[] = [...imgs.map(b => ({ type: "image_url", image_url: { url: b.startsWith("data:") ? b : `data:image/jpeg;base64,${b}` } })), { type: "text", text: prompt }];
-  const r = await fetch(GROQ_URL, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_KEY}` }, body: JSON.stringify({ model: VISION_MODEL, messages: [{ role: "system", content: sys }, { role: "user", content }], temperature: 0.7, max_tokens: 2048 }) });
-  const d = await r.json(); if (!r.ok) throw new Error(d.error?.message ?? "Vision error");
-  return d.choices[0].message.content as string;
+  const { data, error } = await sb.functions.invoke("groq-proxy", {
+    body: { model: VISION_MODEL, messages: [{ role: "system", content: sys }, { role: "user", content }], temperature: 0.7, max_tokens: 2048 },
+  });
+  if (error) throw new Error(error.message || "Vision error");
+  return data.choices[0].message.content as string;
 }
 export async function toB64(f: File): Promise<string> {
   return new Promise(r => { const rd = new FileReader(); rd.onloadend = () => r(rd.result as string); rd.readAsDataURL(f); });
@@ -415,7 +416,14 @@ export async function sendChatMsg(matchId: string, senderId: string, content: st
 }
 export async function blockUser(a: string, b: string) { await sb.from("blocked_users").upsert({ blocker_id: a, blocked_id: b }); }
 export async function reportUser(a: string, b: string, reason: string, category = "other") { await sb.from("reports").insert({ reporter_id: a, reported_id: b, reason, category }); }
-export async function deleteAccount(uid: string) { await sb.from("profiles").delete().eq("id", uid); await sb.auth.signOut(); }
+export async function deleteAccount(uid: string) {
+  // Actually deletes the auth.users record (via a service-role edge
+  // function), not just the profiles row — Apple 5.1.1(v) requires account
+  // deletion to really delete the account, not just its data.
+  const { error } = await sb.functions.invoke("delete-account", {});
+  if (error) throw new Error(error.message || `Unable to delete account ${uid}`);
+  await sb.auth.signOut();
+}
 export async function getUnreadCount(uid: string): Promise<number> {
   const { count } = await sb.from("notifications").select("*", { count: "exact", head: true }).eq("user_id", uid).eq("read", false);
   return count || 0;

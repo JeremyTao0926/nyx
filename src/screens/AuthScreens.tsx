@@ -481,7 +481,6 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
             登入
           </button>
         </div>
-        <div style={{ textAlign:"center", marginTop:20, fontSize:11, color:"rgba(255,255,255,0.25)" }}>測試：guest@nyx.app / 123456</div>
       </div>
     </div></div>
   );
