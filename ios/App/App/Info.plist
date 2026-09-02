@@ -24,14 +24,14 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>NYX 需要使用相機，讓你拍攝並分享個人照片與聊天圖片。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>NYX 使用你的位置顯示附近的人、依距離排序城市結果；不會向其他用戶公開精確座標。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>NYX 需要讀取你選擇的照片，用於個人資料與聊天圖片。</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>NYX 需要儲存你主動下載或編輯的照片。</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -55,10 +55,6 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
-	<key>UIRequiredDeviceCapabilities</key>
-	<array>
-		<string>armv7</string>
-	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

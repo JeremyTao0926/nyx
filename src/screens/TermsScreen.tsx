@@ -44,7 +44,7 @@ export function TermsScreen({ onBack, type = "terms" }: { onBack: () => void; ty
             <h3 style={{ color:C.text,margin:"16px 0 8px" }}>5. 內容規範</h3>
             <p>禁止上傳裸露、色情、暴力或侵犯他人版權的內容。NYX 有權隨時移除違規內容並終止相關帳號。</p>
             <h3 style={{ color:C.text,margin:"16px 0 8px" }}>6. Premium 訂閱</h3>
-            <p>Premium 訂閱為自動續費服務。可在訂閱期結束前 24 小時於 App Store / Google Play 設定中取消。已付費期間不提供退款。</p>
+            <p>Premium 訂閱為自動續費服務。可在訂閱期結束前 24 小時於 App Store / Google Play 設定中取消。退款申請與結果依 Apple 或 Google 的政策及審核為準。</p>
             <h3 style={{ color:C.text,margin:"16px 0 8px" }}>7. 免責聲明</h3>
             <p>NYX 不對用戶之間的互動承擔責任。請謹慎保護個人安全，與陌生人線下見面前請務必告知信任的朋友。</p>
             <h3 style={{ color:C.text,margin:"16px 0 8px" }}>8. 終止服務</h3>

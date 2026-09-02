@@ -9,6 +9,7 @@ import { getWhoLikedMe } from "../utils";
 import { PremiumScreen } from "./PremiumScreen";
 import { PremiumGateSheet } from "../components/PremiumGateSheet";
 import { TermsScreen } from "./TermsScreen";
+import { getPushEnabled, initPush, removePush } from "../pushNotifications";
 
 /* ── SVG Icons (Lucide outline, 20×20) ── */
 const IC: Record<string,string> = {
@@ -142,9 +143,12 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const [uploading, setUploading] = useState(false);
   const [showMbti, setShowMbti] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [soundOn, setSoundOn] = useState(sound.enabled);
+  const [pushOn, setPushOn] = useState(false);
   const [lang, setLang] = useState<Lang>((profile as any).language || "zh");
   const [hideOnline, setHideOnline] = useState((profile as any).hide_online_status || false);
+  useEffect(() => { getPushEnabled().then(setPushOn).catch(() => {}); }, []);
   const [occupation, setOccupation] = useState((profile as any).occupation || "");
   const [education, setEducation] = useState((profile as any).education || "");
   const [income, setIncome] = useState((profile as any).income || "");
@@ -170,6 +174,18 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const [showTerms, setShowTerms] = useState<"terms" | "privacy" | null>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
   const [editField, setEditField] = useState<string|null>(null);
+
+  async function confirmDeleteAccount() {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteAccount(userId);
+      setShowDelete(false);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "帳號刪除失敗，請稍後再試或聯絡支援。");
+      setDeleting(false);
+    }
+  }
   const [editText, setEditText] = useState("");
 
   // Hinge-style swipe right to go back (settings sub-page)
@@ -563,7 +579,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <div style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.65, marginBottom: 28 }}>所有資料、配對、對話將永久刪除，無法復原。</div>
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={() => setShowDelete(false)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.surf, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: "inherit", fontSize: 14, cursor: "pointer" }}>取消</button>
-            <button onClick={() => deleteAccount(userId)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.12)", border: "1px solid rgba(255,60,60,0.28)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>確定刪除</button>
+            <button disabled={deleting} onClick={confirmDeleteAccount} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.12)", border: "1px solid rgba(255,60,60,0.28)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: deleting ? "wait" : "pointer", opacity: deleting ? .6 : 1 }}>{deleting ? "刪除中…" : "確定刪除"}</button>
           </div>
         </div>
       </BottomSheet>}
@@ -886,7 +902,15 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <SettingRow icon="volume" label="音效" right={<Toggle on={soundOn} onChange={() => { sound.enabled = !sound.enabled; setSoundOn(s => !s); }} />} />
           <SettingRow icon="globe" label="語言" right={<div style={{ display: "flex", gap: 6 }}>{(["zh", "en"] as Lang[]).map(l => <button key={l} onClick={() => { setLang(l); updateProfile(userId, { language: l } as any); sound.tap(); }} style={{ padding: "5px 13px", borderRadius: 20, background: lang === l ? C.grad : "transparent", border: `1px solid ${lang === l ? "transparent" : C.border}`, color: lang === l ? "#fff" : C.textMuted, fontFamily: "inherit", fontSize: 12, fontWeight: lang === l ? 600 : 400, cursor: "pointer" }}>{l === "zh" ? "中文" : "EN"}</button>)}</div>} />
           <SettingRow icon="eye" label="隱藏在線狀態" sub="開啟後你也看不到其他人的在線狀態" right={<Toggle on={hideOnline} onChange={() => { const v = !hideOnline; setHideOnline(v); updateProfile(userId, { hide_online_status: v } as any); onUpdate({ hide_online_status: v } as any); }} />} />
-          <SettingRow icon="bell" label="推播通知" sub="打包 iOS 後開放" right={<span style={{ fontSize: 11.5, color: C.textDim }}>即將推出</span>} />
+          <SettingRow icon="bell" label="推播通知" sub="新配對與新訊息通知" right={<Toggle on={pushOn} onChange={async () => {
+            if (pushOn) {
+              await removePush(userId);
+              setPushOn(false);
+            } else {
+              await initPush(userId, true);
+              setPushOn(await getPushEnabled());
+            }
+          }} />} />
           <SettingRow icon="moon" label="暫停帳號" sub="暫停後你不會出現在探索頁" right={<Toggle on={(profile as any).is_paused || false} onChange={() => { const v = !((profile as any).is_paused || false); updateProfile(userId, { is_paused: v } as any); onUpdate({ is_paused: v } as any); sound.tap(); }} />} last />
         </div>
         <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 24 }}>
@@ -911,7 +935,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <div style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.65, marginBottom: 28 }}>所有資料、配對、對話將永久刪除，無法復原。</div>
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={() => setShowDelete(false)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.surf, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: "inherit", fontSize: 14, cursor: "pointer" }}>取消</button>
-            <button onClick={() => deleteAccount(userId)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.12)", border: "1px solid rgba(255,60,60,0.28)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>確定刪除</button>
+            <button disabled={deleting} onClick={confirmDeleteAccount} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.12)", border: "1px solid rgba(255,60,60,0.28)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: deleting ? "wait" : "pointer", opacity: deleting ? .6 : 1 }}>{deleting ? "刪除中…" : "確定刪除"}</button>
           </div>
         </div>
       </BottomSheet>}

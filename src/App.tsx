@@ -112,14 +112,17 @@ export default function App() {
   // Push notifications — separate from realtime, runs once after login
   useEffect(() => {
     if (!userId || !authed) return;
-    const timer = setTimeout(() => initPush(userId).catch(() => {}), 2000);
+    const timer = setTimeout(() => initPush(userId, false).catch(() => {}), 2000);
     const handler = (e: MessageEvent) => {
       if (e.data?.type === "NOTIFICATION_CLICK") setTab("chat");
     };
+    const nativeHandler = () => setTab("chat");
     navigator.serviceWorker?.addEventListener("message", handler);
+    window.addEventListener("nyx:native-notification-click", nativeHandler);
     return () => {
       clearTimeout(timer);
       navigator.serviceWorker?.removeEventListener("message", handler);
+      window.removeEventListener("nyx:native-notification-click", nativeHandler);
     };
   }, [userId, authed]);
 

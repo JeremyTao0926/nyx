@@ -769,14 +769,21 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
               sender_avatar: myProfile?.avatar_url || "",
             },
           }).catch(() => {});
-        } catch (e) { console.error("Image upload failed:", e); }
+        } catch (e) { console.error("Image upload failed:", e); alert(e instanceof Error ? e.message : "圖片無法上傳"); }
       }
     if (txt) {
       const content = replyTo ? `↩️ ${replyTo.content.slice(0, 30)}${replyTo.content.length > 30 ? "..." : ""}\n${txt}` : txt;
       setReplyTo(null);
       const opt: ChatMsg = { id: Date.now() + "t", senderId: myUserId, content, timestamp: new Date() };
       setMsgs(p => [...p, opt]); sound.send();
-      await sendChatMsg(matchId, myUserId, content);
+      try {
+        await sendChatMsg(matchId, myUserId, content);
+      } catch (error) {
+        setMsgs(p => p.filter(message => message.id !== opt.id));
+        setInput(txt);
+        alert(error instanceof Error ? error.message : "訊息無法傳送");
+        return;
+      }
       // Broadcast to recipient for instant UI update (no DB round-trip)
       sb.channel(`user-inbox:${other.id}`).send({
         type: "broadcast", event: "new_message",

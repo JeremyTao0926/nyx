@@ -221,22 +221,31 @@ export async function getProfile(uid: string): Promise<UserProfile | null> {
   return data as UserProfile | null;
 }
 export async function updateProfile(uid: string, patch: Partial<UserProfile>) {
+  if (typeof patch.bio === "string" && patch.bio.trim()) await moderateContent({ text: patch.bio });
   await sb.from("profiles").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", uid);
+}
+export async function moderateContent(input: { text?: string; image?: string }) {
+  const { data, error } = await sb.functions.invoke("moderate-content", { body: input });
+  if (error) throw new Error("安全檢查暫時無法使用，請稍後再試");
+  if (!data?.allowed) throw new Error(data?.reason || "內容不符合社群規範");
 }
 export async function uploadAvatar(file: File, uid: string): Promise<string> {
   const compressed = await compressImage(file, 400, 0.85);
+  await moderateContent({ image: await toB64(compressed) });
   const ext = "jpg"; const path = `${uid}/avatar_${Date.now()}.${ext}`;
   await sb.storage.from("photos").upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
   return sb.storage.from("photos").getPublicUrl(path).data.publicUrl;
 }
 export async function uploadCover(file: File, uid: string): Promise<string> {
   const compressed = await compressImage(file, 1200, 0.82);
+  await moderateContent({ image: await toB64(compressed) });
   const path = `${uid}/cover_${Date.now()}.jpg`;
   await sb.storage.from("photos").upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
   return sb.storage.from("photos").getPublicUrl(path).data.publicUrl;
 }
 export async function uploadPhoto(file: File, uid: string, idx: number): Promise<string> {
   const compressed = await compressImage(file, 900, 0.82);
+  await moderateContent({ image: await toB64(compressed) });
   const path = `${uid}/photo_${idx}_${Date.now()}.jpg`;
   await sb.storage.from("photos").upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
   return sb.storage.from("photos").getPublicUrl(path).data.publicUrl;
@@ -412,6 +421,7 @@ export async function loadChatMsgs(matchId: string): Promise<ChatMsg[]> {
   }));
 }
 export async function sendChatMsg(matchId: string, senderId: string, content: string, isImage = false) {
+  if (!isImage) await moderateContent({ text: content });
   await sb.from("chat_messages").insert({ match_id: matchId, sender_id: senderId, content, is_image: isImage });
 }
 export async function blockUser(a: string, b: string) { await sb.from("blocked_users").upsert({ blocker_id: a, blocked_id: b }); }

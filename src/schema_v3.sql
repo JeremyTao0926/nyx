@@ -77,6 +77,27 @@ alter publication supabase_realtime add table profiles;
 
 -- Indexes
 create index if not exists idx_notif_user on notifications(user_id, read, created_at);
+
+-- One active push destination per account. Web uses endpoint/key fields;
+-- native iOS uses the APNs device_token field.
+create table if not exists push_subscriptions (
+  user_id uuid primary key references profiles(id) on delete cascade,
+  platform text not null default 'web' check (platform in ('web','ios')),
+  endpoint text,
+  p256dh text,
+  auth text,
+  device_token text,
+  updated_at timestamptz not null default now()
+);
+alter table push_subscriptions add column if not exists platform text not null default 'web';
+alter table push_subscriptions add column if not exists device_token text;
+alter table push_subscriptions alter column endpoint drop not null;
+alter table push_subscriptions alter column p256dh drop not null;
+alter table push_subscriptions alter column auth drop not null;
+alter table push_subscriptions enable row level security;
+drop policy if exists "manage own push subscription" on push_subscriptions;
+create policy "manage own push subscription" on push_subscriptions
+for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create index if not exists idx_blocks on blocked_users(blocker_id);
 
 -- Update check_match function to also create notifications

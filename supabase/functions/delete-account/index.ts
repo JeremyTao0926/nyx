@@ -21,10 +21,17 @@ serve(async (req) => {
     if (authErr || !authData?.user) return new Response("Invalid session", { status: 401 });
     const uid = authData.user.id;
 
-    // Delete the profile row explicitly first — don't rely on the FK's
-    // cascade behavior being configured, since the base `profiles` table
-    // migration isn't tracked in this repo and we can't confirm it here.
-    await admin.from("profiles").delete().eq("id", uid);
+    const { data: files, error: listError } = await admin.storage.from("photos").list(uid, { limit: 1000 });
+    if (listError) throw listError;
+    if (files?.length) {
+      const { error: storageError } = await admin.storage.from("photos").remove(files.map(file => `${uid}/${file.name}`));
+      if (storageError) throw storageError;
+    }
+
+    // The profile row is the parent for app-owned records. Production
+    // foreign keys must retain ON DELETE CASCADE.
+    const { error: profileError } = await admin.from("profiles").delete().eq("id", uid);
+    if (profileError) throw profileError;
     const { error: delErr } = await admin.auth.admin.deleteUser(uid);
     if (delErr) throw delErr;
 
