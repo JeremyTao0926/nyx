@@ -15,7 +15,7 @@ The web application and iOS wrapper pass the automated checks that can run on Wi
 | Focused lint | Pass | New utility, persistence, purchase, and test files. React hook rules are clean in the modified screens. |
 | Production dependency audit | Pass | 0 production vulnerabilities from `npm audit --omit=dev`. |
 | Capacitor iOS sync | Pass | `npm run ios:sync` built the web assets and synced all five native plugins. |
-| Xcode simulator build | CI required | Runs on the repository's macOS GitHub Actions workflow because this workstation has no macOS/Xcode. |
+| Xcode simulator build | Pass | The macOS 15 GitHub Actions run compiled the Debug app for a generic iPhone Simulator with signing disabled. |
 
 The full repository lint is not yet green: it contains 256 project-wide findings, primarily the existing `no-explicit-any` typing debt and unused-code errors in large screens/utilities. This pass did not attempt a risky whole-project typing migration; the focused new modules are clean and no React hook violation remains in the modified screens. The production dependency audit is clean. The development-only audit reports three moderate findings in Capacitor CLI's `xcode` → `uuid` chain; npm's proposed fix force-downgrades Capacitor CLI, so it was not applied without a compatible upstream release.
 
