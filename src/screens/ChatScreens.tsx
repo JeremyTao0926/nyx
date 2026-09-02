@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { C, WRAP, sb, sound, fmtTime, fmtDate, fmtMsgTime, blockUser, reportUser, loadChatMsgs, sendChatMsg, markMsgsRead, uploadPhoto, buildSys, groqChat, compressImage, getTodaySpark, getBondInfo } from "../utils";
+import { C, WRAP, sb, sound, calcAge, fmtTime, fmtDate, fmtMsgTime, onlineStatus, blockUser, reportUser, loadChatMsgs, sendChatMsg, markMsgsRead, uploadPhoto, buildSys, groqChat, getTodaySpark, getBondInfo } from "../utils";
 import type { DailySpark, BondInfo } from "../utils";
 import { SparkCard } from "../components/SparkCard";
 import { REPORT_CATEGORIES } from "../components/Modals";
@@ -79,13 +79,13 @@ function SparkPanel({ spark, matchId, myUserId, other, onSparkUpdate, onBondUpda
 
 /* ─── EncounterPanel — collapsible, auto-hides after reveal ─ */
 
-function onlineStatus(lastActive: string | null, hidden: boolean): { label: string; color: string; dot: boolean } {
-  if (hidden || !lastActive) return { label: "", color: "transparent", dot: false };
-  const diff = Date.now() - new Date(lastActive).getTime();
-  if (diff < 5 * 60 * 1000) return { label: "在線", color: "#06d6a0", dot: true };
-  if (diff < 60 * 60 * 1000) return { label: `${Math.floor(diff / 60000)}分鐘前`, color: "rgba(200,185,230,0.45)", dot: false };
-  if (diff < 24 * 60 * 60 * 1000) return { label: `今天 ${fmtTime(new Date(lastActive))}`, color: "rgba(200,185,230,0.45)", dot: false };
-  return { label: `${Math.floor(diff / 86400000)}天前`, color: "rgba(200,185,230,0.35)", dot: false };
+function useMinuteClock() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
 }
 
 /* ─── Analysis Sheet ─────────────────────────────────── */
@@ -96,11 +96,6 @@ function AnalysisSheet({ msg, isMe, context, gender, mbti, matchDaysSince, other
   const [result, setResult] = useState(cache.get(msg.id) || "");
   const [loading, setLoading] = useState(!cache.has(msg.id));
   const sys = buildSys(mbti, gender);
-
-  useEffect(() => {
-    if (cache.has(msg.id)) return;
-    analyze();
-  }, []);
 
   async function analyze() {
     // ── Other person profile — declare first (used throughout) ──
@@ -393,6 +388,15 @@ ${ctxStr}
     setLoading(false);
   }
 
+  useEffect(() => {
+    if (cache.has(msg.id)) return;
+    const timer = setTimeout(() => { void analyze(); }, 0);
+    return () => clearTimeout(timer);
+    // AnalysisSheet is mounted for one selected message; restarting when
+    // parent callback/object identities change would duplicate an AI request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cache, msg.id]);
+
 
   const sheetSwipeY = useRef(0);
   const [sheetTranslate, setSheetTranslate] = useState(0);
@@ -446,7 +450,8 @@ function MsgMenu({ msg, isMe, onCopy, onDelete, onHide, onRecall, onReply, onAna
     onDelete?: () => void; onHide?: () => void; onRecall?: () => void;
     onReply: () => void; onAnalyze?: () => void; onClose: () => void; menuY?: number }) {
 
-  const canRecall = isMe && msg.timestamp && (Date.now() - new Date(msg.timestamp).getTime()) < 2 * 60 * 1000;
+  const menuNow = useMinuteClock();
+  const canRecall = isMe && msg.timestamp && (menuNow - new Date(msg.timestamp).getTime()) < 2 * 60 * 1000;
   const isRecalled = msg.content === "[已撤回]";
 
   const actions = [
@@ -512,6 +517,7 @@ export function ChatListScreen({ profile, matches, unreadPerMatch, typingMatchId
   const [search, setSearch] = useState("");
   const [nyxLastMsg, setNyxLastMsg] = useState("嗨，把聊天貼給我分析 💫");
   const [nyxTime, setNyxTime] = useState(fmtTime(new Date()));
+  const statusNow = useMinuteClock();
   const hideOnline = (profile as any).hide_online_status;
 
   // Load last Nyx message
@@ -556,7 +562,7 @@ export function ChatListScreen({ profile, matches, unreadPerMatch, typingMatchId
     <div style={{ flex: 1, overflowY: "auto" }}>
       {all.map((item, idx) => {
         const hasUnread = item.unread > 0;
-        const status = item.isNyx ? { label: "在線", color: C.teal, dot: true } : onlineStatus(item.lastActive, hideOnline || (item as any).hideOnline);
+        const status = item.isNyx ? { label: "在線", color: C.teal, dot: true } : onlineStatus(item.lastActive, hideOnline || (item as any).hideOnline, statusNow);
         return <div key={item.id} style={{ animation: `nyxIn .3s ${idx * .05}s ease both` }}>
           <div onClick={() => { sound.tap(); item.isNyx ? onOpenNyx() : onOpenMatch(matches.find(m => m.id === item.id)!); }}
             style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 20px", cursor: "pointer", transition: "background .15s", background: hasUnread ? "rgba(255,56,92,0.04)" : "transparent" }}
@@ -617,6 +623,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
   const [bond, setBond] = useState<BondInfo | null>(null);
   const [showMemory, setShowMemory] = useState(false);
   const [showClone, setShowClone] = useState(false);
+  const statusNow = useMinuteClock();
   const bottomRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -626,13 +633,6 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingCh = useRef<any>(null);
   const hideOnline = (myProfile as any).hide_online_status;
-  const [, setTick] = useState(0);
-
-  // Re-render periodically so the relative "幾分鐘前" label keeps counting up
-  useEffect(() => {
-    const t = setInterval(() => setTick(x => x + 1), 30000);
-    return () => clearInterval(t);
-  }, []);
 
   useEffect(() => {
     loadChatMsgs(matchId).then(m => { setMsgs(m); setLoaded(true); });
@@ -721,16 +721,9 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       }).subscribe();
 
     return () => { sb.removeChannel(msgCh); if (typingCh.current) sb.removeChannel(typingCh.current); sb.removeChannel(encounterCh); sb.removeChannel(otherProfileCh); clearTimeout(midnightTimer); };
-  }, [matchId]);
+  }, [matchId, myUserId, other.id]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, otherTyping]);
-
-  function calcAge(b: string): number | null {
-    const born = new Date(b), today = new Date();
-    let age = today.getFullYear() - born.getFullYear();
-    if (today < new Date(today.getFullYear(), born.getMonth(), born.getDate())) age--;
-    return age;
-  }
 
   function handleInput(val: string) {
     setInput(val);
@@ -749,11 +742,13 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
 
       // Send image
       if (img) {
+        let optimisticImageId: string | null = null;
         try {
-          const compressed = await compressImage(img.file); const url = await uploadPhoto(new File([compressed], img.file.name, {type: 'image/jpeg'}), myUserId, Date.now());
+          const url = await uploadPhoto(img.file, myUserId, Date.now());
           const opt: ChatMsg = { id: Date.now() + "i", senderId: myUserId, content: url, timestamp: new Date(), isImage: true };
+          optimisticImageId = opt.id;
           setMsgs(p => [...p, opt]); sound.send();
-          await sb.from("chat_messages").insert({ match_id: matchId, sender_id: myUserId, content: url, is_image: true });
+          await sendChatMsg(matchId, myUserId, url, true);
           // Broadcast for instant update
           sb.channel(`user-inbox:${other.id}`).send({
             type: "broadcast", event: "new_message",
@@ -769,7 +764,12 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
               sender_avatar: myProfile?.avatar_url || "",
             },
           }).catch(() => {});
-        } catch (e) { console.error("Image upload failed:", e); alert(e instanceof Error ? e.message : "圖片無法上傳"); }
+        } catch (e) {
+          if (optimisticImageId !== null) setMsgs(current => current.filter(message => message.id !== optimisticImageId));
+          setPendingImg(img);
+          console.error("Image upload failed:", e);
+          alert(e instanceof Error ? e.message : "圖片無法上傳");
+        }
       }
     if (txt) {
       const content = replyTo ? `↩️ ${replyTo.content.slice(0, 30)}${replyTo.content.length > 30 ? "..." : ""}\n${txt}` : txt;
@@ -808,8 +808,34 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
   }
 
   async function deleteMsg(msgId: string) {
-    await sb.from("chat_messages").delete().eq("id", msgId).eq("sender_id", myUserId);
+    const { error } = await sb.from("chat_messages").delete().eq("id", msgId).eq("sender_id", myUserId);
+    if (error) {
+      alert("訊息刪除失敗，請稍後再試");
+      return;
+    }
     setMsgs(p => p.filter(m => m.id !== msgId));
+  }
+
+  async function submitReport(category: (typeof REPORT_CATEGORIES)[number]) {
+    try {
+      await reportUser(myUserId, other.id, category.label, category.id);
+      alert("已檢舉，我們將盡快審核");
+      setShowReport(false);
+    } catch (error) {
+      console.error("Unable to report user", error);
+      alert("檢舉送出失敗，請稍後再試");
+    }
+  }
+
+  async function submitBlock() {
+    try {
+      await blockUser(myUserId, other.id);
+      setShowReport(false);
+      onBack();
+    } catch (error) {
+      console.error("Unable to block user", error);
+      alert("封鎖失敗，請稍後再試");
+    }
   }
 
   function hideMsg(msgId: string) {
@@ -829,7 +855,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
   }
 
   // Online status of other user
-  const otherStatus = otherProfileData ? onlineStatus(otherProfileData.lastActive, otherProfileData.hideOnline || hideOnline) : { label: "", color: "transparent", dot: false };
+  const otherStatus = otherProfileData ? onlineStatus(otherProfileData.lastActive, otherProfileData.hideOnline || hideOnline, statusNow) : { label: "", color: "transparent", dot: false };
 
   // Render messages with date groups
   function isSparkReact(content: string) { return typeof content === "string" && content.startsWith("[SPARK_REACT]"); }
@@ -1097,7 +1123,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       msg={analysisTarget}
       isMe={analysisTarget.senderId === myUserId}
       context={msgs.map(m => ({ ...m, senderId: m.senderId === myUserId ? "我" : "對方" }))}
-      matchDaysSince={Math.floor((Date.now() - (msgs[0]?.timestamp ? new Date(msgs[0].timestamp).getTime() : Date.now())) / 86400000)}
+      matchDaysSince={Math.floor((statusNow - (msgs[0]?.timestamp ? new Date(msgs[0].timestamp).getTime() : statusNow)) / 86400000)}
       otherMsgCount={(msgs.filter(m => m.senderId !== myUserId)).length}
       otherProfile={otherProfileData || null}
       gender={myProfile.gender}
@@ -1111,10 +1137,10 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       <div onClick={e => e.stopPropagation()} style={{ ...MAX_W, background: C.surf, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, padding: "28px 24px 44px", animation: "slideUp .32s cubic-bezier(.34,1.56,.64,1)" }}>
         <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.15)", margin: "0 auto 22px" }} />
         <div style={{ marginBottom: 8 }}>
-          {REPORT_CATEGORIES.map((cat, i) => <button key={cat.id} onClick={async () => { await reportUser(myUserId, other.id, cat.label, cat.id); alert("已檢舉，我們將盡快審核"); setShowReport(false); }} style={{ width: "100%", padding: "13px 16px", borderRadius: 14, background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`, color: C.textSub, fontFamily: "inherit", fontSize: 13.5, cursor: "pointer", marginBottom: 8, textAlign: "left", display: "flex", alignItems: "center", gap: 10, transition: "background .15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")} onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}><span style={{fontSize:18}}>{cat.icon}</span>{cat.label}</button>)}
+          {REPORT_CATEGORIES.map(cat => <button key={cat.id} onClick={() => { void submitReport(cat); }} style={{ width: "100%", padding: "13px 16px", borderRadius: 14, background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`, color: C.textSub, fontFamily: "inherit", fontSize: 13.5, cursor: "pointer", marginBottom: 8, textAlign: "left", display: "flex", alignItems: "center", gap: 10, transition: "background .15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")} onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}><span style={{fontSize:18}}>{cat.icon}</span>{cat.label}</button>)}
         </div>
         <div style={{ height: 1, background: C.border, marginBottom: 10 }} />
-        <button onClick={async () => { await blockUser(myUserId, other.id); setShowReport(false); onBack(); }} style={{ width: "100%", padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.06)", border: "1px solid rgba(255,60,60,0.2)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, cursor: "pointer", marginBottom: 8 }}>封鎖 {other.name}</button>
+        <button onClick={() => { void submitBlock(); }} style={{ width: "100%", padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.06)", border: "1px solid rgba(255,60,60,0.2)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, cursor: "pointer", marginBottom: 8 }}>封鎖 {other.name}</button>
         <button onClick={() => setShowReport(false)} style={{ width: "100%", padding: "11px", borderRadius: 14, background: "transparent", border: "none", color: C.textMuted, fontFamily: "inherit", fontSize: 14, cursor: "pointer" }}>取消</button>
       </div>
     </div>}

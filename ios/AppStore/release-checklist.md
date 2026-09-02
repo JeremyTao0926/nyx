@@ -4,7 +4,7 @@
 
 - [ ] Apply src/schema_v3.sql to production Supabase.
 - [ ] Deploy delete-account, groq-proxy, moderate-content, revenuecat-webhook, and send-push Edge Functions.
-- [ ] Set GROQ_API_KEY, REVENUECAT_WEBHOOK_SECRET, IOS_PREMIUM_PRODUCT_ID, IOS_PREMIUM_PLUS_PRODUCT_ID, APNS_KEY_ID, APNS_TEAM_ID, APNS_PRIVATE_KEY, APNS_BUNDLE_ID, APNS_ENV, VAPID_PUBLIC, VAPID_PRIVATE, and VAPID_SUBJECT secrets.
+- [ ] Set GROQ_API_KEY, REVENUECAT_WEBHOOK_SECRET, REVENUECAT_SECRET_API_KEY, IOS_PREMIUM_PRODUCT_ID, IOS_PREMIUM_PLUS_PRODUCT_ID, APNS_KEY_ID, APNS_TEAM_ID, APNS_PRIVATE_KEY, APNS_BUNDLE_ID, APNS_ENV, VAPID_PUBLIC, VAPID_PRIVATE, and VAPID_SUBJECT secrets.
 - [ ] Set VITE_REVENUECAT_IOS_API_KEY for the production build.
 - [ ] After merging to main, enable GitHub Pages with GitHub Actions as the source and verify privacy.html, terms.html, and support.html publicly.
 
@@ -30,5 +30,6 @@
 - [ ] On macOS, run npm ci, npm run ios:sync, and npm run ios:open.
 - [ ] Select the Apple team, confirm automatic signing and Push Notifications capability, then archive the Release scheme.
 - [ ] Generate and inspect the Privacy Report from the archive.
+- [ ] Complete every real-device case in test-report.md with a dedicated non-production QA account on a small and large iPhone.
 - [ ] Upload to App Store Connect, resolve validation warnings, then test IAP, restore, APNs, camera, photos, location denial/manual city, block/report, and account deletion on TestFlight.
 - [ ] Add version 1.0 and both first subscriptions to the same review submission, then submit for review.

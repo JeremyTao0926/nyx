@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { sb, C, WRAP, GLOBAL_CSS, getProfile, getMatches, getUnreadCount } from "./utils";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { sb, C, WRAP, GLOBAL_CSS, getProfile, getMatches, getUnreadCount, updateProfile, uploadAvatar } from "./utils";
 import type { UserProfile, MatchItem } from "./types";
 import { LoginScreen, SplashScreen } from "./screens/AuthScreens";
 import { initPush, removePush } from "./pushNotifications";
@@ -9,6 +9,7 @@ import { ExploreScreen } from "./screens/ExploreScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { OnboardingScreen } from "./screens/OnboardingScreen";
 import { isNativeApp } from "./platform";
+import { clearPendingAvatar, loadPendingAvatar } from "./pendingAvatar";
 
 type Tab = "explore" | "chat" | "profile";
 
@@ -96,15 +97,18 @@ export default function App() {
   const [unreadPerMatch, setUnreadPerMatch] = useState<Record<string,number>>({});
   const [totalUnread, setTotalUnread] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const finishSplash = useCallback(() => { setSplashSeen(true); setResuming(false); }, []);
 
   useEffect(() => {
     sb.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) { setAuthed(true); setUserId(session.user.id); setSplashSeen(true); }
+      if (session?.user) { setProfileLoading(true); setLoadError(""); setAuthed(true); setUserId(session.user.id); setSplashSeen(true); }
       setLoading(false);
     });
     const { data: { subscription } } = sb.auth.onAuthStateChange((_, session) => {
-      if (session?.user) { setAuthed(true); setUserId(session.user.id); }
-      else { setAuthed(false); setUserId(null); setProfile(null); }
+      if (session?.user) { setProfileLoading(true); setLoadError(""); setAuthed(true); setUserId(session.user.id); }
+      else { setAuthed(false); setUserId(null); setProfile(null); setLoadError(""); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -149,19 +153,102 @@ export default function App() {
     }
   }, [userId, authed]);
 
+  const loadUnread = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const { data } = await sb.rpc("get_unread_per_match", { p_user_id: userId });
+      const rows = (data || []) as { match_id: string; unread_count: number | string }[];
+      const map: Record<string,number> = {};
+      let total = 0;
+      rows.forEach(row => {
+        map[row.match_id] = Number(row.unread_count);
+        total += Number(row.unread_count);
+      });
+      setUnreadPerMatch(map);
+      setTotalUnread(total);
+    } catch {
+      setTotalUnread(await getUnreadCount(userId));
+    }
+  }, [userId]);
+
+  const loadAll = useCallback(async () => {
+    if (!userId) return;
+    let p = await getProfile(userId);
+    const { data: au, error: authError } = await sb.auth.getUser();
+    if (authError) throw authError;
+    const meta = au?.user?.user_metadata || {};
+    const registrationProfile = meta.registration_profile as (Partial<UserProfile> & { onboarding_done?: boolean }) | undefined;
+    if (!p) {
+      const email = au?.user?.email || "";
+      const uname = meta.username || email.split("@")[0] || "user";
+      const { error } = await sb.from("profiles").upsert({
+        id: userId,
+        username: uname,
+        display_name: registrationProfile?.display_name || meta.display_name || uname,
+        email,
+        birthday: registrationProfile?.birthday || meta.birthday || null,
+        gender: registrationProfile?.gender || meta.gender || "male",
+        mbti: registrationProfile?.mbti || meta.mbti || "INFP",
+        onboarding_done: registrationProfile?.onboarding_done ?? false,
+      }, { onConflict:"id", ignoreDuplicates:true });
+      if (error) throw error;
+      p = await getProfile(userId);
+    }
+    if (p && registrationProfile) {
+      try {
+        await updateProfile(userId, registrationProfile);
+        p = { ...p, ...registrationProfile };
+        const { error } = await sb.auth.updateUser({ data: { registration_profile: null } });
+        if (error) console.error("Unable to clear completed registration metadata", error);
+      } catch (error) {
+        // Keep the metadata so the profile can be completed on the next load.
+        console.error("Unable to apply registration profile", error);
+      }
+    }
+    const accountEmail = au?.user?.email;
+    if (p && accountEmail) {
+      const pendingAvatar = await loadPendingAvatar(accountEmail).catch(() => undefined);
+      if (pendingAvatar) {
+        try {
+          const avatarUrl = await uploadAvatar(new File([pendingAvatar], "avatar.jpg", { type: "image/jpeg" }), userId);
+          await updateProfile(userId, { avatar_url: avatarUrl });
+          p = { ...p, avatar_url: avatarUrl };
+          await clearPendingAvatar(accountEmail);
+        } catch (error) {
+          console.error("Unable to finish pending avatar upload", error);
+        }
+      }
+    }
+    if (!p) throw new Error("Profile could not be created");
+    setProfile(p);
+    if (!p.onboarding_done) setShowOnboarding(true);
+    setMatches(await getMatches(userId));
+    await loadUnread();
+  }, [loadUnread, userId]);
+
   useEffect(() => {
     if (!userId || !authed) return;
     // Update last_active immediately on login and on every app focus
-    const updateActive = () => sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId);
-    updateActive();
-    const onFocus = () => { if (document.visibilityState === "visible") updateActive(); };
+    const updateActive = async () => {
+      const { error } = await sb.rpc("touch_last_active");
+      if (error) await sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId);
+    };
+    void updateActive();
+    const onFocus = () => { if (document.visibilityState === "visible") void updateActive(); };
     document.addEventListener("visibilitychange", onFocus);
-    loadAll();
+    const initialLoadTimer = setTimeout(() => {
+      void loadAll()
+        .catch(error => {
+          console.error("Unable to load account data", error);
+          setLoadError("暫時無法載入帳號資料，請檢查網路後重試");
+        })
+        .finally(() => setProfileLoading(false));
+    }, 0);
 
     // Broadcast channel — instant UI update, no DB round-trip
     const broadcastCh = sb.channel(`user-inbox:${userId}`)
-      .on("broadcast", { event: "new_message" }, (payload: any) => {
-        const { matchId, senderName, preview, ts } = payload.payload || {};
+      .on("broadcast", { event: "new_message" }, payload => {
+        const { matchId, preview, ts } = payload.payload || {};
         // Instantly update the match in state
         setMatches(prev => {
           const now = ts || Date.now();
@@ -182,24 +269,9 @@ export default function App() {
         }));
       })
       .on("broadcast", { event: "new_match" }, () => {
-        getMatches(userId!).then(setMatches);
+        getMatches(userId).then(setMatches);
       })
       .subscribe();
-
-    // Subscribe to typing events for all current matches
-    const typingTimers: Record<string, ReturnType<typeof setTimeout>> = {};
-    const typingChannels = (matches || []).map(m => {
-      return sb.channel(`typing-${m.matchId}`)
-        .on("broadcast", { event: "typing" }, (payload: any) => {
-          if (payload.payload?.userId === userId) return; // ignore own typing
-          setTypingMatchIds(prev => { const s = new Set(prev); s.add(m.matchId); return s; });
-          clearTimeout(typingTimers[m.matchId]);
-          typingTimers[m.matchId] = setTimeout(() => {
-            setTypingMatchIds(prev => { const s = new Set(prev); s.delete(m.matchId); return s; });
-          }, 3000);
-        })
-        .subscribe();
-    });
 
     // postgres_changes for matches & notifications (low frequency, reliable)
     const ch = sb.channel(`app-${userId}`)
@@ -208,7 +280,7 @@ export default function App() {
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"matches",
         filter:`user2_id=eq.${userId}` }, () => { getMatches(userId!).then(setMatches); })
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"notifications",
-        filter:`user_id=eq.${userId}` }, () => loadAll())
+        filter:`user_id=eq.${userId}` }, () => { void loadAll().catch(error => console.error("Unable to refresh account data", error)); })
       .subscribe();
 
     // Fallback poll every 30s (safety net only)
@@ -229,34 +301,51 @@ export default function App() {
     };
     document.addEventListener("visibilitychange", onVisible);
 
-    const iv = setInterval(() => sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId), 4*60*1000);
-    return () => { sb.removeChannel(ch); sb.removeChannel(broadcastCh); typingChannels.forEach(c => sb.removeChannel(c)); clearInterval(iv); clearInterval(pollInterval); document.removeEventListener("visibilitychange", onVisible); document.removeEventListener("visibilitychange", onFocus); };
-  }, [userId, authed]);
+    const iv = setInterval(() => { if (document.visibilityState === "visible") void updateActive(); }, 4*60*1000);
+    return () => { clearTimeout(initialLoadTimer); sb.removeChannel(ch); sb.removeChannel(broadcastCh); clearInterval(iv); clearInterval(pollInterval); document.removeEventListener("visibilitychange", onVisible); document.removeEventListener("visibilitychange", onFocus); };
+  }, [userId, authed, loadAll, loadUnread]);
 
-  async function loadAll() {
-    let p = await getProfile(userId!);
-    if (!p) {
-      const { data: au } = await sb.auth.getUser();
-      const email = au?.user?.email || "";
-      const meta  = au?.user?.user_metadata || {};
-      const uname = meta.username || email.split("@")[0] || "user";
-      await sb.from("profiles").upsert({ id:userId, username:uname, display_name:uname, email, gender:"male", mbti:"INFP", onboarding_done:false }, { onConflict:"id", ignoreDuplicates:true });
-      p = await getProfile(userId!);
-    }
-    if (p) { setProfile(p); if (!(p as any).onboarding_done) setShowOnboarding(true); }
-    const m = await getMatches(userId!);
-    setMatches(m);
-    loadUnread();
-  }
+  // Matches arrive after the initial account load, so typing subscriptions
+  // must track the current match list instead of being frozen at login time.
+  useEffect(() => {
+    if (!userId || !authed || matches.length === 0) return;
+    const typingTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+    const typingChannels = matches.map(match => sb.channel(`typing-${match.matchId}`)
+      .on("broadcast", { event: "typing" }, payload => {
+        if (payload.payload?.userId === userId) return;
+        setTypingMatchIds(current => {
+          const next = new Set(current);
+          next.add(match.matchId);
+          return next;
+        });
+        clearTimeout(typingTimers[match.matchId]);
+        typingTimers[match.matchId] = setTimeout(() => {
+          setTypingMatchIds(current => {
+            const next = new Set(current);
+            next.delete(match.matchId);
+            return next;
+          });
+        }, 3000);
+      })
+      .subscribe());
 
-  async function loadUnread() {
-    if (!userId) return;
+    return () => {
+      Object.values(typingTimers).forEach(clearTimeout);
+      typingChannels.forEach(channel => { void sb.removeChannel(channel); });
+    };
+  }, [authed, matches, userId]);
+
+  async function retryLoadAll() {
+    setProfileLoading(true);
+    setLoadError("");
     try {
-      const { data } = await sb.rpc("get_unread_per_match", { p_user_id: userId });
-      const map: Record<string,number> = {}; let total = 0;
-      (data||[]).forEach((r: any) => { map[r.match_id] = Number(r.unread_count); total += Number(r.unread_count); });
-      setUnreadPerMatch(map); setTotalUnread(total);
-    } catch { setTotalUnread(await getUnreadCount(userId)); }
+      await loadAll();
+    } catch (error) {
+      console.error("Unable to load account data", error);
+      setLoadError("暫時無法載入帳號資料，請檢查網路後重試");
+    } finally {
+      setProfileLoading(false);
+    }
   }
 
   function openMatch(m: MatchItem) {
@@ -287,7 +376,18 @@ export default function App() {
   </>;
 
   if (!authed) return <><style>{GLOBAL_CSS}</style><LoginScreen onLogin={() => setAuthed(true)}/></>;
-  if (!splashSeen || resuming) return <><style>{GLOBAL_CSS}</style><SplashScreen onDone={() => { setSplashSeen(true); setResuming(false); }}/></>;
+  if (!splashSeen || resuming) return <><style>{GLOBAL_CSS}</style><SplashScreen onDone={finishSplash}/></>;
+  if (!profile) return <>
+    <style>{GLOBAL_CSS}</style>
+    <div style={{ minHeight:"100dvh", background:C.bg, color:C.text, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:18, padding:24, textAlign:"center" }}>
+      {profileLoading
+        ? <div style={{ width:40, height:40, border:`2px solid ${C.border}`, borderTopColor:C.gold, borderRadius:"50%", animation:"spin .7s linear infinite" }}/>
+        : <>
+          <div style={{ fontSize:15, lineHeight:1.6, color:C.textSub }}>{loadError || "暫時無法載入帳號資料"}</div>
+          <button type="button" onClick={retryLoadAll} style={{ minHeight:46, padding:"0 24px", borderRadius:24, border:"none", background:C.grad, color:"#12100c", fontFamily:"inherit", fontWeight:800, cursor:"pointer" }}>重新載入</button>
+        </>}
+    </div>
+  </>;
   if (profile && ((profile as any).is_banned || (profile as any).is_active === false || (profile as any).deleted_at)) {
     return <><style>{GLOBAL_CSS}</style><BlockedScreen profile={profile} onLogout={logout}/></>;
   }

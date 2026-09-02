@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { C, sound, sb, updateProfile, uploadAvatar, uploadPhoto, deleteAccount, calcAge, calcCompletion, zodiacSign, getProfileViewCount, ETHNICITY, HOBBIES, reverseGeocode, searchCities, exportUserData } from "../utils";
+import { C, sound, sb, updateProfile, uploadAvatar, uploadPhoto, deleteAccount, calcAge, calcCompletion, zodiacSign, getProfileViewCount, ETHNICITY, HOBBIES, reverseGeocode, searchCities, formatLocation, exportUserData } from "../utils";
 import { Av } from "../components/Atoms";
 import { ImageCropper } from "../components/ImageCropper";
 import { MbtiSheet, MultiSelect, BottomSheet } from "../components/Modals";
@@ -93,15 +93,31 @@ const INP = { width:"100%",padding:"12px 14px",background:"rgba(255,255,255,0.04
 function CityInput({ value, onChange, onSelect, near }: { value: string; onChange: (v: string) => void; onSelect: (city: string, lat: number, lon: number) => void; near?: { lat: number; lon: number } | null }) {
   const [res, setRes] = useState<{ name: string; state: string; country: string; lat: number; lon: number }[]>([]);
   const [open, setOpen] = useState(false);
-  const timer = useRef<any>(null);
-  function handle(v: string) { onChange(v); clearTimeout(timer.current); if (v.length < 2) { setRes([]); setOpen(false); return; } timer.current = setTimeout(async () => { const r = await searchCities(v, near); setRes(r); setOpen(r.length > 0); }, 380); }
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestId = useRef(0);
+  useEffect(() => () => {
+    requestId.current += 1;
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  function handle(v: string) {
+    onChange(v);
+    const currentRequest = ++requestId.current;
+    if (timer.current) clearTimeout(timer.current);
+    if (v.trim().length < 2) { setRes([]); setOpen(false); return; }
+    timer.current = setTimeout(async () => {
+      const results = await searchCities(v.trim(), near);
+      if (currentRequest !== requestId.current) return;
+      setRes(results);
+      setOpen(results.length > 0);
+    }, 380);
+  }
   return <div style={{ position: "relative" }}>
-    <input value={value} onChange={e => handle(e.target.value)} placeholder="輸入城市名稱..." style={INP} onFocus={e => (e.target.style.borderColor = C.rose)} onBlur={e => { e.target.style.borderColor = C.border; setTimeout(() => setOpen(false), 200); }} />
-    {open && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "rgba(20,18,14,0.99)", backdropFilter: "blur(24px)", border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", zIndex: 100, boxShadow: "0 16px 48px rgba(0,0,0,0.5)" }}>
-      {res.map((r, i) => <div key={i} onMouseDown={() => { onSelect(r.name, r.lat, r.lon); onChange(r.name); setOpen(false); }} style={{ padding: "12px 16px", cursor: "pointer", borderBottom: i < res.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }} onMouseEnter={e => (e.currentTarget.style.background = C.surf)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+    <input aria-label="城市或國家" aria-expanded={open} aria-controls="profile-city-results" autoComplete="address-level2" value={value} onChange={e => handle(e.target.value)} placeholder="輸入城市或國家..." style={INP} onFocus={e => { e.target.style.borderColor = C.rose; if (res.length) setOpen(true); }} onBlur={e => { e.target.style.borderColor = C.border; setTimeout(() => setOpen(false), 200); }} />
+    {open && <div id="profile-city-results" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "rgba(20,18,14,0.99)", backdropFilter: "blur(24px)", border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", zIndex: 100, boxShadow: "0 16px 48px rgba(0,0,0,0.5)" }}>
+      {res.map((r, i) => <button type="button" key={`${r.lat}-${r.lon}`} onClick={() => { const label = formatLocation(r.name, r.state, r.country); onSelect(label, r.lat, r.lon); setOpen(false); }} style={{ width:"100%", minHeight:48, padding: "12px 16px", cursor: "pointer", border:"none", borderBottom: i < res.length - 1 ? `1px solid ${C.border}` : "none", background:"transparent", fontFamily:"inherit", textAlign:"left", display: "flex", justifyContent: "space-between", alignItems: "center" }} onMouseEnter={e => (e.currentTarget.style.background = C.surf)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
         <span style={{ fontSize: 14, color: C.text }}>📍 {r.name}</span>
         <span style={{ fontSize: 12, color: C.textMuted }}>{[r.state, r.country].filter(Boolean).join(", ")}</span>
-      </div>)}
+      </button>)}
     </div>}
   </div>;
 }
@@ -133,6 +149,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const [pinLat, setPinLat] = useState<number | null>(profile.latitude ?? null);
   const [pinLon, setPinLon] = useState<number | null>(profile.longitude ?? null);
   const [geocoding, setGeocoding] = useState(false);
+  const geocodeRequest = useRef(0);
   const [ethnicity, setEthnicity] = useState<string[]>(profile.ethnicity || []);
   const [hobbies, setHobbies] = useState<string[]>(profile.hobbies || []);
   const [mbti, setMbti] = useState(profile.mbti || "INFP");
@@ -316,29 +333,68 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   }
 
   function handleAvatar(file: File) { setCropFile({ file, type: "avatar" }); }
-  async function doUploadAvatar(blob: Blob) { setUploading(true); setCropFile(null); try { const f = new File([blob], "avatar.jpg", { type: "image/jpeg" }); const url = await uploadAvatar(f, userId); setAvatarUrl(url); await updateProfile(userId, { avatar_url: url }); onUpdate({ avatar_url: url }); } catch (e) { console.error(e); } setUploading(false); }
-  async function handlePhoto(file: File) { if (photos.length >= 6) return; setUploading(true); try { const url = await uploadPhoto(file, userId, photos.length); setPhotos(p => [...p, url]); } catch (e) { console.error(e); } setUploading(false); }
+  async function doUploadAvatar(blob: Blob) {
+    setUploading(true);
+    setCropFile(null);
+    try {
+      const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+      const url = await uploadAvatar(file, userId);
+      await updateProfile(userId, { avatar_url: url });
+      setAvatarUrl(url);
+      onUpdate({ avatar_url: url });
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : "大頭照上傳失敗，請稍後再試");
+    } finally {
+      setUploading(false);
+    }
+  }
+  async function handlePhoto(file: File) {
+    if (photos.length >= 6) return;
+    setUploading(true);
+    try {
+      const url = await uploadPhoto(file, userId, photos.length);
+      setPhotos(current => [...current, url]);
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : "照片上傳失敗，請稍後再試");
+    } finally {
+      setUploading(false);
+    }
+  }
   async function save() {
     setSaving(true);
-    const patch: Partial<UserProfile> = { display_name: name, bio: bio || null, birthday: birthday || null, location_text: loc || null, ethnicity, hobbies, mbti, gender, looking_for_gender: lookingFor, avatar_url: avatarUrl || null, photos, ...({ occupation: occupation || null, education: education || null, income: income || null, height_cm: heightCm || null, drinking: drinking || null, smoking: smoking || null, exercise: exercise || null, has_pets: hasPets || null, want_children: wantChildren || null, relationship_goal: relGoal || null, love_language: loveLanguage || null } as any) };
-    await updateProfile(userId, patch);
-    const { data: refreshed } = await sb.from("profiles").select("*").eq("id", userId).single();
-    if (refreshed) onUpdate(refreshed as any);
-    setActiveTab("view"); setSaving(false); sound.pop();
+    const patch: Partial<UserProfile> = { display_name: name, bio: bio || null, birthday: birthday || null, location_text: loc || null, latitude: pinLat, longitude: pinLon, ethnicity, hobbies, mbti, gender, looking_for_gender: lookingFor, avatar_url: avatarUrl || null, photos, ...({ occupation: occupation || null, education: education || null, income: income || null, height_cm: heightCm || null, drinking: drinking || null, smoking: smoking || null, exercise: exercise || null, has_pets: hasPets || null, want_children: wantChildren || null, relationship_goal: relGoal || null, love_language: loveLanguage || null } as any) };
+    try {
+      await updateProfile(userId, patch);
+      const { data: refreshed, error } = await sb.from("profiles").select("*").eq("id", userId).single();
+      if (error) throw error;
+      if (refreshed) onUpdate(refreshed as UserProfile);
+      setActiveTab("view");
+      sound.pop();
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : "儲存失敗，請稍後再試");
+    } finally {
+      setSaving(false);
+    }
   }
   async function handleLocate() {
     if (!navigator.geolocation) { alert("你的瀏覽器不支援定位"); return; }
+    const currentRequest = ++geocodeRequest.current;
     setLocating(true);
     try {
       const pos = await new Promise<GeolocationPosition>((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000, enableHighAccuracy: true }));
-      const { city } = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-      if (city) { setLoc(city); setEditText(city); }
+      const place = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+      if (currentRequest !== geocodeRequest.current) return;
+      const locationLabel = formatLocation(place.city, place.state, place.country);
+      if (locationLabel) { setLoc(locationLabel); setEditText(locationLabel); }
       setPinLat(pos.coords.latitude); setPinLon(pos.coords.longitude);
-      await updateProfile(userId, { latitude: pos.coords.latitude, longitude: pos.coords.longitude, location_text: city || loc } as any);
     } catch (e: any) {
       if (e.code === 1) alert("請允許瀏覽器使用定位權限"); else alert("定位失敗，請手動輸入城市");
+    } finally {
+      setLocating(false);
     }
-    setLocating(false);
   }
 
   const edu: Record<string, string> = { high_school: "高中", college: "大專", bachelor: "本科", master: "碩士", phd: "博士" };
@@ -775,7 +831,25 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         <BottomSheet onClose={() => setEditField(null)}>
           <div style={{ padding: "8px 20px 40px" }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>所在地</div>
-            <CityInput value={editText} onChange={setEditText} onSelect={(city, lat, lon) => { setLoc(city); setEditText(city); setPinLat(lat); setPinLon(lon); updateProfile(userId, { latitude: lat, longitude: lon }); }} near={pinLat != null && pinLon != null ? { lat: pinLat, lon: pinLon } : null} />
+            <CityInput
+              value={editText}
+              onChange={value => {
+                geocodeRequest.current += 1;
+                setGeocoding(false);
+                setEditText(value);
+                setPinLat(null);
+                setPinLon(null);
+              }}
+              onSelect={(city, lat, lon) => {
+                geocodeRequest.current += 1;
+                setGeocoding(false);
+                setLoc(city);
+                setEditText(city);
+                setPinLat(lat);
+                setPinLon(lon);
+              }}
+              near={pinLat != null && pinLon != null ? { lat: pinLat, lon: pinLon } : null}
+            />
             <div style={{ display: "flex", gap: 10, marginTop: 16, marginBottom: 16 }}>
               <button onClick={handleLocate} disabled={locating} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(232,54,93,0.08)", border: `1px solid rgba(232,54,93,0.25)`, color: C.rose, fontFamily: "inherit", fontSize: 14, cursor: "pointer", opacity: locating ? .6 : 1 }}>
                 {locating ? "定位中..." : "📍 GPS 定位"}
@@ -789,9 +863,15 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                 longitude={pinLon ?? 121.5654}
                 onChange={(lat, lon) => {
                   setPinLat(lat); setPinLon(lon);
-                  updateProfile(userId, { latitude: lat, longitude: lon });
+                  const currentRequest = ++geocodeRequest.current;
                   setGeocoding(true);
-                  reverseGeocode(lat, lon).then(({ city }) => { if (city) { setLoc(city); setEditText(city); } }).finally(() => setGeocoding(false));
+                  reverseGeocode(lat, lon)
+                    .then(place => {
+                      if (currentRequest !== geocodeRequest.current) return;
+                      const label = formatLocation(place.city, place.state, place.country);
+                      if (label) { setLoc(label); setEditText(label); }
+                    })
+                    .finally(() => { if (currentRequest === geocodeRequest.current) setGeocoding(false); });
                 }}
               />
             </div>

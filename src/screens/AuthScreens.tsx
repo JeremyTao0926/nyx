@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { sb, C, sound, calcAge, MBTI_LIST, HOBBIES, lookupEmailByUsername, checkUsernameAvailable, reverseGeocode, uploadAvatar, compressImage } from "../utils";
+import { sb, C, sound, calcAge, MBTI_LIST, HOBBIES, lookupEmailByUsername, checkUsernameAvailable, reverseGeocode, searchCities, formatLocation } from "../utils";
 import { CherryBlossoms } from "../components/Atoms";
 import { ImageCropper } from "../components/ImageCropper";
+import { clearPendingAvatar, savePendingAvatar } from "../pendingAvatar";
 
 /* ─── Shared input style ─────────────────────────────── */
 const INP = {
@@ -265,29 +266,66 @@ function Step5({ onNext }: { onNext: (avatarUrl: string, blob: Blob) => void }) 
 }
 
 // Step 6: City (optional but recommended)
-function Step6({ onNext, userId }: { onNext: (city: string, lat?: number, lon?: number) => void; userId: string }) {
+function Step6({ onNext }: { onNext: (city: string, lat?: number, lon?: number) => void }) {
   const [city, setCity] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [near, setNear] = useState<{ lat: number; lon: number } | null>(null);
+  const [results, setResults] = useState<Awaited<ReturnType<typeof searchCities>>>([]);
+  const [resultsOpen, setResultsOpen] = useState(false);
   const [locating, setLocating] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchRequest = useRef(0);
+
+  useEffect(() => () => {
+    searchRequest.current += 1;
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+  }, []);
+
+  function handleCityInput(value: string) {
+    setCity(value);
+    setCoords(null);
+    const requestId = ++searchRequest.current;
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (value.trim().length < 2) { setResults([]); setResultsOpen(false); return; }
+    searchTimer.current = setTimeout(async () => {
+      const matches = await searchCities(value.trim(), near);
+      if (requestId !== searchRequest.current) return;
+      setResults(matches);
+      setResultsOpen(matches.length > 0);
+    }, 350);
+  }
 
   async function locate() {
     if (!navigator.geolocation) return;
     setLocating(true);
     try {
       const pos = await new Promise<GeolocationPosition>((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000 }));
-      const { city: c } = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-      if (c) setCity(c);
-      setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-    } catch { }
-    setLocating(false);
+      const place = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+      const label = formatLocation(place.city, place.state, place.country);
+      if (label) setCity(label);
+      const located = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      setCoords(located); setNear(located); setResultsOpen(false);
+    } catch {
+      alert("定位失敗，請允許定位權限或手動輸入城市");
+    } finally {
+      setLocating(false);
+    }
   }
 
   return <>
     <div style={{ fontSize: 24, fontWeight: 800, color: C.text, marginBottom: 6 }}>你在哪裡？</div>
     <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 32 }}>幫你找到附近的人</div>
-    <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-      <input value={city} onChange={e => { setCity(e.target.value); setCoords(null); }} placeholder="輸入城市名稱" style={{ ...INP, flex: 1 }} onFocus={e => (e.target.style.borderColor = C.borderFocus)} onBlur={e => (e.target.style.borderColor = C.border)} />
-      <button onClick={locate} disabled={locating} style={{ padding: "14px 16px", borderRadius: 14, background: C.roseSoft, border: `1px solid rgba(232,54,93,0.25)`, color: C.rose, cursor: "pointer", fontFamily: "inherit", fontSize: 18, flexShrink: 0, opacity: locating ? .6 : 1 }}>{locating ? "⏳" : "📍"}</button>
+    <div style={{ display: "flex", gap: 10, marginBottom: 20, position:"relative" }}>
+      <div style={{ flex:1, minWidth:0, position:"relative" }}>
+      <input aria-label="城市或國家" aria-expanded={resultsOpen} aria-controls="registration-city-results" autoComplete="address-level2" value={city} onChange={e => handleCityInput(e.target.value)} placeholder="輸入城市或國家" style={{ ...INP, width:"100%" }} onFocus={e => { e.target.style.borderColor = C.borderFocus; if (results.length) setResultsOpen(true); }} onBlur={e => { e.target.style.borderColor = C.border; setTimeout(() => setResultsOpen(false), 180); }} />
+      {resultsOpen && <div id="registration-city-results" style={{ position:"absolute", top:"calc(100% + 5px)", left:0, right:0, zIndex:20, maxHeight:190, overflowY:"auto", background:"rgba(20,18,14,.98)", border:`1px solid ${C.border}`, borderRadius:14, boxShadow:"0 16px 40px rgba(0,0,0,.55)" }}>
+        {results.map((result, index) => <button key={`${result.lat}-${result.lon}`} type="button" onClick={() => { const label=formatLocation(result.name,result.state,result.country); setCity(label); setCoords({lat:result.lat,lon:result.lon}); setResultsOpen(false); }} style={{ width:"100%", minHeight:48, padding:"10px 12px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, background:"transparent", border:"none", borderBottom:index<results.length-1?`1px solid ${C.border}`:"none", color:C.text, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
+          <span style={{ fontSize:13.5, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>📍 {result.name}</span>
+          <span style={{ fontSize:11, color:C.textMuted, textAlign:"right" }}>{[result.state,result.country].filter(Boolean).join(", ")}</span>
+        </button>)}
+      </div>}
+      </div>
+      <button type="button" aria-label="使用目前位置" onClick={locate} disabled={locating} style={{ minWidth:48, minHeight:48, padding: "12px", borderRadius: 14, background: C.roseSoft, border: `1px solid rgba(232,54,93,0.25)`, color: C.rose, cursor: "pointer", fontFamily: "inherit", fontSize: 18, flexShrink: 0, opacity: locating ? .6 : 1 }}>{locating ? "⏳" : "📍"}</button>
     </div>
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <button onClick={() => onNext(city, coords?.lat, coords?.lon)}
@@ -346,14 +384,12 @@ function Step8({ onNext }: { onNext: (hobbies: string[]) => void }) {
 }
 
 /* ─── Registration flow controller ───────────────────── */
-function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
+function RegisterFlow({ onBack }: { onBack: () => void }) {
   const [step, setStep] = useState(1);
-  const [sent, setSent] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [sentEmail, setSentEmail] = useState<string | null>(null);
   // Collected data
   const data = useRef({ email: "", pass: "", name: "", username: "", birthday: "", gender: "male" as "male" | "female", lookingFor: "female", avatarUrl: "", avatarBlob: null as Blob | null, city: "", lat: undefined as number | undefined, lon: undefined as number | undefined, mbti: "INFP", hobbies: [] as string[] });
 
-  const TOTAL_REQUIRED = 5; // steps 1-5 have progress bar
   const TOTAL = 8;
 
   // Hinge-style swipe right to go back a step (or out, on step 1)
@@ -379,53 +415,48 @@ function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => vo
     data.current.hobbies = hobbies;
     const d = data.current;
     try {
+      if (d.avatarBlob) await savePendingAvatar(d.email, d.avatarBlob);
       // 1. Sign up
       const { data: authData, error } = await sb.auth.signUp({
         email: d.email, password: d.pass,
-        options: { data: { username: d.username, display_name: d.name } }
+        options: { data: {
+          username: d.username,
+          display_name: d.name,
+          birthday: d.birthday,
+          gender: d.gender,
+          mbti: d.mbti,
+          registration_profile: {
+            display_name: d.name,
+            birthday: d.birthday,
+            gender: d.gender,
+            looking_for_gender: d.lookingFor,
+            location_text: d.city || null,
+            latitude: d.lat ?? null,
+            longitude: d.lon ?? null,
+            mbti: d.mbti,
+            hobbies: d.hobbies,
+            onboarding_done: true,
+          },
+        } }
       });
       if (error) throw error;
       const uid = authData.user?.id;
       if (!uid) throw new Error("無法取得用戶 ID，請重試");
-
-      // 2. Upload avatar with real uid
-      let finalAvatarUrl: string | null = null;
-      if (d.avatarBlob) {
-        try {
-          const f = new File([d.avatarBlob], "avatar.jpg", { type: "image/jpeg" });
-          finalAvatarUrl = await uploadAvatar(f, uid);
-        } catch { /* proceed without avatar */ }
-      }
-
-      // 3. Wait for Supabase trigger to create base profile row
-      await new Promise(r => setTimeout(r, 800));
-
-      // 4. Update profile (trigger already created the row)
-      const profilePayload = {
-        username: d.username, display_name: d.name, email: d.email,
-        birthday: d.birthday || null, gender: d.gender, looking_for_gender: d.lookingFor,
-        avatar_url: finalAvatarUrl, location_text: d.city || null,
-        latitude: d.lat ?? null, longitude: d.lon ?? null,
-        mbti: d.mbti, hobbies: d.hobbies, onboarding_done: true,
-      };
-      const { error: updateErr } = await sb.from("profiles").update(profilePayload).eq("id", uid);
-      if (updateErr) {
-        // Trigger may not have run yet — fall back to upsert
-        await sb.from("profiles").upsert({ id: uid, ...profilePayload }, { onConflict: "id" });
-      }
-
-      setSent(true);
-    } catch (e: any) { alert(e.message || "註冊失敗，請重試"); }
+      setSentEmail(d.email);
+    } catch (error) {
+      await clearPendingAvatar(d.email).catch(() => undefined);
+      alert(error instanceof Error ? error.message : "註冊失敗，請重試");
+    }
   }
 
-  if (sent) return (
+  if (sentEmail) return (
     <div style={{ textAlign: "center", animation: "fadeUp .4s ease" }}>
       <div style={{ fontSize: 60, marginBottom: 20 }}>📧</div>
       <div style={{ fontSize: 22, fontWeight: 700, color: C.text, marginBottom: 12 }}>確認信已發出！</div>
       <div style={{ fontSize: 14, color: C.textSub, lineHeight: 1.7, marginBottom: 28 }}>
-        請查看 <span style={{ color: C.rose }}>{data.current.email}</span> 的收件箱，<br />點擊確認連結後即可開始使用。
+        請查看 <span style={{ color: C.rose }}>{sentEmail}</span> 的收件箱，<br />點擊確認連結後即可開始使用。
       </div>
-      <button onClick={onBack} style={{ padding: "13px 36px", borderRadius: 50, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>返回登入</button>
+      <button type="button" onClick={onBack} style={{ minHeight:46, padding: "0 36px", borderRadius: 50, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>返回登入</button>
     </div>
   );
 
@@ -433,7 +464,7 @@ function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => vo
     <div onTouchStart={onSwipeTouchStart} onTouchMove={onSwipeTouchMove} onTouchEnd={onSwipeTouchEnd}
       style={{ touchAction: "pan-y", transform: `translateX(${swipeDx}px)`, transition: swipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none" }}>
       <div style={{ display: "flex", alignItems: "center", marginBottom: 24 }}>
-        <button onClick={step === 1 ? onBack : () => setStep(s => s - 1)} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", fontFamily: "inherit", marginRight: 12, lineHeight: 1 }}>‹</button>
+        <button onClick={step === 1 ? onBack : () => setStep(s => s - 1)} aria-label={step === 1 ? "返回登入" : "上一步"} style={{ width:44, height:44, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", fontFamily: "inherit", marginLeft:-10, marginRight:8, lineHeight: 1 }}>‹</button>
         <div style={{ flex: 1 }}><StepBar step={step} total={TOTAL} /></div>
       </div>
       {step === 1 && <Step1 onNext={(email, pass) => { data.current.email = email; data.current.pass = pass; setStep(2); }} />}
@@ -441,7 +472,7 @@ function RegisterFlow({ onDone, onBack }: { onDone: () => void; onBack: () => vo
       {step === 3 && <Step3 onNext={g => { data.current.gender = g; setStep(4); }} />}
       {step === 4 && <Step4 onNext={lf => { data.current.lookingFor = lf; setStep(5); }} />}
       {step === 5 && <Step5 onNext={(url, blob) => { data.current.avatarUrl = url; data.current.avatarBlob = blob; setStep(6); }} />}
-      {step === 6 && <Step6 userId="temp" onNext={(city, lat, lon) => { data.current.city = city; data.current.lat = lat; data.current.lon = lon; setStep(7); }} />}
+      {step === 6 && <Step6 onNext={(city, lat, lon) => { data.current.city = city; data.current.lat = lat; data.current.lon = lon; setStep(7); }} />}
       {step === 7 && <Step7 onNext={mbti => { data.current.mbti = mbti; setStep(8); }} />}
       {step === 8 && <Step8 onNext={finalize} />}
     </div>
@@ -495,7 +526,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
         {/* Content */}
         <div style={{ position:"relative", zIndex:2, height:"100%", display:"flex", flexDirection:"column", justifyContent:"flex-end", padding:"0 24px 40px" }}>
           {/* Back button */}
-          <button onClick={() => setMode("landing")} style={{ position:"absolute", top:52, left:20, background:"rgba(12,10,8,0.5)", backdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"50%", width:38, height:38, color:"#fff", fontSize:20, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center" }}>‹</button>
+          {mode === "login" && <button onClick={() => setMode("landing")} aria-label="返回首頁" style={{ position:"absolute", top:48, left:16, background:"rgba(12,10,8,0.5)", backdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"50%", width:44, height:44, color:"#fff", fontSize:20, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center" }}>‹</button>}
 
           {/* Glass card */}
           <div style={{ background:"rgba(20,18,14,0.82)", backdropFilter:"blur(24px)", borderRadius:24, border:"1px solid rgba(201,168,76,0.15)", padding:"28px 24px 24px", animation:"fadeUp .4s ease" }}>
@@ -510,7 +541,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
                 </div>
               </>
             ) : (
-              <RegisterFlow onDone={onLogin} onBack={() => setMode("login")} />
+              <RegisterFlow onBack={() => setMode("login")} />
             )}
           </div>
         </div>
@@ -526,7 +557,7 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     const t = [setTimeout(() => setPh(1), 100), setTimeout(() => setPh(2), 500), setTimeout(() => setPh(3), 900), setTimeout(onDone, 2600)];
     return () => t.forEach(clearTimeout);
-  }, []);
+  }, [onDone]);
   useEffect(() => {
     const c = cvs.current!; if (!c) return;
     const ctx = c.getContext("2d")!; let raf: number;

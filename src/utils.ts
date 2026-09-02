@@ -217,12 +217,14 @@ export async function loadHistory(cid: string): Promise<GMsg[]> {
   if (!data?.nyx_history) return []; try { return JSON.parse(data.nyx_history); } catch { return []; }
 }
 export async function getProfile(uid: string): Promise<UserProfile | null> {
-  const { data } = await sb.from("profiles").select("*").eq("id", uid).maybeSingle();
+  const { data, error } = await sb.from("profiles").select("*").eq("id", uid).maybeSingle();
+  if (error) throw error;
   return data as UserProfile | null;
 }
 export async function updateProfile(uid: string, patch: Partial<UserProfile>) {
   if (typeof patch.bio === "string" && patch.bio.trim()) await moderateContent({ text: patch.bio });
-  await sb.from("profiles").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", uid);
+  const { error } = await sb.from("profiles").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", uid);
+  if (error) throw error;
 }
 export async function moderateContent(input: { text?: string; image?: string }) {
   const { data, error } = await sb.functions.invoke("moderate-content", { body: input });
@@ -233,39 +235,65 @@ export async function uploadAvatar(file: File, uid: string): Promise<string> {
   const compressed = await compressImage(file, 400, 0.85);
   await moderateContent({ image: await toB64(compressed) });
   const ext = "jpg"; const path = `${uid}/avatar_${Date.now()}.${ext}`;
-  await sb.storage.from("photos").upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
+  const { error } = await sb.storage.from("photos").upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
+  if (error) throw error;
   return sb.storage.from("photos").getPublicUrl(path).data.publicUrl;
 }
 export async function uploadCover(file: File, uid: string): Promise<string> {
   const compressed = await compressImage(file, 1200, 0.82);
   await moderateContent({ image: await toB64(compressed) });
   const path = `${uid}/cover_${Date.now()}.jpg`;
-  await sb.storage.from("photos").upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
+  const { error } = await sb.storage.from("photos").upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
+  if (error) throw error;
   return sb.storage.from("photos").getPublicUrl(path).data.publicUrl;
 }
 export async function uploadPhoto(file: File, uid: string, idx: number): Promise<string> {
   const compressed = await compressImage(file, 900, 0.82);
   await moderateContent({ image: await toB64(compressed) });
   const path = `${uid}/photo_${idx}_${Date.now()}.jpg`;
-  await sb.storage.from("photos").upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
+  const { error } = await sb.storage.from("photos").upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
+  if (error) throw error;
   return sb.storage.from("photos").getPublicUrl(path).data.publicUrl;
 }
 export async function recordSwipe(swiperId: string, swipedId: string, dir: "like" | "pass" | "superlike"): Promise<boolean> {
-  // Reset daily count if needed
-  await sb.rpc("reset_daily_likes_if_needed", { uid: swiperId });
-  if (dir !== "pass") {
-    // Increment daily likes
-    await sb.from("profiles").update({ daily_likes_used: sb.rpc("increment", {}) } as any).eq("id", swiperId);
-    // Simpler approach:
-    const { data: p } = await sb.from("profiles").select("daily_likes_used").eq("id", swiperId).single();
-    await sb.from("profiles").update({ daily_likes_used: (p?.daily_likes_used || 0) + 1 }).eq("id", swiperId);
+  const { data, error } = await sb.rpc("record_swipe_action", { p_swiped: swipedId, p_direction: dir });
+  if (!error) return data === true;
+
+  // Temporary compatibility for environments where schema_v3.sql has not
+  // been deployed yet. Never bypass a real server-side limit or validation.
+  if (error.code !== "PGRST202") throw error;
+  const { error: resetError } = await sb.rpc("reset_daily_likes_if_needed", { uid: swiperId });
+  if (resetError) throw resetError;
+  const { data: existingSwipe, error: existingError } = await sb.from("swipes")
+    .select("direction")
+    .eq("swiper_id", swiperId)
+    .eq("swiped_id", swipedId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existingSwipe?.direction === dir) {
+    if (dir === "pass") return false;
+    const { data: matched, error: matchError } = await sb.rpc("check_match", { p_swiper: swiperId, p_swiped: swipedId });
+    if (matchError) throw matchError;
+    return matched === true;
   }
-  await sb.from("swipes").upsert({ swiper_id: swiperId, swiped_id: swipedId, direction: dir });
   if (dir !== "pass") {
-    const { data } = await sb.rpc("check_match", { p_swiper: swiperId, p_swiped: swipedId });
-    return data === true;
+    const field = dir === "superlike" ? "superlike_used_today" : "daily_likes_used";
+    const { data: usage, error: readError } = await sb.from("profiles").select(`${field},is_premium`).eq("id", swiperId).single();
+    if (readError) throw readError;
+    const usageRow = usage as Record<string, number | boolean | null> | null;
+    const current = Number(usageRow?.[field] || 0);
+    const premium = usageRow?.is_premium === true;
+    if (dir === "like" && !premium && current >= DAILY_LIKE_LIMIT) throw new Error("今日喜歡次數已用完");
+    if (dir === "superlike" && current >= (premium ? 5 : 1)) throw new Error("今日優先認識次數已用完");
+    const { error: usageError } = await sb.from("profiles").update({ [field]: current + 1 }).eq("id", swiperId);
+    if (usageError) throw usageError;
   }
-  return false;
+  const { error: swipeError } = await sb.from("swipes").upsert({ swiper_id: swiperId, swiped_id: swipedId, direction: dir });
+  if (swipeError) throw swipeError;
+  if (dir === "pass") return false;
+  const { data: matched, error: matchError } = await sb.rpc("check_match", { p_swiper: swiperId, p_swiped: swipedId });
+  if (matchError) throw matchError;
+  return matched === true;
 }
 export async function getDailyLikeStatus(uid: string): Promise<DailyLikeStatus> {
   await sb.rpc("reset_daily_likes_if_needed", { uid });
@@ -302,7 +330,7 @@ function scoreProfile(p: any, myProfile: UserProfile): number {
     else if (hrs < 720) score += 5;
   }
   // Distance: closer = higher score
-  if (myProfile.latitude && myProfile.longitude && p.latitude && p.longitude) {
+  if (myProfile.latitude != null && myProfile.longitude != null && p.latitude != null && p.longitude != null) {
     const dist = haversine(myProfile.latitude, myProfile.longitude, p.latitude, p.longitude);
     if (dist < 10) score += 30;
     else if (dist < 50) score += 20;
@@ -327,7 +355,25 @@ function scoreProfile(p: any, myProfile: UserProfile): number {
   return score;
 }
 
-export async function getExploreProfiles(uid: string, p: UserProfile): Promise<ExploreProfile[]> {
+export type ExploreSortMode = "recommend" | "nearby" | "new";
+
+export function sortExploreCandidates<T extends { score: number; distance?: number; createdAt?: string | null }>(items: T[], mode: ExploreSortMode): T[] {
+  return [...items].sort((a, b) => {
+    if (mode === "nearby") {
+      const distanceA = a.distance ?? Number.POSITIVE_INFINITY;
+      const distanceB = b.distance ?? Number.POSITIVE_INFINITY;
+      if (distanceA !== distanceB) return distanceA - distanceB;
+    }
+    if (mode === "new") {
+      const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (createdA !== createdB) return createdB - createdA;
+    }
+    return b.score - a.score;
+  });
+}
+
+export async function getExploreProfiles(uid: string, p: UserProfile, mode: ExploreSortMode = "recommend"): Promise<ExploreProfile[]> {
   const { data: swiped }  = await sb.from("swipes").select("swiped_id").eq("swiper_id", uid);
   const { data: blocked } = await sb.from("blocked_users").select("blocked_id").eq("blocker_id", uid);
   const { data: matched } = await sb.from("matches").select("user1_id,user2_id").or(`user1_id.eq.${uid},user2_id.eq.${uid}`);
@@ -337,46 +383,60 @@ export async function getExploreProfiles(uid: string, p: UserProfile): Promise<E
   if (excl.length > 0) q = q.not("id", "in", `(${excl.join(",")})`);
   if (p.looking_for_gender && p.looking_for_gender !== "both") q = q.eq("gender", p.looking_for_gender);
   if (p.filter_country) q = q.eq("country", p.filter_country);
+  const localDate = (date: Date) => [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
   // Age filter — always include users with no birthday (NULL)
   if (p.filter_min_age && p.filter_min_age > 0) {
     const maxBirthday = new Date();
     maxBirthday.setFullYear(maxBirthday.getFullYear() - p.filter_min_age);
-    const maxDate = maxBirthday.toISOString().slice(0,10);
+    const maxDate = localDate(maxBirthday);
     q = q.or(`birthday.is.null,birthday.lte.${maxDate}`);
   }
   if (p.filter_max_age && p.filter_max_age < 99) {
     const minBirthday = new Date();
     minBirthday.setFullYear(minBirthday.getFullYear() - p.filter_max_age - 1);
-    const minDate = minBirthday.toISOString().slice(0,10);
+    minBirthday.setDate(minBirthday.getDate() + 1);
+    const minDate = localDate(minBirthday);
     q = q.or(`birthday.is.null,birthday.gte.${minDate}`);
   }
   // Exclude banned users
   q = q.eq("is_banned", false);
-  q = q.order("last_active", { ascending: false }).limit(50);
-  const { data } = await q;
+  q = q.order(mode === "new" ? "created_at" : "last_active", { ascending: false }).limit(100);
+  const { data, error } = await q;
+  if (error) throw error;
   if (!data) return [];
   // Distance filter: only enforced when both sides have coordinates and the
   // user hasn't dragged the slider to "unlimited" (>=500km)
   const maxDist = p.filter_max_distance || 100;
   const withinRange = (r: any) => {
     if (maxDist >= 500) return true;
-    if (!(p.latitude && p.longitude && r.latitude && r.longitude)) return true;
+    if (p.latitude == null || p.longitude == null || r.latitude == null || r.longitude == null) return true;
     return haversine(p.latitude, p.longitude, r.latitude, r.longitude) <= maxDist;
   };
-  // Score and sort
-  const scored = data
+  // Each Explore tab has its own primary order: recommendation score,
+  // physical distance, or account creation time.
+  const candidates = data
     .filter(withinRange)
-    .map((r: any) => ({ r, score: scoreProfile(r, p) }))
-    .sort((a, b) => b.score - a.score)
+    .map((r: any) => ({
+      r,
+      score: scoreProfile(r, p),
+      distance: p.latitude != null && p.longitude != null && r.latitude != null && r.longitude != null
+        ? haversine(p.latitude, p.longitude, r.latitude, r.longitude)
+        : undefined,
+      createdAt: r.created_at || null,
+    }));
+  const scored = sortExploreCandidates(candidates, mode)
     .slice(0, 30)
-    .map(({ r }: any) => ({
+    .map(({ r, distance }: any) => ({
       id: r.id, name: r.display_name || r.username, age: r.birthday ? calcAge(r.birthday) : null,
       mbti: r.mbti || "INFP", bio: r.bio || "", avatar: r.avatar_url || "",
       is_premium: r.is_premium || false, premium_plan: r.premium_plan || null,
       photos: r.photos || [], location: r.location_text || "", country: r.country || "",
       ethnicity: r.ethnicity || [], hobbies: r.hobbies || [], verified: r.is_verified || false,
-      distance: p.latitude && p.longitude && r.latitude && r.longitude
-        ? haversine(p.latitude, p.longitude, r.latitude, r.longitude) : undefined,
+      distance,
       latitude: r.latitude ?? null, longitude: r.longitude ?? null,
       occupation: r.occupation || null, education: r.education || null,
       income: r.income || null, height_cm: r.height_cm || null,
@@ -422,10 +482,17 @@ export async function loadChatMsgs(matchId: string): Promise<ChatMsg[]> {
 }
 export async function sendChatMsg(matchId: string, senderId: string, content: string, isImage = false) {
   if (!isImage) await moderateContent({ text: content });
-  await sb.from("chat_messages").insert({ match_id: matchId, sender_id: senderId, content, is_image: isImage });
+  const { error } = await sb.from("chat_messages").insert({ match_id: matchId, sender_id: senderId, content, is_image: isImage });
+  if (error) throw error;
 }
-export async function blockUser(a: string, b: string) { await sb.from("blocked_users").upsert({ blocker_id: a, blocked_id: b }); }
-export async function reportUser(a: string, b: string, reason: string, category = "other") { await sb.from("reports").insert({ reporter_id: a, reported_id: b, reason, category }); }
+export async function blockUser(a: string, b: string) {
+  const { error } = await sb.from("blocked_users").upsert({ blocker_id: a, blocked_id: b });
+  if (error) throw error;
+}
+export async function reportUser(a: string, b: string, reason: string, category = "other") {
+  const { error } = await sb.from("reports").insert({ reporter_id: a, reported_id: b, reason, category });
+  if (error) throw error;
+}
 export async function deleteAccount(uid: string) {
   // Actually deletes the auth.users record (via a service-role edge
   // function), not just the profiles row — Apple 5.1.1(v) requires account
@@ -532,14 +599,18 @@ export function detectMode(t: string, img: boolean): "analysis" | "chat" {
   return /她說|他說|對方|截圖|聊天記錄|怎麼回|幫我分析|應該怎|這句|她的意思|有沒有喜歡|完整分析|詳細分析|興趣度|回法/.test(t) ? "analysis" : "chat";
 }
 export function calcAge(b: string | null): number | null {
-  if (!b) return null; const born = new Date(b), today = new Date();
+  if (!b) return null;
+  const born = parseBirthday(b);
+  if (!born) return null;
+  const today = new Date();
   let age = today.getFullYear() - born.getFullYear();
   if (today < new Date(today.getFullYear(), born.getMonth(), born.getDate())) age--;
   return age;
 }
 export function zodiacSign(b: string | null): string | null {
   if (!b) return null;
-  const d = new Date(b);
+  const d = parseBirthday(b);
+  if (!d) return null;
   const m = d.getMonth() + 1, day = d.getDate();
   if ((m === 12 && day >= 22) || (m === 1 && day <= 19)) return "魔羯座";
   if ((m === 1 && day >= 20) || (m === 2 && day <= 18)) return "水瓶座";
@@ -555,6 +626,20 @@ export function zodiacSign(b: string | null): string | null {
   if ((m === 11 && day >= 22) || (m === 12 && day <= 21)) return "射手座";
   return null;
 }
+
+function parseBirthday(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const date = new Date(year, month, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) return null;
+    return date;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 export function haversine(la1: number, lo1: number, la2: number, lo2: number): number {
   const R = 6371, dLa = (la2 - la1) * Math.PI / 180, dLo = (lo2 - lo1) * Math.PI / 180;
   const a = Math.sin(dLa / 2) ** 2 + Math.cos(la1 * Math.PI / 180) * Math.cos(la2 * Math.PI / 180) * Math.sin(dLo / 2) ** 2;
@@ -568,6 +653,20 @@ export const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 export const detMs = (t: string) => Math.min(800 + t.length * 10, 2800);
 export const casMs = (t: string) => Math.min(280 + t.length * 5, 1300);
 export const fmtTime = (d: Date) => `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+export function onlineStatus(lastActive: string | null, hidden: boolean, nowMs = Date.now()): { label: string; color: string; dot: boolean } {
+  if (hidden || !lastActive) return { label: "", color: "transparent", dot: false };
+  const activeAt = new Date(lastActive);
+  if (Number.isNaN(activeAt.getTime())) return { label: "", color: "transparent", dot: false };
+  const now = new Date(nowMs);
+  const diff = Math.max(0, now.getTime() - activeAt.getTime());
+  if (diff < 5 * 60 * 1000) return { label: "在線", color: "#06d6a0", dot: true };
+  if (diff < 60 * 60 * 1000) return { label: `${Math.floor(diff / 60000)}分鐘前`, color: "rgba(200,185,230,0.45)", dot: false };
+  if (activeAt.toDateString() === now.toDateString()) return { label: `今天 ${fmtTime(activeAt)}`, color: "rgba(200,185,230,0.45)", dot: false };
+  const calendarDay = (date: Date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const days = Math.max(1, Math.round((calendarDay(now) - calendarDay(activeAt)) / 86400000));
+  if (days === 1) return { label: `昨天 ${fmtTime(activeAt)}`, color: "rgba(200,185,230,0.4)", dot: false };
+  return { label: `${days}天前`, color: "rgba(200,185,230,0.35)", dot: false };
+}
 export function fmtDate(d: Date): string {
   const today = new Date(); const yest = new Date(today); yest.setDate(yest.getDate() - 1);
   if (d.toDateString() === today.toDateString()) return "今天";
@@ -585,14 +684,22 @@ export function fmtMsgTime(d: Date): string {
 }
 
 /* ─── Reverse geocoding ──────────────────────────────── */
-export async function reverseGeocode(lat: number, lon: number): Promise<{ city: string; country: string }> {
+export function formatLocation(city: string, state = "", country = "") {
+  return [city, state && state !== city && state !== country ? state : "", country && country !== city ? country : ""]
+    .filter(Boolean)
+    .join(", ");
+}
+
+export async function reverseGeocode(lat: number, lon: number): Promise<{ city: string; state: string; country: string }> {
   try {
     const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&accept-language=zh-TW`, { headers: { "User-Agent": "NYX-App/1.0" } });
     const d = await r.json(); const a = d.address || {};
     const city = a.city || a.town || a.village || a.municipality || a.county || a.state_district || a.state || "";
     const cm: Record<string, string> = { "Taiwan": "台灣", "Hong Kong": "香港", "Japan": "日本", "South Korea": "韓國", "Singapore": "新加坡", "Malaysia": "馬來西亞", "United States": "美國", "Canada": "加拿大", "United Kingdom": "英國", "Australia": "澳洲", "China": "中國大陸" };
-    return { city, country: cm[a.country] || a.country || "" };
-  } catch { return { city: "", country: "" }; }
+    const country = cm[a.country] || a.country || "";
+    const state = a.state && a.state !== city && a.state !== country ? a.state : "";
+    return { city, state, country };
+  } catch { return { city: "", state: "", country: "" }; }
 }
 export async function searchCities(q: string, near?: { lat: number; lon: number } | null): Promise<{ name: string; state: string; country: string; lat: number; lon: number }[]> {
   if (q.length < 2) return [];
@@ -627,16 +734,14 @@ export async function searchCities(q: string, near?: { lat: number; lon: number 
     // matches (Nominatim's own alternate-name matching, e.g. a differently
     // scripted city name) keep Nominatim's original relevance order rather
     // than being reshuffled by raw distance alone.
-    if (near) {
-      const qLower = q.trim().toLowerCase();
-      const isTextMatch = (r: any) => r.name.toLowerCase().startsWith(qLower);
-      results.sort((x: any, y: any) => {
-        const xm = isTextMatch(x), ym = isTextMatch(y);
-        if (xm !== ym) return xm ? -1 : 1;
-        if (xm && ym) return haversine(near.lat, near.lon, x.lat, x.lon) - haversine(near.lat, near.lon, y.lat, y.lon);
-        return x._rank - y._rank;
-      });
-    }
+    const qLower = q.trim().toLowerCase();
+    const isTextMatch = (result: any) => result.name.toLowerCase().startsWith(qLower);
+    results.sort((x: any, y: any) => {
+      const xm = isTextMatch(x), ym = isTextMatch(y);
+      if (xm !== ym) return xm ? -1 : 1;
+      if (near && xm && ym) return haversine(near.lat, near.lon, x.lat, x.lon) - haversine(near.lat, near.lon, y.lat, y.lon);
+      return x._rank - y._rank;
+    });
     return results.map(({ _rank, ...rest }: any) => rest);
   } catch { return []; }
 }

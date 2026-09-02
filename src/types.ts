@@ -55,6 +55,7 @@ export type UserProfile = {
   filter_country: string | null;
   filter_ethnicity: string[] | null;
   is_verified: boolean;
+  onboarding_done?: boolean;
 };
 
 export type ExploreProfile = {

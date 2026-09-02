@@ -1,8 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { C, sb } from "../utils";
 import type { UserProfile } from "../types";
 import { isIOSNative } from "../platform";
-import { purchaseIOSPlan, restoreIOSPurchases } from "../purchases";
+import { getIOSPlanPrices, purchaseIOSPlan, restoreIOSPurchases } from "../purchases";
 
 const PLANS = [
   {
@@ -43,6 +43,36 @@ const PLANS = [
 
 export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile?: UserProfile }) {
   const [loading, setLoading] = useState<string | null>(null);
+  const [iosPrices, setIOSPrices] = useState<Record<string, string>>({});
+  const [iosPriceError, setIOSPriceError] = useState(false);
+
+  useEffect(() => {
+    if (!isIOSNative) return;
+    let active = true;
+    sb.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      getIOSPlanPrices(user.id)
+        .then(prices => { if (active) setIOSPrices(prices); })
+        .catch(error => {
+          console.error("Unable to load App Store prices", error);
+          if (active) setIOSPriceError(true);
+        });
+    });
+    return () => { active = false; };
+  }, []);
+
+  async function retryIOSPrices() {
+    setIOSPriceError(false);
+    setIOSPrices({});
+    try {
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) throw new Error("請先登入");
+      setIOSPrices(await getIOSPlanPrices(user.id));
+    } catch (error) {
+      console.error("Unable to load App Store prices", error);
+      setIOSPriceError(true);
+    }
+  }
 
   // Hinge-style swipe right to go back
   const swipeStartX = useRef(0);
@@ -106,10 +136,10 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
       }
 
       // Redirect to Stripe Checkout
-      window.location.href = data.url;
+      window.location.assign(data.url);
     } catch (e) {
       console.error(e);
-      alert("發生錯誤，請稍後再試");
+      alert(e instanceof Error ? e.message : "發生錯誤，請稍後再試");
       setLoading(null);
     }
   }
@@ -122,7 +152,7 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
           boxShadow: swipeDx > 10 ? "-10px 0 30px rgba(0,0,0,0.6)" : "none" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", padding: "16px 18px 8px", flexShrink: 0 }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>‹</button>
+        <button type="button" aria-label="返回" onClick={onBack} style={{ width:44, height:44, display:"flex", alignItems:"center", justifyContent:"center", background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>‹</button>
       </div>
 
       <div style={{ padding: "0 20px 48px" }}>
@@ -168,7 +198,7 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
                 <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 3 }}>每月自動續費，可隨時取消</div>
               </div>
               <div style={{ textAlign: "right" as const }}>
-                <span style={{ fontSize: 26, fontWeight: 800, color: plan.color }}>{plan.price}</span>
+                <span style={{ fontSize: 26, fontWeight: 800, color: plan.color }}>{isIOSNative ? (iosPrices[plan.id] || "—") : plan.price}</span>
                 <span style={{ fontSize: 13, color: C.textMuted }}>{plan.period}</span>
               </div>
             </div>
@@ -182,9 +212,11 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
 
             <button
               onClick={() => handleUpgrade(plan)}
-              disabled={loading === plan.id || (profile as any)?.premium_plan === plan.id}
+              disabled={loading === plan.id || (profile as any)?.premium_plan === plan.id || (isIOSNative && !iosPrices[plan.id])}
               style={{ width: "100%", padding: "14px", borderRadius: 50, background: loading === plan.id ? "rgba(255,255,255,0.06)" : plan.gradient, border: "none", color: loading === plan.id ? C.textMuted : (plan.id === "premium" ? "#12100C" : "#fff"), fontFamily: "inherit", fontSize: 15, fontWeight: 800, cursor: loading === plan.id ? "default" : "pointer", marginTop: 16, transition: "all .2s", boxShadow: loading === plan.id ? "none" : `0 4px 20px ${plan.color}44` }}>
               {loading === plan.id ? "處理中..."
+                : isIOSNative && iosPriceError ? "App Store 暫時無法連線"
+                : isIOSNative && !iosPrices[plan.id] ? "載入 App Store 價格…"
                 : (profile as any)?.premium_plan === plan.id ? "目前方案 ✓"
                 : (profile as any)?.premium_plan === "premium_plus" && plan.id === "premium" ? "降級至 Premium（下期生效）"
                 : (profile as any)?.is_premium ? `升級至 ${plan.name}`
@@ -193,8 +225,14 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
           </div>
         ))}
 
+        {isIOSNative && iosPriceError && (
+          <button type="button" onClick={retryIOSPrices} style={{ width:"100%", minHeight:46, marginBottom:8, border:`1px solid ${C.border}`, borderRadius:23, background:"transparent", color:C.gold, fontFamily:"inherit", fontWeight:700, cursor:"pointer" }}>
+            重新載入 App Store 方案
+          </button>
+        )}
+
         {isIOSNative && (
-          <button type="button" onClick={async () => {
+          <button type="button" disabled={loading !== null} onClick={async () => {
             const { data: { user } } = await sb.auth.getUser();
             if (!user) return;
             setLoading("restore");
@@ -203,9 +241,15 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
               alert(active ? "已恢復購買 ✓" : "找不到可恢復的訂閱");
             } catch { alert("恢復購買失敗，請稍後再試"); }
             finally { setLoading(null); }
-          }} style={{ width:"100%", minHeight:46, border:"none", background:"transparent", color:C.gold, fontWeight:700, cursor:"pointer" }}>
+          }} style={{ width:"100%", minHeight:46, border:"none", background:"transparent", color:C.gold, fontWeight:700, cursor:loading ? "default" : "pointer", opacity:loading && loading !== "restore" ? .5 : 1 }}>
             {loading === "restore" ? "恢復中…" : "恢復購買"}
           </button>
+        )}
+
+        {isIOSNative && (profile as any)?.is_premium && (
+          <a href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noreferrer" style={{ minHeight:44, display:"flex", alignItems:"center", justifyContent:"center", color:C.textMuted, fontSize:13, textDecoration:"none" }}>
+            管理 Apple 訂閱
+          </a>
         )}
 
         {/* Note */}
@@ -213,6 +257,9 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
           訂閱將從你的帳戶中扣除費用。<br />
           可在訂閱期結束前 24 小時取消自動續費。<br />
           {isIOSNative ? "付款由 Apple App Store 安全處理。" : "付款由 Stripe 安全處理。"}
+          <br/><a href="/terms.html" target="_blank" rel="noreferrer" style={{ color:C.textMuted }}>服務條款</a>
+          <span> · </span>
+          <a href="/privacy.html" target="_blank" rel="noreferrer" style={{ color:C.textMuted }}>隱私政策</a>
         </div>
       </div>
     </div>

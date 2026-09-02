@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { C, sound, sb, getExploreProfiles, recordSwipe, updateProfile, getDailyLikeStatus, getWhoLikedMe, generateIcebreaker, mbtiCompatibility, recordProfileView } from "../utils";
 import { Av, MatchAnimation } from "../components/Atoms";
 import { FilterSheet } from "../components/Modals";
@@ -9,6 +9,12 @@ import { PremiumGateSheet } from "../components/PremiumGateSheet";
 import { PremiumBadge } from "../components/PremiumBadge";
 
 type ExploreTab = "recommend" | "nearby" | "new";
+
+function errorText(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) return String(error.message);
+  return fallback;
+}
 
 /* ─── Who Liked Panel ────────────────────────────────── */
 function WhoLikedPanel({ items, onClose, onLike }: { items: WhoLikedItem[]; onClose: () => void; onLike: (item: WhoLikedItem) => void }) {
@@ -45,7 +51,20 @@ function IcebreakerSheet({ them, myMbti, myHobbies, onClose, onUse }: { them: Ex
   const [lines,setLines]=useState<string[]>([]);
   const [loading,setLoading]=useState(true);
   const compat=mbtiCompatibility(myMbti,them.mbti,myHobbies,them.hobbies||[]);
-  useEffect(()=>{ generateIcebreaker(myMbti,{name:them.name,mbti:them.mbti,hobbies:them.hobbies,bio:them.bio}).then(r=>{setLines(r.split("\n").filter(l=>l.trim()));setLoading(false);}); },[]);
+  useEffect(() => {
+    let active = true;
+    generateIcebreaker(myMbti,{name:them.name,mbti:them.mbti,hobbies:them.hobbies,bio:them.bio})
+      .then(result => {
+        if (!active) return;
+        setLines(result.split("\n").filter(line => line.trim()));
+      })
+      .catch(error => {
+        console.error("Unable to generate icebreakers", error);
+        if (active) setLines([`嗨 ${them.name}，很高興認識你！`]);
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [myMbti, them.bio, them.hobbies, them.mbti, them.name]);
   return (
     <div style={{ position:"fixed",inset:0,zIndex:300,background:"rgba(0,0,0,0.7)",backdropFilter:"blur(20px)",display:"flex",alignItems:"flex-end",justifyContent:"center" }} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{ maxWidth:480,width:"100%",margin:"0 auto",background:C.bgElevated,borderRadius:"24px 24px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",padding:"24px 20px 48px",animation:"slideUp .32s cubic-bezier(.32,.72,0,1)" }}>
@@ -90,6 +109,8 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
   const photoSwipeX = useRef(0);
   const [photoDx, setPhotoDx] = useState(0);
   const photoSwiping = useRef(false);
+  const [likeAnim, setLikeAnim] = useState(false);
+  const [priorityAnim, setPriorityAnim] = useState(false);
   function onSwipeStart(e: React.TouchEvent) { swipeStartX.current=e.touches[0].clientX; swipeStartY.current=e.touches[0].clientY; isSwiping.current=false; }
   function onSwipeMove(e: React.TouchEvent) {
     const dx=e.touches[0].clientX-swipeStartX.current, dy=Math.abs(e.touches[0].clientY-swipeStartY.current);
@@ -139,12 +160,10 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
     </div>
   );
 
-  const [likeAnim, setLikeAnim] = useState(false);
-  const [priorityAnim, setPriorityAnim] = useState(false);
   function handleLike() { setLikeAnim(true); setTimeout(()=>setLikeAnim(false),400); onLike(); }
   function handlePriority() { setPriorityAnim(true); setTimeout(()=>{ setPriorityAnim(false); onSuperlike(); },480); }
 
-  const ActionBar = () => (
+  const actionBar = (
     <div style={{ position:"absolute",bottom:0,left:0,right:0,zIndex:20 }}>
       <div style={{ height:52,background:`linear-gradient(transparent,${C.bg})`,pointerEvents:"none" as const }}/>
       <div style={{ background:C.bg,padding:"2px 32px 30px",display:"flex",alignItems:"flex-end",justifyContent:"space-between" }}>
@@ -202,7 +221,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
 
 
   return (
-    <div style={{ position:"fixed",inset:0,zIndex:150,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.55)" }}
+    <div style={{ position:"fixed",inset:0,zIndex:1200,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.55)" }}
       onTouchStart={e=>e.stopPropagation()}
       onTouchMove={e=>e.stopPropagation()}
       onTouchEnd={e=>e.stopPropagation()}>
@@ -365,7 +384,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
         </div>
 
         {/* ── BOTTOM ACTION BAR — discover only ── */}
-        {(mode ?? "discover") === "discover" && <ActionBar/>}
+        {(mode ?? "discover") === "discover" && actionBar}
       </div>
     </div>
   );
@@ -463,6 +482,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
   const [profiles,setProfiles]   = useState<ExploreProfile[]>([]);
   const [idx,setIdx]             = useState(0);
   const [loading,setLoading]     = useState(true);
+  const [loadError,setLoadError] = useState("");
   const [exploreTab,setExploreTab] = useState<ExploreTab>("recommend");
   const [mapView,setMapView] = useState(false);
   const viewMode: "swipe"|"grid" = exploreTab === "recommend" ? "swipe" : "grid";
@@ -474,43 +494,94 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
   const [dailyStatus,setDailyStatus] = useState<DailyLikeStatus|null>(null);
   const [showPremiumGate, setShowPremiumGate] = useState<"likes"|"superlike"|"wholiked"|"grid"|null>(null);
   const [showPremium, setShowPremium] = useState(false);
-  const [matchInfo,setMatchInfo] = useState<{avatar:string;name:string;id:string;matchId?:string;profile?:ExploreProfile}|null>(null);
+  const [matchInfo,setMatchInfo] = useState<{avatar:string;name:string;id:string;matchId?:string;profile?:ExploreProfile;advanceDeck:boolean}|null>(null);
   const [showIcebreaker,setShowIcebreaker] = useState(false);
   const [showProfile,setShowProfile] = useState<ExploreProfile|null>(null);
   const [filters,setFilters]     = useState<Partial<UserProfile>>({ looking_for_gender:profile.looking_for_gender||"female", filter_min_age:profile.filter_min_age||18, filter_max_age:profile.filter_max_age||35, filter_max_distance:profile.filter_max_distance||100 });
+  const loadRequest = useRef(0);
 
-  useEffect(()=>{ load(); loadSocial(); },[]);
-  useEffect(()=>{ if (showProfile) recordProfileView(userId, showProfile.id); },[showProfile?.id]);
-
-  async function load() {
+  const load = useCallback(async () => {
+    const requestId = ++loadRequest.current;
     setLoading(true);
-    const [profs,status] = await Promise.all([getExploreProfiles(userId,{...profile,...filters}), getDailyLikeStatus(userId)]);
-    setProfiles(profs); setIdx(0); setDailyStatus(status); setLoading(false);
-  }
-  async function loadSocial() { setWhoLiked(await getWhoLikedMe(userId)); }
+    setLoadError("");
+    try {
+      const [profs,status] = await Promise.all([
+        getExploreProfiles(userId,{...profile,...filters}, exploreTab),
+        getDailyLikeStatus(userId),
+      ]);
+      if (requestId !== loadRequest.current) return;
+      setProfiles(profs);
+      setIdx(0);
+      setDailyStatus(status);
+    } catch (error) {
+      if (requestId !== loadRequest.current) return;
+      console.error("Unable to load explore profiles", error);
+      setLoadError("暫時無法載入探索資料，請稍後重試");
+    } finally {
+      if (requestId === loadRequest.current) setLoading(false);
+    }
+  }, [exploreTab, filters, profile, userId]);
 
-  async function doSwipe(dir:"like"|"pass"|"superlike") {
-    const p=profiles[idx]; if(!p) return;
+  useEffect(() => {
+    const timer = setTimeout(() => { void load(); }, 0);
+    return () => {
+      clearTimeout(timer);
+      loadRequest.current += 1;
+    };
+  }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    getWhoLikedMe(userId)
+      .then(items => { if (active) setWhoLiked(items); })
+      .catch(error => console.error("Unable to load likes", error));
+    return () => { active = false; };
+  }, [userId]);
+
+  const shownProfileId = showProfile?.id;
+  useEffect(()=>{ if (shownProfileId) void recordProfileView(userId, shownProfileId); },[shownProfileId, userId]);
+
+  async function doSwipe(dir:"like"|"pass"|"superlike", target?:ExploreProfile) {
+    const p=target ?? profiles[idx]; if(!p) return;
+    const advanceDeck = viewMode === "swipe" && profiles[idx]?.id === p.id;
     if(dir==="like"&&dailyStatus&&!dailyStatus.isPremium&&dailyStatus.remaining<=0){
       setShowPremiumGate("likes"); return;
     }
     if(dir==="superlike"&&dailyStatus&&dailyStatus.superlikeRemaining<=0){
       setShowPremiumGate("superlike"); return;
     }
-    const matched=await recordSwipe(userId,p.id,dir);
+    let matched = false;
+    try {
+      matched = await recordSwipe(userId,p.id,dir);
+    } catch (error) {
+      const message = errorText(error, "操作失敗，請稍後再試");
+      if (message.includes("LIKE_LIMIT")) setShowPremiumGate("likes");
+      else if (message.includes("SUPERLIKE_LIMIT")) setShowPremiumGate("superlike");
+      else { console.error(error); alert(message); }
+      return;
+    }
     if(dir==="like") setDailyStatus(s=>s?{...s,used:s.used+1,remaining:Math.max(0,s.remaining-1)}:s);
     if(dir==="superlike") setDailyStatus(s=>s?{...s,superlikeUsed:(s.superlikeUsed||0)+1,superlikeRemaining:Math.max(0,(s.superlikeRemaining||0)-1)}:s);
+    if(!advanceDeck) setProfiles(current=>current.filter(candidate=>candidate.id!==p.id));
     if(matched){
       const{data}=await sb.from("matches").select("id").or(`and(user1_id.eq.${userId},user2_id.eq.${p.id}),and(user1_id.eq.${p.id},user2_id.eq.${userId})`).maybeSingle();
-      sound.match(); setMatchInfo({avatar:p.avatar,name:p.name,id:p.id,matchId:data?.id,profile:p});
-    } else { setIdx(i=>i+1); }
+      sound.match(); setMatchInfo({avatar:p.avatar,name:p.name,id:p.id,matchId:data?.id,profile:p,advanceDeck});
+    } else if(advanceDeck) { setIdx(i=>i+1); }
   }
 
   async function likeFromWhoLiked(item:WhoLikedItem) {
-    sound.like(); await recordSwipe(userId,item.id,"like");
+    sound.like();
+    try {
+      await recordSwipe(userId,item.id,"like");
+    } catch (error) {
+      const message = errorText(error, "操作失敗，請稍後再試");
+      if (message.includes("LIKE_LIMIT")) setShowPremiumGate("likes");
+      else { console.error(error); alert(message); }
+      return;
+    }
     const{data}=await sb.from("matches").select("id").or(`and(user1_id.eq.${userId},user2_id.eq.${item.id}),and(user1_id.eq.${item.id},user2_id.eq.${userId})`).maybeSingle();
     setWhoLiked(w=>w.filter(x=>x.id!==item.id)); setShowWhoLiked(false);
-    sound.match(); setMatchInfo({avatar:item.avatar,name:item.name,id:item.id,matchId:data?.id,profile:{id:item.id,name:item.name,age:item.age,mbti:item.mbti,bio:"",avatar:item.avatar,photos:[],location:"",country:"",ethnicity:[],hobbies:[],verified:false} as any});
+    sound.match(); setMatchInfo({avatar:item.avatar,name:item.name,id:item.id,matchId:data?.id,profile:{id:item.id,name:item.name,age:item.age,mbti:item.mbti,bio:"",avatar:item.avatar,photos:[],location:"",country:"",ethnicity:[],hobbies:[],verified:false} as any,advanceDeck:false});
   }
 
   const remaining = profiles.slice(idx,idx+3).reverse();
@@ -519,28 +590,26 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
   return (
     <div style={{ display:"flex",flexDirection:"column",height:"100%",background:C.bg,animation:"tabSwitch .3s ease" }}>
       {/* Header */}
-      <div style={{ padding:"52px 16px 0",background:"rgba(12,10,8,0.96)",backdropFilter:"blur(20px)",borderBottom:`1px solid ${C.border}` }}>
+      <div style={{ padding:"52px 12px 0",background:"rgba(12,10,8,0.96)",backdropFilter:"blur(20px)",borderBottom:`1px solid ${C.border}` }}>
         <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12 }}>
-          <div style={{ display:"flex",gap:20 }}>
+          <div style={{ display:"flex",gap:8 }}>
             {([["recommend","推薦"],["nearby","附近的人"],["new","新加入"]] as const).map(([id,label])=>(
-              <button key={id} onClick={()=>{setExploreTab(id);load();}} style={{ background:"none",border:"none",color:exploreTab===id?C.text:C.textMuted,fontFamily:"inherit",fontSize:15,fontWeight:exploreTab===id?700:400,cursor:"pointer",paddingBottom:10,borderBottom:exploreTab===id?`2px solid ${C.gold}`:"2px solid transparent",transition:"all .2s" }}>{label}</button>
+              <button key={id} onClick={()=>{setExploreTab(id);setMapView(false);}} style={{ minHeight:44,padding:"0 3px 6px",background:"none",border:"none",color:exploreTab===id?C.text:C.textMuted,fontFamily:"inherit",fontSize:14,fontWeight:exploreTab===id?700:400,cursor:"pointer",borderBottom:exploreTab===id?`2px solid ${C.gold}`:"2px solid transparent",transition:"all .2s",whiteSpace:"nowrap" }}>{label}</button>
             ))}
           </div>
           <div style={{ display:"flex",gap:8 }}>
-            {/* Premium crown */}
-            <button style={{ width:34,height:34,borderRadius:"50%",background:C.goldSoft,border:`1px solid ${C.gold}33`,color:C.gold,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>👑</button>
             {/* Who liked me */}
-            <button onClick={()=>{ if(!dailyStatus?.isPremium){ setShowPremiumGate("wholiked"); return; } setShowWhoLiked(true); }} style={{ position:"relative",width:34,height:34,borderRadius:"50%",background:C.roseSoft,border:`1px solid rgba(232,54,93,0.2)`,color:C.rose,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+            {exploreTab!=="nearby" && <button aria-label="誰喜歡我" onClick={()=>{ if(!dailyStatus?.isPremium){ setShowPremiumGate("wholiked"); return; } setShowWhoLiked(true); }} style={{ position:"relative",width:44,height:44,borderRadius:"50%",background:C.roseSoft,border:`1px solid rgba(232,54,93,0.2)`,color:C.rose,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
               ♥{whoLiked.length>0&&<div style={{ position:"absolute",top:-3,right:-3,width:15,height:15,borderRadius:"50%",background:C.gradRose,fontSize:8.5,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${C.bg}` }}>{whoLiked.length}</div>}
-            </button>
+            </button>}
             {/* Grid/Map toggle — nearby tab only */}
             {exploreTab==="nearby" && (
-              <button onClick={()=>setMapView(v=>!v)} style={{ width:34,height:34,borderRadius:"50%",background:mapView?C.roseSoft:C.surf,border:`1px solid ${mapView?"rgba(232,54,93,0.3)":C.border}`,color:mapView?C.rose:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+              <button aria-label={mapView ? "切換為列表" : "切換為地圖"} onClick={()=>setMapView(v=>!v)} style={{ width:44,height:44,borderRadius:"50%",background:mapView?C.roseSoft:C.surf,border:`1px solid ${mapView?"rgba(232,54,93,0.3)":C.border}`,color:mapView?C.rose:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
                 {mapView ? "☰" : "🗺️"}
               </button>
             )}
             {/* Filter */}
-            <button onClick={()=>setShowFilter(true)} style={{ width:34,height:34,borderRadius:"50%",background:C.surf,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+            <button aria-label="篩選" onClick={()=>setShowFilter(true)} style={{ width:44,height:44,borderRadius:"50%",background:C.surf,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
             </button>
           </div>
@@ -561,8 +630,13 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
             <div style={{ width:36,height:36,border:`2px solid ${C.border}`,borderTopColor:C.gold,borderRadius:"50%",animation:"spin .7s linear infinite" }}/>
             <div style={{ fontSize:13,color:C.textMuted }}>探索中...</div>
           </div>
+        ) : loadError ? (
+          <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,padding:32,textAlign:"center" }}>
+            <div style={{ fontSize:14,color:C.textMuted,lineHeight:1.6 }}>{loadError}</div>
+            <button type="button" onClick={()=>{ void load(); }} style={{ minHeight:46,padding:"0 24px",borderRadius:24,border:"none",background:C.grad,color:C.bg,fontFamily:"inherit",fontWeight:800,cursor:"pointer" }}>重新載入</button>
+          </div>
         ) : viewMode==="grid" && mapView && exploreTab==="nearby" ? (
-          !profile.latitude || !profile.longitude ? (
+          profile.latitude == null || profile.longitude == null ? (
             <div style={{ display:"flex",alignItems:"center",justifyContent:"center",height:"100%",textAlign:"center",padding:"0 32px",color:C.textMuted }}>
               <div>
                 <div style={{ fontSize:36,opacity:.3,color:C.gold,marginBottom:12 }}>📍</div>
@@ -612,7 +686,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
                 <div style={{ fontSize:44,opacity:.3,color:C.gold,marginBottom:16 }}>◈</div>
                 <div style={{ fontSize:20,fontWeight:700,color:C.text,marginBottom:8 }}>今天都看完了</div>
                 <div style={{ fontSize:14,color:C.textMuted,marginBottom:32,lineHeight:1.7 }}>新用戶每天都在加入<br/>明天再來看看</div>
-                <button onClick={load} style={{ padding:"13px 36px",borderRadius:50,background:C.grad,border:"none",color:C.bg,fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer" }}>重新載入</button>
+                <button onClick={()=>{ void load(); }} style={{ padding:"13px 36px",borderRadius:50,background:C.grad,border:"none",color:C.bg,fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer" }}>重新載入</button>
               </div>
             ) : (
               <div style={{ position:"relative",width:"100%",maxWidth:360,height:540,overflow:"hidden" }}>
@@ -652,8 +726,8 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
 
       {/* Profile detail sheet */}
       {showProfile && <ProfileSheet p={showProfile} myMbti={myMbti} myProfile={profile} onClose={()=>setShowProfile(null)}
-        onLike={()=>{doSwipe("like");setShowProfile(null);}}
-        onSuperlike={()=>{doSwipe("superlike");setShowProfile(null);}}
+        onLike={()=>{void doSwipe("like",showProfile);setShowProfile(null);}}
+        onSuperlike={()=>{void doSwipe("superlike",showProfile);setShowProfile(null);}}
         onChat={()=>{ setShowProfile(null); }}
       />}
 
@@ -670,12 +744,12 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
       {showPremium && <PremiumScreen onBack={()=>setShowPremium(false)} profile={profile}/>}
 
       {matchInfo && <MatchAnimation myAvatar={profile.avatar_url||""} myName={profile.display_name||profile.username} theirAvatar={matchInfo.avatar} theirName={matchInfo.name}
-        onChat={()=>{if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:"",time:"",unread:0} as any);setMatchInfo(null);}}
+        onChat={()=>{if(matchInfo.advanceDeck)setIdx(i=>i+1);if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:"",time:"",unread:0} as any);setMatchInfo(null);}}
         onIcebreaker={()=>setShowIcebreaker(true)}
-        onContinue={()=>{setMatchInfo(null);setIdx(i=>i+1);}}/>}
-      {showIcebreaker&&matchInfo?.profile&&<IcebreakerSheet them={matchInfo.profile} myMbti={myMbti} myHobbies={profile.hobbies||[]} onClose={()=>setShowIcebreaker(false)} onUse={text=>{if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:text,time:"",unread:0,prefillMsg:text} as any);setShowIcebreaker(false);setMatchInfo(null);}}/>}
+        onContinue={()=>{if(matchInfo.advanceDeck)setIdx(i=>i+1);setMatchInfo(null);}}/>}
+      {showIcebreaker&&matchInfo?.profile&&<IcebreakerSheet them={matchInfo.profile} myMbti={myMbti} myHobbies={profile.hobbies||[]} onClose={()=>setShowIcebreaker(false)} onUse={text=>{if(matchInfo.advanceDeck)setIdx(i=>i+1);if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:text,time:"",unread:0,prefillMsg:text} as any);setShowIcebreaker(false);setMatchInfo(null);}}/>}
       {showWhoLiked && <WhoLikedPanel items={whoLiked} onClose={()=>setShowWhoLiked(false)} onLike={likeFromWhoLiked}/>}
-      {showFilter && <FilterSheet filters={filters} onSave={f=>{setFilters(f);updateProfile(userId,f);onUpdate(f);setShowFilter(false);load();}} onClose={()=>setShowFilter(false)}/>}
+      {showFilter && <FilterSheet filters={filters} onSave={async f=>{ setFilters(f); try { await updateProfile(userId,f); onUpdate(f); setShowFilter(false); } catch (error) { console.error(error); alert(error instanceof Error ? error.message : "篩選條件儲存失敗"); } }} onClose={()=>setShowFilter(false)}/>}
     </div>
   );
 }

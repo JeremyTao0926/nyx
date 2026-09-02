@@ -1,0 +1,45 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const revenueCat = vi.hoisted(() => ({
+  configure: vi.fn(),
+  getAppUserID: vi.fn(),
+  getOfferings: vi.fn(),
+  isConfigured: vi.fn(),
+  logIn: vi.fn(),
+  purchasePackage: vi.fn(),
+  restorePurchases: vi.fn(),
+}));
+
+vi.mock("@revenuecat/purchases-capacitor", () => ({ Purchases: revenueCat }));
+
+import { getIOSPlanPrices } from "./purchases";
+
+describe("RevenueCat identity lifecycle", () => {
+  beforeEach(() => {
+    vi.stubEnv("VITE_REVENUECAT_IOS_API_KEY", "test_revenuecat_key");
+    vi.clearAllMocks();
+    revenueCat.isConfigured
+      .mockResolvedValueOnce({ isConfigured: false })
+      .mockResolvedValueOnce({ isConfigured: true });
+    revenueCat.getAppUserID.mockResolvedValue({ appUserID: "user-one" });
+    revenueCat.getOfferings.mockResolvedValue({
+      current: {
+        availablePackages: [
+          { identifier: "premium", product: { identifier: "nyx_premium_monthly", priceString: "$9.99" } },
+          { identifier: "premium_plus", product: { identifier: "nyx_premium_plus_monthly", priceString: "$19.99" } },
+        ],
+      },
+    });
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("configures once and switches accounts with logIn", async () => {
+    expect(await getIOSPlanPrices("user-one")).toEqual({ premium: "$9.99", premium_plus: "$19.99" });
+    expect(await getIOSPlanPrices("user-two")).toEqual({ premium: "$9.99", premium_plus: "$19.99" });
+
+    expect(revenueCat.configure).toHaveBeenCalledTimes(1);
+    expect(revenueCat.configure).toHaveBeenCalledWith(expect.objectContaining({ appUserID: "user-one" }));
+    expect(revenueCat.logIn).toHaveBeenCalledWith({ appUserID: "user-two" });
+  });
+});
