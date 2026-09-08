@@ -4,9 +4,9 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { C } from "../utils";
 
-// Free, no-API-key dark basemap (matches the app's dark theme) — same OSM
+// Free, no-API-key light basemap (matches the porcelain theme) — same OSM
 // data ecosystem the app already uses for Nominatim geocoding.
-const TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+const TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 const TILE_ATTR = '&copy; OpenStreetMap &copy; CARTO';
 
 function pinIcon(emoji: string, bg: string, size = 34) {

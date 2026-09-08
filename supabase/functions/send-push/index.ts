@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SignJWT, importPKCS8 } from "https://esm.sh/jose@5.9.6";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -125,21 +126,50 @@ async function sendWebPush(
   return res.status;
 }
 
+async function sendAPNs(deviceToken: string, title: string, body: string, url = "/"): Promise<number> {
+  const keyId = Deno.env.get("APNS_KEY_ID") ?? "";
+  const teamId = Deno.env.get("APNS_TEAM_ID") ?? "";
+  const privateKey = (Deno.env.get("APNS_PRIVATE_KEY") ?? "").replace(/\\n/g, "\n");
+  const bundleId = Deno.env.get("APNS_BUNDLE_ID") ?? "com.jeremytao.nyx";
+  if (!keyId || !teamId || !privateKey) throw new Error("APNs secrets are not configured");
+
+  const key = await importPKCS8(privateKey, "ES256");
+  const jwt = await new SignJWT({})
+    .setProtectedHeader({ alg: "ES256", kid: keyId })
+    .setIssuer(teamId)
+    .setIssuedAt()
+    .setExpirationTime("50m")
+    .sign(key);
+  const host = Deno.env.get("APNS_ENV") === "sandbox"
+    ? "https://api.sandbox.push.apple.com"
+    : "https://api.push.apple.com";
+  const response = await fetch(`${host}/3/device/${deviceToken}`, {
+    method: "POST",
+    headers: {
+      authorization: `bearer ${jwt}`,
+      "apns-topic": bundleId,
+      "apns-push-type": "alert",
+      "apns-priority": "10",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      aps: { alert: { title, body }, sound: "default", badge: 1 },
+      type: "NOTIFICATION_CLICK",
+      url,
+    }),
+  });
+  if (!response.ok) console.error("APNs response", response.status, await response.text());
+  return response.status;
+}
+
 // ── Handler ──────────────────────────────────────────────
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
-  const VAPID_PUBLIC  = Deno.env.get("VAPID_PUBLIC")  ?? "";
-  const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE") ?? "";
-  const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:admin@nyx.app";
-
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
-    console.error("VAPID keys missing");
-    return new Response("VAPID keys not set", { status: 500 });
-  }
-
   try {
+    const authorization = req.headers.get("Authorization");
+    if (!authorization) return new Response("Unauthorized", { status: 401, headers: CORS });
     const { recipient_id, title, body, url, sender_avatar } = await req.json();
     if (!recipient_id) return new Response("Missing recipient_id", { status: 400 });
 
@@ -149,10 +179,23 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+    const token = authorization.replace(/^Bearer\s+/i, "");
+    const { data: authData, error: authError } = await sb.auth.getUser(token);
+    if (authError || !authData.user) return new Response("Unauthorized", { status: 401, headers: CORS });
+    if (authData.user.id === recipient_id) return new Response("Cannot notify yourself", { status: 400, headers: CORS });
+
+    const { data: blocked } = await sb.from("blocked_users").select("blocker_id").or(
+      `and(blocker_id.eq.${authData.user.id},blocked_id.eq.${recipient_id}),and(blocker_id.eq.${recipient_id},blocked_id.eq.${authData.user.id})`
+    ).limit(1);
+    if (blocked?.length) return new Response("Recipient unavailable", { status: 403, headers: CORS });
+    const { data: match } = await sb.from("matches").select("id").or(
+      `and(user1_id.eq.${authData.user.id},user2_id.eq.${recipient_id}),and(user1_id.eq.${recipient_id},user2_id.eq.${authData.user.id})`
+    ).limit(1);
+    if (!match?.length) return new Response("No active match", { status: 403, headers: CORS });
 
     const { data: subs, error } = await sb
       .from("push_subscriptions")
-      .select("endpoint,p256dh,auth")
+      .select("platform,endpoint,p256dh,auth,device_token")
       .eq("user_id", recipient_id);
 
     if (error) { console.error(error); return new Response("DB error", { status: 500 }); }
@@ -172,13 +215,27 @@ serve(async (req) => {
     let sent = 0;
     for (const sub of subs) {
       try {
-        const status = await sendWebPush(
-          sub.endpoint, sub.p256dh, sub.auth,
-          notification, VAPID_PUBLIC, VAPID_PRIVATE, VAPID_SUBJECT
-        );
+        let status: number;
+        if (sub.platform === "ios" && sub.device_token) {
+          status = await sendAPNs(sub.device_token, title || "NYX", body || "你有一則新通知", url || "/");
+        } else {
+          const VAPID_PUBLIC  = Deno.env.get("VAPID_PUBLIC")  ?? "";
+          const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE") ?? "";
+          const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:admin@nyx.app";
+          if (!VAPID_PUBLIC || !VAPID_PRIVATE || !sub.endpoint || !sub.p256dh || !sub.auth) {
+            throw new Error("Web Push subscription or VAPID secrets are incomplete");
+          }
+          status = await sendWebPush(
+            sub.endpoint, sub.p256dh, sub.auth,
+            notification, VAPID_PUBLIC, VAPID_PRIVATE, VAPID_SUBJECT
+          );
+        }
         if ([200,201,202].includes(status)) sent++;
-        if ([404,410].includes(status)) {
+        if ([404,410].includes(status) && sub.endpoint) {
           await sb.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+        }
+        if (status === 410 && sub.device_token) {
+          await sb.from("push_subscriptions").delete().eq("device_token", sub.device_token);
         }
       } catch(e) {
         console.error("sendWebPush error:", e);

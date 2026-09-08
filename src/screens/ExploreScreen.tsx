@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { C, sound, sb, getExploreProfiles, recordSwipe, updateProfile, getDailyLikeStatus, getWhoLikedMe, generateIcebreaker, mbtiCompatibility, recordProfileView } from "../utils";
 import { Av, MatchAnimation } from "../components/Atoms";
 import { FilterSheet } from "../components/Modals";
@@ -9,6 +9,12 @@ import { PremiumGateSheet } from "../components/PremiumGateSheet";
 import { PremiumBadge } from "../components/PremiumBadge";
 
 type ExploreTab = "recommend" | "nearby" | "new";
+
+function errorText(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) return String(error.message);
+  return fallback;
+}
 
 /* ─── Who Liked Panel ────────────────────────────────── */
 function WhoLikedPanel({ items, onClose, onLike }: { items: WhoLikedItem[]; onClose: () => void; onLike: (item: WhoLikedItem) => void }) {
@@ -41,11 +47,24 @@ function WhoLikedPanel({ items, onClose, onLike }: { items: WhoLikedItem[]; onCl
 }
 
 /* ─── Icebreaker Sheet ───────────────────────────────── */
-function IcebreakerSheet({ them, myMbti, onClose, onUse }: { them: ExploreProfile; myMbti: string; onClose: () => void; onUse: (text: string) => void }) {
+function IcebreakerSheet({ them, myMbti, myHobbies, onClose, onUse }: { them: ExploreProfile; myMbti: string; myHobbies: string[]; onClose: () => void; onUse: (text: string) => void }) {
   const [lines,setLines]=useState<string[]>([]);
   const [loading,setLoading]=useState(true);
-  const compat=mbtiCompatibility(myMbti,them.mbti);
-  useEffect(()=>{ generateIcebreaker(myMbti,{name:them.name,mbti:them.mbti,hobbies:them.hobbies,bio:them.bio}).then(r=>{setLines(r.split("\n").filter(l=>l.trim()));setLoading(false);}); },[]);
+  const compat=mbtiCompatibility(myMbti,them.mbti,myHobbies,them.hobbies||[]);
+  useEffect(() => {
+    let active = true;
+    generateIcebreaker(myMbti,{name:them.name,mbti:them.mbti,hobbies:them.hobbies,bio:them.bio})
+      .then(result => {
+        if (!active) return;
+        setLines(result.split("\n").filter(line => line.trim()));
+      })
+      .catch(error => {
+        console.error("Unable to generate icebreakers", error);
+        if (active) setLines([`嗨 ${them.name}，很高興認識你！`]);
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [myMbti, them.bio, them.hobbies, them.mbti, them.name]);
   return (
     <div style={{ position:"fixed",inset:0,zIndex:300,background:"rgba(0,0,0,0.7)",backdropFilter:"blur(20px)",display:"flex",alignItems:"flex-end",justifyContent:"center" }} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{ maxWidth:480,width:"100%",margin:"0 auto",background:C.bgElevated,borderRadius:"24px 24px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",padding:"24px 20px 48px",animation:"slideUp .32s cubic-bezier(.32,.72,0,1)" }}>
@@ -55,7 +74,7 @@ function IcebreakerSheet({ them, myMbti, onClose, onUse }: { them: ExploreProfil
             <span style={{ fontSize:13.5,color:C.text,fontWeight:600 }}>{myMbti} × {them.mbti} 相容度</span>
             <span style={{ fontSize:14,color:compat.score>=85?C.mint:C.gold,fontWeight:700 }}>{compat.score}%</span>
           </div>
-          <div style={{ height:3,background:"rgba(255,255,255,0.08)",borderRadius:2,marginBottom:8 }}>
+          <div style={{ height:3,background:C.surfHigh,borderRadius:2,marginBottom:8 }}>
             <div style={{ height:"100%",width:`${compat.score}%`,background:compat.score>=85?C.gradMint:C.grad,borderRadius:2 }}/>
           </div>
           <div style={{ fontSize:12,color:C.gold,fontWeight:600 }}>{compat.label}</div>
@@ -78,7 +97,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
 }) {
   const [photoIdx, setPhotoIdx] = useState(0);
   const [lbIdx, setLbIdx] = useState<number|null>(null);
-  const compat = mbtiCompatibility(myMbti, p.mbti);
+  const compat = mbtiCompatibility(myMbti, p.mbti, myProfile?.hobbies || [], p.hobbies || []);
   const allPhotos = [p.avatar, ...p.photos.filter(x => x !== p.avatar)].filter(Boolean);
 
   // swipe-right to close
@@ -90,6 +109,8 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
   const photoSwipeX = useRef(0);
   const [photoDx, setPhotoDx] = useState(0);
   const photoSwiping = useRef(false);
+  const [likeAnim, setLikeAnim] = useState(false);
+  const [priorityAnim, setPriorityAnim] = useState(false);
   function onSwipeStart(e: React.TouchEvent) { swipeStartX.current=e.touches[0].clientX; swipeStartY.current=e.touches[0].clientY; isSwiping.current=false; }
   function onSwipeMove(e: React.TouchEvent) {
     const dx=e.touches[0].clientX-swipeStartX.current, dy=Math.abs(e.touches[0].clientY-swipeStartY.current);
@@ -139,12 +160,10 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
     </div>
   );
 
-  const [likeAnim, setLikeAnim] = useState(false);
-  const [priorityAnim, setPriorityAnim] = useState(false);
   function handleLike() { setLikeAnim(true); setTimeout(()=>setLikeAnim(false),400); onLike(); }
   function handlePriority() { setPriorityAnim(true); setTimeout(()=>{ setPriorityAnim(false); onSuperlike(); },480); }
 
-  const ActionBar = () => (
+  const actionBar = (
     <div style={{ position:"absolute",bottom:0,left:0,right:0,zIndex:20 }}>
       <div style={{ height:52,background:`linear-gradient(transparent,${C.bg})`,pointerEvents:"none" as const }}/>
       <div style={{ background:C.bg,padding:"2px 32px 30px",display:"flex",alignItems:"flex-end",justifyContent:"space-between" }}>
@@ -152,42 +171,42 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
         {/* PASS */}
         <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:5 }}>
           <button onClick={onClose}
-            style={{ width:52,height:52,borderRadius:"50%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",color:"rgba(255,255,255,0.42)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .18s" }}
-            onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.cssText+="background:rgba(232,54,93,0.08);border-color:rgba(232,54,93,0.28);color:#E8365D"}}
-            onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.cssText+="background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.09);color:rgba(255,255,255,0.42)"}}>
+            style={{ width:52,height:52,borderRadius:"50%",background:C.surf,border:`1px solid ${C.border}`,color:C.textMuted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .18s" }}
+            onMouseEnter={e=>{e.currentTarget.style.background=C.roseSoft;e.currentTarget.style.borderColor=`${C.rose}44`;e.currentTarget.style.color=C.rose;}}
+            onMouseLeave={e=>{e.currentTarget.style.background=C.surf;e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.textMuted;}}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
-          <span style={{ fontSize:11,color:"rgba(255,255,255,0.26)",letterSpacing:".3px" }}>略過</span>
+          <span style={{ fontSize:11,color:C.textMuted,letterSpacing:".3px" }}>略過</span>
         </div>
 
         {/* LIKE — primary */}
         <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:6 }}>
           <button onClick={handleLike}
-            style={{ width:66,height:66,borderRadius:"50%",background:"linear-gradient(135deg,#C9A84C 0%,#E2C068 100%)",border:"none",color:"#12100C",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
-              boxShadow:"0 6px 24px rgba(201,168,76,0.38)",
+            style={{ width:66,height:66,borderRadius:"50%",background:C.gradRose,border:"none",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+              boxShadow:`0 8px 26px ${C.roseGlow}`,
               transform:likeAnim?"scale(0.86)":"scale(1)",transition:"transform .2s cubic-bezier(.34,1.56,.64,1)" }}>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
             </svg>
           </button>
-          <span style={{ fontSize:11,color:"#E2C068",fontWeight:600,letterSpacing:".3px" }}>喜歡</span>
+          <span style={{ fontSize:11,color:C.rose,fontWeight:700,letterSpacing:".3px" }}>喜歡</span>
         </div>
 
         {/* PRIORITY — premium */}
         <div style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:6 }}>
           <button onClick={handlePriority}
             style={{ position:"relative" as const,width:72,height:72,borderRadius:"50%",
-              background:"linear-gradient(145deg,#1A1608 0%,#231E0A 100%)",
-              border:"1.5px solid rgba(201,168,76,0.5)",
+              background:C.bgElevated,
+              border:`1.5px solid ${C.gold}66`,
               color:C.gold,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
               boxShadow:priorityAnim
-                ?"0 0 0 10px rgba(201,168,76,0.1),0 0 0 4px rgba(201,168,76,0.2),0 8px 32px rgba(201,168,76,0.4)"
-                :"0 4px 20px rgba(201,168,76,0.2)",
+                ?`0 0 0 10px ${C.goldSoft},0 0 0 4px ${C.goldGlow},0 8px 32px ${C.goldGlow}`
+                :`0 6px 20px ${C.goldGlow}`,
               transform:priorityAnim?"scale(0.88)":"scale(1)",
               transition:"all .22s cubic-bezier(.34,1.56,.64,1)" }}>
-            {/* Gold shimmer overlay */}
+            {/* Violet shimmer overlay */}
             <div style={{ position:"absolute" as const,inset:0,borderRadius:"50%",
-              background:"linear-gradient(135deg,rgba(201,168,76,0.14) 0%,transparent 55%,rgba(201,168,76,0.06) 100%)",
+              background:"linear-gradient(135deg,rgba(103,87,217,0.14) 0%,transparent 55%,rgba(103,87,217,0.06) 100%)",
               pointerEvents:"none" as const }}/>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
@@ -202,7 +221,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
 
 
   return (
-    <div style={{ position:"fixed",inset:0,zIndex:150,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.55)" }}
+    <div style={{ position:"fixed",inset:0,zIndex:1200,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.55)" }}
       onTouchStart={e=>e.stopPropagation()}
       onTouchMove={e=>e.stopPropagation()}
       onTouchEnd={e=>e.stopPropagation()}>
@@ -234,7 +253,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
                 transition:photoDx===0?"transform .35s cubic-bezier(.32,.72,0,1)":"none"
               }}>
                 {(allPhotos.length>0?allPhotos:['']).map((ph,i)=>(
-                  <div key={i} style={{ flex:`0 0 ${100/Math.max(allPhotos.length,1)}%`,height:"100%",backgroundImage:ph?`url(${ph})`:"linear-gradient(145deg,#2A2218,#1C1610)",backgroundSize:"cover",backgroundPosition:"center center",backgroundRepeat:"no-repeat" }}/>
+                  <div key={i} style={{ flex:`0 0 ${100/Math.max(allPhotos.length,1)}%`,height:"100%",backgroundImage:ph?`url(${ph})`:"linear-gradient(145deg,#E8E4F8,#F8E7ED)",backgroundSize:"cover",backgroundPosition:"center center",backgroundRepeat:"no-repeat" }}/>
                 ))}
               </div>
             </div>
@@ -258,7 +277,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
                 </div>
                 <div style={{ fontSize:14.5,color:"rgba(255,255,255,0.68)",marginBottom:2 }}>{[p.age?`${p.age} 歲`:null,p.location||null].filter(Boolean).join(" · ")}</div>
                 {(p.occupation||p.education)&&<div style={{ fontSize:13.5,color:"rgba(255,255,255,0.5)",marginBottom:10 }}>{[p.occupation||null,p.education&&edu[p.education]||null].filter(Boolean).join(" · ")}</div>}
-                {p.relationship_goal&&goalShort[p.relationship_goal]&&<div style={{ display:"inline-flex",alignItems:"center",gap:6,padding:"5px 13px",borderRadius:20,background:"rgba(201,168,76,0.18)",border:"1px solid rgba(201,168,76,0.32)" }}>
+                {p.relationship_goal&&goalShort[p.relationship_goal]&&<div style={{ display:"inline-flex",alignItems:"center",gap:6,padding:"5px 13px",borderRadius:20,background:"rgba(103,87,217,0.18)",border:"1px solid rgba(139,127,240,0.36)" }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill={C.gold}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                   <span style={{ fontSize:12.5,color:C.gold,fontWeight:600 }}>{goalShort[p.relationship_goal]}</span>
                 </div>}
@@ -274,13 +293,13 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
           <div style={{ padding:"14px 16px 120px",background:C.bg }}>
 
             {/* Common points */}
-            {finalCommon.length>0&&<div style={{ background:"#141210",borderRadius:16,border:"1px solid rgba(255,255,255,0.06)",padding:"14px 16px",marginBottom:16 }}>
+            {finalCommon.length>0&&<div style={{ background:C.bgCard,borderRadius:16,border:`1px solid ${C.border}`,padding:"14px 16px",marginBottom:16,boxShadow:C.shadow }}>
               <div style={{ fontSize:13.5,fontWeight:700,color:C.text,marginBottom:14 }}>你們有 {finalCommon.length} 個共同點</div>
               <div style={{ display:"flex",justifyContent:"space-around" }}>
                 {finalCommon.map((pt,i)=>(
                   <div key={i} style={{ display:"flex",flexDirection:"column" as const,alignItems:"center",gap:7,flex:1 }}>
-                    <div style={{ width:48,height:48,borderRadius:14,background:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22 }}>{pt.icon}</div>
-                    <span style={{ fontSize:10.5,color:"rgba(255,255,255,0.42)",textAlign:"center" as const,lineHeight:1.3,maxWidth:58 }}>{pt.label}</span>
+                    <div style={{ width:48,height:48,borderRadius:14,background:C.surf,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22 }}>{pt.icon}</div>
+                    <span style={{ fontSize:10.5,color:C.textMuted,textAlign:"center" as const,lineHeight:1.3,maxWidth:58 }}>{pt.label}</span>
                   </div>
                 ))}
               </div>
@@ -292,12 +311,12 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
                 <span style={{ fontSize:28,color:"#E8365D",fontFamily:"Georgia,serif",fontWeight:700,lineHeight:0.75 }}>"</span>
                 <span style={{ fontSize:14,fontWeight:700,color:C.text }}>關於我</span>
               </div>
-              <div style={{ fontSize:14,color:"rgba(245,237,214,0.6)",lineHeight:1.85 }}>{p.bio}</div>
+              <div style={{ fontSize:14,color:C.textSub,lineHeight:1.85 }}>{p.bio}</div>
             </div>}
 
             {/* Photo strip */}
             {allPhotos.length>0&&<div style={{ marginBottom:20 }}>
-              <div style={{ fontSize:13,color:"rgba(245,237,214,0.36)",marginBottom:8 }}>照片 {photoIdx+1}/{allPhotos.length}</div>
+              <div style={{ fontSize:13,color:C.textMuted,marginBottom:8 }}>照片 {photoIdx+1}/{allPhotos.length}</div>
               <div style={{ display:"flex",gap:7,overflowX:"auto" as const }}>
                 {allPhotos.map((ph,i)=>(
                   <div key={i} onClick={()=>setPhotoIdx(i)} style={{ width:80,height:96,borderRadius:10,overflow:"hidden",flexShrink:0,cursor:"pointer",border:i===photoIdx?`2.5px solid ${C.gold}`:"2.5px solid transparent",transition:"border-color .2s" }}>
@@ -312,12 +331,12 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
               <div style={{ fontSize:15,fontWeight:700,color:C.text,marginBottom:12 }}>興趣愛好</div>
               <div style={{ display:"flex",flexWrap:"wrap" as const,gap:8 }}>
                 {p.hobbies.slice(0,6).map(h=>(
-                  <div key={h} style={{ display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:20,background:"#141210",border:"1px solid rgba(255,255,255,0.07)" }}>
+                  <div key={h} style={{ display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:20,background:C.bgCard,border:`1px solid ${C.border}`,boxShadow:"0 4px 12px rgba(57,42,101,0.04)" }}>
                     <span style={{ fontSize:14 }}>{hobbyIcon[h]||"⭐"}</span>
                     <span style={{ fontSize:13.5,color:C.textSub }}>{h}</span>
                   </div>
                 ))}
-                {p.hobbies.length>6&&<div style={{ display:"flex",alignItems:"center",padding:"7px 14px",borderRadius:20,background:"#141210",border:"1px solid rgba(255,255,255,0.07)" }}>
+                {p.hobbies.length>6&&<div style={{ display:"flex",alignItems:"center",padding:"7px 14px",borderRadius:20,background:C.bgCard,border:`1px solid ${C.border}` }}>
                   <span style={{ fontSize:13.5,color:C.textMuted }}>···</span>
                 </div>}
               </div>
@@ -365,20 +384,20 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
         </div>
 
         {/* ── BOTTOM ACTION BAR — discover only ── */}
-        {(mode ?? "discover") === "discover" && <ActionBar/>}
+        {(mode ?? "discover") === "discover" && actionBar}
       </div>
     </div>
   );
 }
 
 
-function SwipeCard({ p, isTop, myMbti, onSwipe, onOpenProfile }: { p: ExploreProfile; isTop: boolean; myMbti: string; onSwipe: (d: "like"|"pass"|"superlike") => void; onOpenProfile: () => void }) {
+function SwipeCard({ p, isTop, myMbti, myHobbies, onSwipe, onOpenProfile }: { p: ExploreProfile; isTop: boolean; myMbti: string; myHobbies: string[]; onSwipe: (d: "like"|"pass"|"superlike") => void; onOpenProfile: () => void }) {
   const [pos,setPos]=useState({x:0,y:0});
   const [drag,setDrag]=useState(false);
   const [photoIdx,setPhotoIdx]=useState(0);
   const start=useRef({x:0,y:0});
   const THRESH=80;
-  const compat=mbtiCompatibility(myMbti,p.mbti);
+  const compat=mbtiCompatibility(myMbti,p.mbti,myHobbies,p.hobbies||[]);
   const allPhotos=[p.avatar,...p.photos.filter(ph=>ph!==p.avatar)].filter(Boolean);
   const onS=(x:number,y:number)=>{if(!isTop)return;start.current={x,y};setDrag(true);};
   const onM=(x:number,y:number)=>{if(!drag)return;setPos({x:x-start.current.x,y:y-start.current.y});};
@@ -392,9 +411,9 @@ function SwipeCard({ p, isTop, myMbti, onSwipe, onOpenProfile }: { p: ExplorePro
       onTouchMove={e=>onM(e.touches[0].clientX,e.touches[0].clientY)}
       onTouchEnd={e=>{const moved=Math.abs(pos.x)>8||Math.abs(pos.y)>8;if(!moved&&isTop)onOpenProfile();else onE();}}
       style={{ position:"absolute",width:"100%",transform:`translate(${pos.x}px,${pos.y}px) rotate(${pos.x*.05}deg)`,transition:drag?"none":"transform .4s cubic-bezier(.34,1.56,.64,1)",cursor:isTop?"pointer":"default",userSelect:"none" as const }}>
-      <div style={{ borderRadius:20,overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.6)",background:C.bgCard }}>
+      <div style={{ borderRadius:20,overflow:"hidden",boxShadow:C.shadowStrong,background:C.bgCard,border:`1px solid ${C.border}` }}>
         {/* Photo */}
-        <div style={{ height:440,position:"relative",background:allPhotos[photoIdx]?`url(${allPhotos[photoIdx]}) center/cover no-repeat`:`linear-gradient(145deg,#2A2218,#1C1610)` }}>
+        <div style={{ height:440,position:"relative",background:allPhotos[photoIdx]?`url(${allPhotos[photoIdx]}) center/cover no-repeat`:"linear-gradient(145deg,#E8E4F8,#F8E7ED)" }}>
           {allPhotos.length>1 && <>
             <div style={{ position:"absolute",top:12,left:0,right:0,display:"flex",justifyContent:"center",gap:4,zIndex:2 }}>
               {allPhotos.map((_,i)=><div key={i} style={{ height:3,width:i===photoIdx?22:10,borderRadius:2,background:i===photoIdx?"#fff":"rgba(255,255,255,0.35)",transition:"all .25s" }}/>)}
@@ -407,8 +426,8 @@ function SwipeCard({ p, isTop, myMbti, onSwipe, onOpenProfile }: { p: ExplorePro
           <div style={{ position:"absolute",top:24,right:20,opacity:passO,border:`3px solid ${C.rose}`,borderRadius:10,padding:"5px 16px",color:C.rose,fontWeight:900,fontSize:20,transform:"rotate(18deg)",letterSpacing:2,pointerEvents:"none" }}>NOPE</div>
           {/* Compat badge */}
           <div style={{ position:"absolute",top:14,right:14,background:"rgba(12,10,8,0.75)",backdropFilter:"blur(12px)",borderRadius:20,padding:"5px 10px",zIndex:2,display:"flex",flexDirection:"column",alignItems:"center" }}>
-            <div style={{ fontSize:14,fontWeight:800,color:C.gold }}>{compat.score}%</div>
-            <div style={{ fontSize:8.5,color:C.textMuted }}>匹配</div>
+            <div style={{ fontSize:14,fontWeight:800,color:C.goldLight }}>{compat.score}%</div>
+            <div style={{ fontSize:8.5,color:"rgba(255,255,255,0.58)" }}>匹配</div>
           </div>
           {p.verified && <div style={{ position:"absolute",top:14,left:14,background:"rgba(0,201,167,0.85)",borderRadius:20,padding:"3px 10px",fontSize:11,color:"#fff",fontWeight:700,zIndex:2 }}>✓</div>}
           <div style={{ position:"absolute",bottom:0,left:0,right:0,height:220,background:"linear-gradient(transparent,rgba(12,10,8,0.98))",pointerEvents:"none" }}/>
@@ -422,7 +441,7 @@ function SwipeCard({ p, isTop, myMbti, onSwipe, onOpenProfile }: { p: ExplorePro
               {p.location && `📍 ${p.location}`}
             </div>
             <div style={{ display:"flex",gap:6,flexWrap:"wrap" as const }}>
-              <span style={{ background:"rgba(201,168,76,0.2)",border:"1px solid rgba(201,168,76,0.3)",borderRadius:20,padding:"3px 11px",fontSize:11.5,color:C.gold,fontWeight:600 }}>✦ {p.mbti}</span>
+              <span style={{ background:"rgba(103,87,217,0.24)",border:"1px solid rgba(139,127,240,0.38)",borderRadius:20,padding:"3px 11px",fontSize:11.5,color:"#C3BAFF",fontWeight:700 }}>✦ {p.mbti}</span>
               {p.distance!=null && <span style={{ background:"rgba(255,255,255,0.1)",borderRadius:20,padding:"3px 11px",fontSize:11.5,color:"rgba(255,255,255,0.8)" }}>{p.distance}km</span>}
             </div>
           </div>
@@ -443,12 +462,12 @@ function SwipeCard({ p, isTop, myMbti, onSwipe, onOpenProfile }: { p: ExplorePro
 }
 
 /* ─── Grid Card ──────────────────────────────────────── */
-function GridCard({ p, myMbti, onClick }: { p: ExploreProfile; myMbti: string; onClick: () => void }) {
-  const compat = mbtiCompatibility(myMbti, p.mbti);
+function GridCard({ p, myMbti, myHobbies, onClick }: { p: ExploreProfile; myMbti: string; myHobbies: string[]; onClick: () => void }) {
+  const compat = mbtiCompatibility(myMbti, p.mbti, myHobbies, p.hobbies || []);
   return (
     <div onClick={onClick} style={{ borderRadius:16,overflow:"hidden",cursor:"pointer",position:"relative",aspectRatio:"0.72",background:C.bgCard }}>
-      <div style={{ position:"absolute",inset:0,background:p.avatar?`url(${p.avatar}) center/cover no-repeat`:`linear-gradient(145deg,#2A2218,#1C1610)` }}/>
-      <div style={{ position:"absolute",top:8,right:8,background:"rgba(12,10,8,0.7)",backdropFilter:"blur(8px)",borderRadius:20,padding:"3px 8px",fontSize:11,color:C.gold,fontWeight:700 }}>{compat.score}%</div>
+      <div style={{ position:"absolute",inset:0,background:p.avatar?`url(${p.avatar}) center/cover no-repeat`:"linear-gradient(145deg,#E8E4F8,#F8E7ED)" }}/>
+      <div style={{ position:"absolute",top:8,right:8,background:"rgba(25,18,43,0.72)",backdropFilter:"blur(8px)",borderRadius:20,padding:"3px 8px",fontSize:11,color:"#C3BAFF",fontWeight:700 }}>{compat.score}%</div>
       <div style={{ position:"absolute",bottom:0,left:0,right:0,height:"55%",background:"linear-gradient(transparent,rgba(12,10,8,0.97))" }}/>
       <div style={{ position:"absolute",bottom:10,left:10,right:10 }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#fff" }}>{p.name}{p.age?`, ${p.age}`:""}</div>
@@ -463,6 +482,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
   const [profiles,setProfiles]   = useState<ExploreProfile[]>([]);
   const [idx,setIdx]             = useState(0);
   const [loading,setLoading]     = useState(true);
+  const [loadError,setLoadError] = useState("");
   const [exploreTab,setExploreTab] = useState<ExploreTab>("recommend");
   const [mapView,setMapView] = useState(false);
   const viewMode: "swipe"|"grid" = exploreTab === "recommend" ? "swipe" : "grid";
@@ -474,43 +494,94 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
   const [dailyStatus,setDailyStatus] = useState<DailyLikeStatus|null>(null);
   const [showPremiumGate, setShowPremiumGate] = useState<"likes"|"superlike"|"wholiked"|"grid"|null>(null);
   const [showPremium, setShowPremium] = useState(false);
-  const [matchInfo,setMatchInfo] = useState<{avatar:string;name:string;id:string;matchId?:string;profile?:ExploreProfile}|null>(null);
+  const [matchInfo,setMatchInfo] = useState<{avatar:string;name:string;id:string;matchId?:string;profile?:ExploreProfile;advanceDeck:boolean}|null>(null);
   const [showIcebreaker,setShowIcebreaker] = useState(false);
   const [showProfile,setShowProfile] = useState<ExploreProfile|null>(null);
   const [filters,setFilters]     = useState<Partial<UserProfile>>({ looking_for_gender:profile.looking_for_gender||"female", filter_min_age:profile.filter_min_age||18, filter_max_age:profile.filter_max_age||35, filter_max_distance:profile.filter_max_distance||100 });
+  const loadRequest = useRef(0);
 
-  useEffect(()=>{ load(); loadSocial(); },[]);
-  useEffect(()=>{ if (showProfile) recordProfileView(userId, showProfile.id); },[showProfile?.id]);
-
-  async function load() {
+  const load = useCallback(async () => {
+    const requestId = ++loadRequest.current;
     setLoading(true);
-    const [profs,status] = await Promise.all([getExploreProfiles(userId,{...profile,...filters}), getDailyLikeStatus(userId)]);
-    setProfiles(profs); setIdx(0); setDailyStatus(status); setLoading(false);
-  }
-  async function loadSocial() { setWhoLiked(await getWhoLikedMe(userId)); }
+    setLoadError("");
+    try {
+      const [profs,status] = await Promise.all([
+        getExploreProfiles(userId,{...profile,...filters}, exploreTab),
+        getDailyLikeStatus(userId),
+      ]);
+      if (requestId !== loadRequest.current) return;
+      setProfiles(profs);
+      setIdx(0);
+      setDailyStatus(status);
+    } catch (error) {
+      if (requestId !== loadRequest.current) return;
+      console.error("Unable to load explore profiles", error);
+      setLoadError("暫時無法載入探索資料，請稍後重試");
+    } finally {
+      if (requestId === loadRequest.current) setLoading(false);
+    }
+  }, [exploreTab, filters, profile, userId]);
 
-  async function doSwipe(dir:"like"|"pass"|"superlike") {
-    const p=profiles[idx]; if(!p) return;
+  useEffect(() => {
+    const timer = setTimeout(() => { void load(); }, 0);
+    return () => {
+      clearTimeout(timer);
+      loadRequest.current += 1;
+    };
+  }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    getWhoLikedMe(userId)
+      .then(items => { if (active) setWhoLiked(items); })
+      .catch(error => console.error("Unable to load likes", error));
+    return () => { active = false; };
+  }, [userId]);
+
+  const shownProfileId = showProfile?.id;
+  useEffect(()=>{ if (shownProfileId) void recordProfileView(userId, shownProfileId); },[shownProfileId, userId]);
+
+  async function doSwipe(dir:"like"|"pass"|"superlike", target?:ExploreProfile) {
+    const p=target ?? profiles[idx]; if(!p) return;
+    const advanceDeck = viewMode === "swipe" && profiles[idx]?.id === p.id;
     if(dir==="like"&&dailyStatus&&!dailyStatus.isPremium&&dailyStatus.remaining<=0){
       setShowPremiumGate("likes"); return;
     }
     if(dir==="superlike"&&dailyStatus&&dailyStatus.superlikeRemaining<=0){
       setShowPremiumGate("superlike"); return;
     }
-    const matched=await recordSwipe(userId,p.id,dir);
+    let matched = false;
+    try {
+      matched = await recordSwipe(userId,p.id,dir);
+    } catch (error) {
+      const message = errorText(error, "操作失敗，請稍後再試");
+      if (message.includes("LIKE_LIMIT")) setShowPremiumGate("likes");
+      else if (message.includes("SUPERLIKE_LIMIT")) setShowPremiumGate("superlike");
+      else { console.error(error); alert(message); }
+      return;
+    }
     if(dir==="like") setDailyStatus(s=>s?{...s,used:s.used+1,remaining:Math.max(0,s.remaining-1)}:s);
     if(dir==="superlike") setDailyStatus(s=>s?{...s,superlikeUsed:(s.superlikeUsed||0)+1,superlikeRemaining:Math.max(0,(s.superlikeRemaining||0)-1)}:s);
+    if(!advanceDeck) setProfiles(current=>current.filter(candidate=>candidate.id!==p.id));
     if(matched){
       const{data}=await sb.from("matches").select("id").or(`and(user1_id.eq.${userId},user2_id.eq.${p.id}),and(user1_id.eq.${p.id},user2_id.eq.${userId})`).maybeSingle();
-      sound.match(); setMatchInfo({avatar:p.avatar,name:p.name,id:p.id,matchId:data?.id,profile:p});
-    } else { setIdx(i=>i+1); }
+      sound.match(); setMatchInfo({avatar:p.avatar,name:p.name,id:p.id,matchId:data?.id,profile:p,advanceDeck});
+    } else if(advanceDeck) { setIdx(i=>i+1); }
   }
 
   async function likeFromWhoLiked(item:WhoLikedItem) {
-    sound.like(); await recordSwipe(userId,item.id,"like");
+    sound.like();
+    try {
+      await recordSwipe(userId,item.id,"like");
+    } catch (error) {
+      const message = errorText(error, "操作失敗，請稍後再試");
+      if (message.includes("LIKE_LIMIT")) setShowPremiumGate("likes");
+      else { console.error(error); alert(message); }
+      return;
+    }
     const{data}=await sb.from("matches").select("id").or(`and(user1_id.eq.${userId},user2_id.eq.${item.id}),and(user1_id.eq.${item.id},user2_id.eq.${userId})`).maybeSingle();
     setWhoLiked(w=>w.filter(x=>x.id!==item.id)); setShowWhoLiked(false);
-    sound.match(); setMatchInfo({avatar:item.avatar,name:item.name,id:item.id,matchId:data?.id,profile:{id:item.id,name:item.name,age:item.age,mbti:item.mbti,bio:"",avatar:item.avatar,photos:[],location:"",country:"",ethnicity:[],hobbies:[],verified:false} as any});
+    sound.match(); setMatchInfo({avatar:item.avatar,name:item.name,id:item.id,matchId:data?.id,profile:{id:item.id,name:item.name,age:item.age,mbti:item.mbti,bio:"",avatar:item.avatar,photos:[],location:"",country:"",ethnicity:[],hobbies:[],verified:false} as any,advanceDeck:false});
   }
 
   const remaining = profiles.slice(idx,idx+3).reverse();
@@ -519,35 +590,33 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
   return (
     <div style={{ display:"flex",flexDirection:"column",height:"100%",background:C.bg,animation:"tabSwitch .3s ease" }}>
       {/* Header */}
-      <div style={{ padding:"52px 16px 0",background:"rgba(12,10,8,0.96)",backdropFilter:"blur(20px)",borderBottom:`1px solid ${C.border}` }}>
+      <div style={{ padding:"52px 12px 0",background:C.nav,backdropFilter:"blur(24px) saturate(145%)",borderBottom:`1px solid ${C.border}`,boxShadow:"0 10px 30px rgba(57,42,101,0.05)" }}>
         <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12 }}>
-          <div style={{ display:"flex",gap:20 }}>
+          <div style={{ display:"flex",gap:8 }}>
             {([["recommend","推薦"],["nearby","附近的人"],["new","新加入"]] as const).map(([id,label])=>(
-              <button key={id} onClick={()=>{setExploreTab(id);load();}} style={{ background:"none",border:"none",color:exploreTab===id?C.text:C.textMuted,fontFamily:"inherit",fontSize:15,fontWeight:exploreTab===id?700:400,cursor:"pointer",paddingBottom:10,borderBottom:exploreTab===id?`2px solid ${C.gold}`:"2px solid transparent",transition:"all .2s" }}>{label}</button>
+              <button key={id} onClick={()=>{setExploreTab(id);setMapView(false);}} style={{ minHeight:44,padding:"0 3px 6px",background:"none",border:"none",color:exploreTab===id?C.text:C.textMuted,fontFamily:"inherit",fontSize:14,fontWeight:exploreTab===id?700:400,cursor:"pointer",borderBottom:exploreTab===id?`2px solid ${C.gold}`:"2px solid transparent",transition:"all .2s",whiteSpace:"nowrap" }}>{label}</button>
             ))}
           </div>
           <div style={{ display:"flex",gap:8 }}>
-            {/* Premium crown */}
-            <button style={{ width:34,height:34,borderRadius:"50%",background:C.goldSoft,border:`1px solid ${C.gold}33`,color:C.gold,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>👑</button>
             {/* Who liked me */}
-            <button onClick={()=>{ if(!dailyStatus?.isPremium){ setShowPremiumGate("wholiked"); return; } setShowWhoLiked(true); }} style={{ position:"relative",width:34,height:34,borderRadius:"50%",background:C.roseSoft,border:`1px solid rgba(232,54,93,0.2)`,color:C.rose,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+            {exploreTab!=="nearby" && <button aria-label="誰喜歡我" onClick={()=>{ if(!dailyStatus?.isPremium){ setShowPremiumGate("wholiked"); return; } setShowWhoLiked(true); }} style={{ position:"relative",width:44,height:44,borderRadius:"50%",background:C.roseSoft,border:`1px solid rgba(232,54,93,0.2)`,color:C.rose,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
               ♥{whoLiked.length>0&&<div style={{ position:"absolute",top:-3,right:-3,width:15,height:15,borderRadius:"50%",background:C.gradRose,fontSize:8.5,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${C.bg}` }}>{whoLiked.length}</div>}
-            </button>
+            </button>}
             {/* Grid/Map toggle — nearby tab only */}
             {exploreTab==="nearby" && (
-              <button onClick={()=>setMapView(v=>!v)} style={{ width:34,height:34,borderRadius:"50%",background:mapView?C.roseSoft:C.surf,border:`1px solid ${mapView?"rgba(232,54,93,0.3)":C.border}`,color:mapView?C.rose:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+              <button aria-label={mapView ? "切換為列表" : "切換為地圖"} onClick={()=>setMapView(v=>!v)} style={{ width:44,height:44,borderRadius:"50%",background:mapView?C.roseSoft:C.surf,border:`1px solid ${mapView?"rgba(232,54,93,0.3)":C.border}`,color:mapView?C.rose:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
                 {mapView ? "☰" : "🗺️"}
               </button>
             )}
             {/* Filter */}
-            <button onClick={()=>setShowFilter(true)} style={{ width:34,height:34,borderRadius:"50%",background:C.surf,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+            <button aria-label="篩選" onClick={()=>setShowFilter(true)} style={{ width:44,height:44,borderRadius:"50%",background:C.surf,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
             </button>
           </div>
         </div>
         {/* Daily bar */}
         {dailyStatus&&<div style={{ display:"flex",alignItems:"center",gap:8,paddingBottom:10 }}>
-          <div style={{ flex:1,height:2,background:"rgba(255,255,255,0.06)",borderRadius:2 }}>
+          <div style={{ flex:1,height:3,background:C.surfHigh,borderRadius:3 }}>
             <div style={{ height:"100%",width:`${(dailyStatus.used/dailyStatus.limit)*100}%`,background:dailyStatus.remaining<=5?C.gradRose:C.grad,borderRadius:2,transition:"width .4s" }}/>
           </div>
           <div style={{ fontSize:11,color:dailyStatus.remaining<=5?C.rose:C.textMuted,flexShrink:0 }}>{dailyStatus.remaining>0?`剩 ${dailyStatus.remaining}`:"已用完"}</div>
@@ -561,8 +630,13 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
             <div style={{ width:36,height:36,border:`2px solid ${C.border}`,borderTopColor:C.gold,borderRadius:"50%",animation:"spin .7s linear infinite" }}/>
             <div style={{ fontSize:13,color:C.textMuted }}>探索中...</div>
           </div>
+        ) : loadError ? (
+          <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,padding:32,textAlign:"center" }}>
+            <div style={{ fontSize:14,color:C.textMuted,lineHeight:1.6 }}>{loadError}</div>
+            <button type="button" onClick={()=>{ void load(); }} style={{ minHeight:46,padding:"0 24px",borderRadius:24,border:"none",background:C.grad,color:"#fff",fontFamily:"inherit",fontWeight:800,cursor:"pointer" }}>重新載入</button>
+          </div>
         ) : viewMode==="grid" && mapView && exploreTab==="nearby" ? (
-          !profile.latitude || !profile.longitude ? (
+          profile.latitude == null || profile.longitude == null ? (
             <div style={{ display:"flex",alignItems:"center",justifyContent:"center",height:"100%",textAlign:"center",padding:"0 32px",color:C.textMuted }}>
               <div>
                 <div style={{ fontSize:36,opacity:.3,color:C.gold,marginBottom:12 }}>📍</div>
@@ -592,11 +666,11 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
                   return (
                     <div key={p.id} style={{ position:"relative" }}>
                       <div style={{ filter:locked?"blur(13px)":"none",pointerEvents:locked?"none":"auto",transition:"filter .2s" }}>
-                        <GridCard p={p} myMbti={myMbti} onClick={()=>setShowProfile(p)}/>
+                        <GridCard p={p} myMbti={myMbti} myHobbies={profile.hobbies||[]} onClick={()=>setShowProfile(p)}/>
                       </div>
                       {locked && (
                         <div onClick={()=>setShowPremiumGate("grid")} style={{ position:"absolute",inset:0,zIndex:2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",borderRadius:16 }}>
-                          <div style={{ width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#C9A84C,#E2C068)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,boxShadow:"0 4px 20px rgba(201,168,76,0.45)" }}>🔒</div>
+                          <div style={{ width:44,height:44,borderRadius:"50%",background:C.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,boxShadow:`0 6px 20px ${C.goldGlow}` }}>🔒</div>
                         </div>
                       )}
                     </div>
@@ -612,11 +686,11 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
                 <div style={{ fontSize:44,opacity:.3,color:C.gold,marginBottom:16 }}>◈</div>
                 <div style={{ fontSize:20,fontWeight:700,color:C.text,marginBottom:8 }}>今天都看完了</div>
                 <div style={{ fontSize:14,color:C.textMuted,marginBottom:32,lineHeight:1.7 }}>新用戶每天都在加入<br/>明天再來看看</div>
-                <button onClick={load} style={{ padding:"13px 36px",borderRadius:50,background:C.grad,border:"none",color:C.bg,fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer" }}>重新載入</button>
+                <button onClick={()=>{ void load(); }} style={{ padding:"13px 36px",borderRadius:50,background:C.grad,border:"none",color:"#fff",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer" }}>重新載入</button>
               </div>
             ) : (
               <div style={{ position:"relative",width:"100%",maxWidth:360,height:540,overflow:"hidden" }}>
-                {remaining.map((p,i)=><SwipeCard key={p.id} p={p} isTop={i===remaining.length-1} myMbti={myMbti} onSwipe={doSwipe} onOpenProfile={()=>setShowProfile(p)}/>)}
+                {remaining.map((p,i)=><SwipeCard key={p.id} p={p} isTop={i===remaining.length-1} myMbti={myMbti} myHobbies={profile.hobbies||[]} onSwipe={doSwipe} onOpenProfile={()=>setShowProfile(p)}/>)}
               </div>
             )}
           </div>
@@ -628,21 +702,21 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
         <div style={{ display:"flex",gap:20,padding:"14px 0 28px",justifyContent:"center",alignItems:"center",background:C.bg }}>
           {/* Pass */}
           <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:5 }}>
-            <button onClick={()=>doSwipe("pass")} style={{ width:52,height:52,borderRadius:"50%",background:"rgba(255,255,255,0.04)",border:`1px solid ${C.border}`,color:"rgba(255,255,255,0.42)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .18s" }} onMouseEnter={e=>{e.currentTarget.style.background="rgba(232,54,93,0.08)";e.currentTarget.style.color=C.rose;}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.04)";e.currentTarget.style.color="rgba(255,255,255,0.42)";}}>
+            <button onClick={()=>doSwipe("pass")} style={{ width:52,height:52,borderRadius:"50%",background:C.surf,border:`1px solid ${C.border}`,color:C.textMuted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .18s" }} onMouseEnter={e=>{e.currentTarget.style.background=C.roseSoft;e.currentTarget.style.color=C.rose;}} onMouseLeave={e=>{e.currentTarget.style.background=C.surf;e.currentTarget.style.color=C.textMuted;}}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
-            <span style={{ fontSize:10.5,color:"rgba(255,255,255,0.26)",letterSpacing:".3px" }}>略過</span>
+            <span style={{ fontSize:10.5,color:C.textMuted,letterSpacing:".3px" }}>略過</span>
           </div>
           {/* Like */}
           <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:5 }}>
-            <button onClick={()=>doSwipe("like")} style={{ width:66,height:66,borderRadius:"50%",background:"linear-gradient(135deg,#C9A84C,#E2C068)",border:"none",color:"#12100C",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 6px 24px rgba(201,168,76,0.38)",transition:"transform .15s" }} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.07)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
+            <button onClick={()=>doSwipe("like")} style={{ width:66,height:66,borderRadius:"50%",background:C.gradRose,border:"none",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 8px 26px ${C.roseGlow}`,transition:"transform .15s" }} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.07)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
             </button>
-            <span style={{ fontSize:10.5,color:"#E2C068",fontWeight:600,letterSpacing:".3px" }}>喜歡</span>
+            <span style={{ fontSize:10.5,color:C.rose,fontWeight:700,letterSpacing:".3px" }}>喜歡</span>
           </div>
           {/* Priority */}
           <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:5 }}>
-            <button onClick={()=>doSwipe("superlike")} style={{ width:52,height:52,borderRadius:"50%",background:"linear-gradient(145deg,#1A1608,#231E0A)",border:"1.5px solid rgba(201,168,76,0.5)",color:C.gold,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 16px rgba(201,168,76,0.2)",transition:"all .18s" }} onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 0 0 6px rgba(201,168,76,0.1),0 6px 20px rgba(201,168,76,0.35)";}} onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 4px 16px rgba(201,168,76,0.2)";}}>
+            <button onClick={()=>doSwipe("superlike")} style={{ width:52,height:52,borderRadius:"50%",background:C.bgElevated,border:`1.5px solid ${C.gold}66`,color:C.gold,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 6px 18px ${C.goldGlow}`,transition:"all .18s" }} onMouseEnter={e=>{e.currentTarget.style.boxShadow=`0 0 0 6px ${C.goldSoft},0 8px 24px ${C.goldGlow}`;}} onMouseLeave={e=>{e.currentTarget.style.boxShadow=`0 6px 18px ${C.goldGlow}`;}}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
             </button>
             <span style={{ fontSize:10.5,color:C.gold,fontWeight:700,letterSpacing:".4px" }}>優先認識</span>
@@ -652,8 +726,8 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
 
       {/* Profile detail sheet */}
       {showProfile && <ProfileSheet p={showProfile} myMbti={myMbti} myProfile={profile} onClose={()=>setShowProfile(null)}
-        onLike={()=>{doSwipe("like");setShowProfile(null);}}
-        onSuperlike={()=>{doSwipe("superlike");setShowProfile(null);}}
+        onLike={()=>{void doSwipe("like",showProfile);setShowProfile(null);}}
+        onSuperlike={()=>{void doSwipe("superlike",showProfile);setShowProfile(null);}}
         onChat={()=>{ setShowProfile(null); }}
       />}
 
@@ -670,12 +744,12 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
       {showPremium && <PremiumScreen onBack={()=>setShowPremium(false)} profile={profile}/>}
 
       {matchInfo && <MatchAnimation myAvatar={profile.avatar_url||""} myName={profile.display_name||profile.username} theirAvatar={matchInfo.avatar} theirName={matchInfo.name}
-        onChat={()=>{if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:"",time:"",unread:0} as any);setMatchInfo(null);}}
+        onChat={()=>{if(matchInfo.advanceDeck)setIdx(i=>i+1);if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:"",time:"",unread:0} as any);setMatchInfo(null);}}
         onIcebreaker={()=>setShowIcebreaker(true)}
-        onContinue={()=>{setMatchInfo(null);setIdx(i=>i+1);}}/>}
-      {showIcebreaker&&matchInfo?.profile&&<IcebreakerSheet them={matchInfo.profile} myMbti={myMbti} onClose={()=>setShowIcebreaker(false)} onUse={text=>{if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:text,time:"",unread:0,prefillMsg:text} as any);setShowIcebreaker(false);setMatchInfo(null);}}/>}
+        onContinue={()=>{if(matchInfo.advanceDeck)setIdx(i=>i+1);setMatchInfo(null);}}/>}
+      {showIcebreaker&&matchInfo?.profile&&<IcebreakerSheet them={matchInfo.profile} myMbti={myMbti} myHobbies={profile.hobbies||[]} onClose={()=>setShowIcebreaker(false)} onUse={text=>{if(matchInfo.advanceDeck)setIdx(i=>i+1);if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:text,time:"",unread:0,prefillMsg:text} as any);setShowIcebreaker(false);setMatchInfo(null);}}/>}
       {showWhoLiked && <WhoLikedPanel items={whoLiked} onClose={()=>setShowWhoLiked(false)} onLike={likeFromWhoLiked}/>}
-      {showFilter && <FilterSheet filters={filters} onSave={f=>{setFilters(f);updateProfile(userId,f);onUpdate(f);setShowFilter(false);load();}} onClose={()=>setShowFilter(false)}/>}
+      {showFilter && <FilterSheet filters={filters} onSave={async f=>{ setFilters(f); try { await updateProfile(userId,f); onUpdate(f); setShowFilter(false); } catch (error) { console.error(error); alert(error instanceof Error ? error.message : "篩選條件儲存失敗"); } }} onClose={()=>setShowFilter(false)}/>}
     </div>
   );
 }

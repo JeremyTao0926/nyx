@@ -112,16 +112,16 @@ export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAn
               <div>
                 <textarea value={input} onChange={e => setInput(e.target.value)}
                   placeholder="說說你的想法..." rows={2}
-                  style={{ width: "100%", padding: "11px 14px", background: "rgba(255,255,255,0.05)", border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit", resize: "none", boxSizing: "border-box" as const, lineHeight: 1.6 }}
+                  style={{ width: "100%", padding: "11px 14px", background: C.surf, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit", resize: "none", boxSizing: "border-box" as const, lineHeight: 1.6 }}
                   onFocus={e => (e.target.style.borderColor = C.rose)}
                   onBlur={e => (e.target.style.borderColor = C.border)} />
                 <button onClick={submit} disabled={!input.trim() || submitting}
-                  style={{ marginTop: 8, width: "100%", padding: "12px", borderRadius: 12, background: input.trim() ? C.gradRose : "rgba(255,255,255,0.06)", border: "none", color: input.trim() ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: input.trim() ? "pointer" : "default", transition: "all .2s" }}>
+                  style={{ marginTop: 8, width: "100%", padding: "12px", borderRadius: 12, background: input.trim() ? C.gradRose : C.surfHigh, border: "none", color: input.trim() ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: input.trim() ? "pointer" : "default", transition: "all .2s" }}>
                   {submitting ? "提交中..." : "提交"}
                 </button>
               </div>
             ) : (
-              <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: "14px 16px" }}>
+              <div style={{ background: C.surf, borderRadius: 12, padding: "14px 16px" }}>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>你的回答</div>
                 <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6 }}>{myAnswer}</div>
                 <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}>
@@ -136,7 +136,7 @@ export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAn
             /* Revealed — show both answers + one-time reaction */
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {[{ label: "你", ans: myAnswer, color: C.rose }, { label: otherName, ans: otherAnswer, color: C.gold }].map(p => (
-                <div key={p.label} style={{ borderRadius: 14, padding: "14px 16px", background: "rgba(255,255,255,0.04)", border: `1px solid ${C.border}` }}>
+                <div key={p.label} style={{ borderRadius: 14, padding: "14px 16px", background: C.surf, border: `1px solid ${C.border}` }}>
                   <div style={{ fontSize: 11.5, color: p.color, fontWeight: 700, marginBottom: 6 }}>{p.label}</div>
                   <div style={{ fontSize: 14, color: C.text, lineHeight: 1.65 }}>{p.ans || "..."}</div>
                 </div>
@@ -155,12 +155,12 @@ export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAn
                   <div>
                     <textarea value={reactInput} onChange={e => setReactInput(e.target.value)}
                       placeholder={`對 ${otherName} 的回答說點什麼...`} rows={2} autoFocus
-                      style={{ width: "100%", padding: "11px 14px", background: "rgba(255,255,255,0.05)", border: `1px solid ${C.rose}44`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit", resize: "none", boxSizing: "border-box" as const, lineHeight: 1.6 }} />
+                      style={{ width: "100%", padding: "11px 14px", background: C.surf, border: `1px solid ${C.rose}44`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit", resize: "none", boxSizing: "border-box" as const, lineHeight: 1.6 }} />
                     <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                       <button onClick={() => setShowReact(false)}
                         style={{ flex: 1, padding: "10px", borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}>取消</button>
                       <button onClick={sendReaction} disabled={!reactInput.trim()}
-                        style={{ flex: 2, padding: "10px", borderRadius: 12, background: reactInput.trim() ? C.gradRose : "rgba(255,255,255,0.06)", border: "none", color: reactInput.trim() ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 13, fontWeight: 700, cursor: reactInput.trim() ? "pointer" : "default" }}>
+                        style={{ flex: 2, padding: "10px", borderRadius: 12, background: reactInput.trim() ? C.gradRose : C.surfHigh, border: "none", color: reactInput.trim() ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 13, fontWeight: 700, cursor: reactInput.trim() ? "pointer" : "default" }}>
                         發送（不可撤回）
                       </button>
                     </div>

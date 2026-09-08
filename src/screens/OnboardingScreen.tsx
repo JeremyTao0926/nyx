@@ -51,7 +51,7 @@ export function OnboardingScreen({ userId, onDone }: { userId: string; onDone: (
         NYX 包含成人約會內容，<br/>僅供 <span style={{ color:C.gold,fontWeight:700 }}>18 歲以上</span>成年人使用。<br/>請確認你的年齡。
       </div>
       <button onClick={()=>setAgeVerified(true)}
-        style={{ width:"100%",maxWidth:360,padding:"16px",borderRadius:50,background:"linear-gradient(135deg,#C9A84C,#E2C068)",border:"none",color:"#12100C",fontFamily:"inherit",fontSize:16,fontWeight:800,cursor:"pointer",marginBottom:14,boxShadow:"0 4px 24px rgba(201,168,76,0.35)" }}>
+        style={{ width:"100%",maxWidth:360,padding:"16px",borderRadius:50,background:C.grad,border:"none",color:"#fff",fontFamily:"inherit",fontSize:16,fontWeight:800,cursor:"pointer",marginBottom:14,boxShadow:`0 8px 24px ${C.goldGlow}` }}>
         我已年滿 18 歲，繼續使用
       </button>
       <button onClick={()=>setAgeDenied(true)}

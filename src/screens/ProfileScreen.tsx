@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { C, sound, sb, updateProfile, uploadAvatar, uploadPhoto, deleteAccount, calcAge, calcCompletion, zodiacSign, getProfileViewCount, ETHNICITY, HOBBIES, reverseGeocode, searchCities, exportUserData } from "../utils";
+import { C, sound, sb, updateProfile, uploadAvatar, uploadPhoto, deleteAccount, calcAge, calcCompletion, zodiacSign, getProfileViewCount, ETHNICITY, HOBBIES, reverseGeocode, searchCities, formatLocation, exportUserData } from "../utils";
 import { Av } from "../components/Atoms";
 import { ImageCropper } from "../components/ImageCropper";
 import { MbtiSheet, MultiSelect, BottomSheet } from "../components/Modals";
@@ -9,6 +9,7 @@ import { getWhoLikedMe } from "../utils";
 import { PremiumScreen } from "./PremiumScreen";
 import { PremiumGateSheet } from "../components/PremiumGateSheet";
 import { TermsScreen } from "./TermsScreen";
+import { getPushEnabled, initPush, removePush } from "../pushNotifications";
 
 /* ── SVG Icons (Lucide outline, 20×20) ── */
 const IC: Record<string,string> = {
@@ -54,7 +55,7 @@ function Si({ n, s=18, c="currentColor" }: { n: string; s?: number; c?: string }
 
 /* ── Reusable components ── */
 function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
-  return <div onClick={onChange} style={{ width:46,height:26,borderRadius:13,background:on?"#e8365d":"rgba(255,255,255,0.08)",position:"relative",transition:"background .25s",cursor:"pointer",flexShrink:0 }}>
+  return <div onClick={onChange} style={{ width:46,height:26,borderRadius:13,background:on?C.rose:C.surfHigh,position:"relative",transition:"background .25s",cursor:"pointer",flexShrink:0 }}>
     <div style={{ width:20,height:20,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:on?23:3,transition:"left .25s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)" }}/>
   </div>;
 }
@@ -74,7 +75,7 @@ function EditRow({ icon, label, value, right, onClick, last }: { icon: string; l
 
 function SettingRow({ icon, label, sub, right, onClick, last }: { icon: string; label: string; sub?: string; right?: React.ReactNode; onClick?: () => void; last?: boolean }) {
   return <div onClick={onClick} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"15px 18px",cursor:onClick?"pointer":"default",borderBottom:last?"none":`1px solid ${C.border}`,transition:"background .15s",minHeight:52 }}
-    onMouseEnter={e=>onClick&&(e.currentTarget.style.background="rgba(255,255,255,0.025)")}
+    onMouseEnter={e=>onClick&&(e.currentTarget.style.background=C.surf)}
     onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
     <div style={{ display:"flex",alignItems:"center",gap:13,flex:1,minWidth:0 }}>
       <Si n={icon} s={18} c={C.textMuted}/>
@@ -87,20 +88,36 @@ function SettingRow({ icon, label, sub, right, onClick, last }: { icon: string; 
   </div>;
 }
 
-const INP = { width:"100%",padding:"12px 14px",background:"rgba(255,255,255,0.04)",border:`1px solid ${C.border}`,borderRadius:12,color:C.text,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box" as const,transition:"border-color .2s" };
+const INP = { width:"100%",padding:"12px 14px",background:C.surf,border:`1px solid ${C.border}`,borderRadius:12,color:C.text,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box" as const,transition:"border-color .2s" };
 
 function CityInput({ value, onChange, onSelect, near }: { value: string; onChange: (v: string) => void; onSelect: (city: string, lat: number, lon: number) => void; near?: { lat: number; lon: number } | null }) {
   const [res, setRes] = useState<{ name: string; state: string; country: string; lat: number; lon: number }[]>([]);
   const [open, setOpen] = useState(false);
-  const timer = useRef<any>(null);
-  function handle(v: string) { onChange(v); clearTimeout(timer.current); if (v.length < 2) { setRes([]); setOpen(false); return; } timer.current = setTimeout(async () => { const r = await searchCities(v, near); setRes(r); setOpen(r.length > 0); }, 380); }
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestId = useRef(0);
+  useEffect(() => () => {
+    requestId.current += 1;
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  function handle(v: string) {
+    onChange(v);
+    const currentRequest = ++requestId.current;
+    if (timer.current) clearTimeout(timer.current);
+    if (v.trim().length < 2) { setRes([]); setOpen(false); return; }
+    timer.current = setTimeout(async () => {
+      const results = await searchCities(v.trim(), near);
+      if (currentRequest !== requestId.current) return;
+      setRes(results);
+      setOpen(results.length > 0);
+    }, 380);
+  }
   return <div style={{ position: "relative" }}>
-    <input value={value} onChange={e => handle(e.target.value)} placeholder="輸入城市名稱..." style={INP} onFocus={e => (e.target.style.borderColor = C.rose)} onBlur={e => { e.target.style.borderColor = C.border; setTimeout(() => setOpen(false), 200); }} />
-    {open && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "rgba(20,18,14,0.99)", backdropFilter: "blur(24px)", border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", zIndex: 100, boxShadow: "0 16px 48px rgba(0,0,0,0.5)" }}>
-      {res.map((r, i) => <div key={i} onMouseDown={() => { onSelect(r.name, r.lat, r.lon); onChange(r.name); setOpen(false); }} style={{ padding: "12px 16px", cursor: "pointer", borderBottom: i < res.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }} onMouseEnter={e => (e.currentTarget.style.background = C.surf)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+    <input aria-label="城市或國家" aria-expanded={open} aria-controls="profile-city-results" autoComplete="address-level2" value={value} onChange={e => handle(e.target.value)} placeholder="輸入城市或國家..." style={INP} onFocus={e => { e.target.style.borderColor = C.rose; if (res.length) setOpen(true); }} onBlur={e => { e.target.style.borderColor = C.border; setTimeout(() => setOpen(false), 200); }} />
+    {open && <div id="profile-city-results" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: C.bgElevated, backdropFilter: "blur(24px)", border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", zIndex: 100, boxShadow: C.shadowStrong }}>
+      {res.map((r, i) => <button type="button" key={`${r.lat}-${r.lon}`} onClick={() => { const label = formatLocation(r.name, r.state, r.country); onSelect(label, r.lat, r.lon); setOpen(false); }} style={{ width:"100%", minHeight:48, padding: "12px 16px", cursor: "pointer", border:"none", borderBottom: i < res.length - 1 ? `1px solid ${C.border}` : "none", background:"transparent", fontFamily:"inherit", textAlign:"left", display: "flex", justifyContent: "space-between", alignItems: "center" }} onMouseEnter={e => (e.currentTarget.style.background = C.surf)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
         <span style={{ fontSize: 14, color: C.text }}>📍 {r.name}</span>
         <span style={{ fontSize: 12, color: C.textMuted }}>{[r.state, r.country].filter(Boolean).join(", ")}</span>
-      </div>)}
+      </button>)}
     </div>}
   </div>;
 }
@@ -132,6 +149,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const [pinLat, setPinLat] = useState<number | null>(profile.latitude ?? null);
   const [pinLon, setPinLon] = useState<number | null>(profile.longitude ?? null);
   const [geocoding, setGeocoding] = useState(false);
+  const geocodeRequest = useRef(0);
   const [ethnicity, setEthnicity] = useState<string[]>(profile.ethnicity || []);
   const [hobbies, setHobbies] = useState<string[]>(profile.hobbies || []);
   const [mbti, setMbti] = useState(profile.mbti || "INFP");
@@ -142,9 +160,12 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const [uploading, setUploading] = useState(false);
   const [showMbti, setShowMbti] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [soundOn, setSoundOn] = useState(sound.enabled);
+  const [pushOn, setPushOn] = useState(false);
   const [lang, setLang] = useState<Lang>((profile as any).language || "zh");
   const [hideOnline, setHideOnline] = useState((profile as any).hide_online_status || false);
+  useEffect(() => { getPushEnabled().then(setPushOn).catch(() => {}); }, []);
   const [occupation, setOccupation] = useState((profile as any).occupation || "");
   const [education, setEducation] = useState((profile as any).education || "");
   const [income, setIncome] = useState((profile as any).income || "");
@@ -170,6 +191,18 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const [showTerms, setShowTerms] = useState<"terms" | "privacy" | null>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
   const [editField, setEditField] = useState<string|null>(null);
+
+  async function confirmDeleteAccount() {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteAccount(userId);
+      setShowDelete(false);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "帳號刪除失敗，請稍後再試或聯絡支援。");
+      setDeleting(false);
+    }
+  }
   const [editText, setEditText] = useState("");
 
   // Hinge-style swipe right to go back (settings sub-page)
@@ -184,8 +217,29 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
     if (settingsSwipeStartX.current < 40 && dx > 0 && dy < 60) { isSettingsSwiping.current = true; setSettingsSwipeDx(dx); }
   }
   function onSettingsSwipeTouchEnd() {
-    if (isSettingsSwiping.current && settingsSwipeDx > 100) setActiveTab("view"); else setSettingsSwipeDx(0);
+    // Always reset, even on a successful swipe — otherwise this state
+    // persists across visits (this component never unmounts between tabs)
+    // and the panel reappears already mid-dragged next time it's opened.
+    if (isSettingsSwiping.current && settingsSwipeDx > 100) setActiveTab("view");
+    setSettingsSwipeDx(0);
     isSettingsSwiping.current = false;
+  }
+
+  // Hinge-style swipe right to go back (edit sub-page)
+  const editSwipeStartX = useRef(0);
+  const editSwipeStartY = useRef(0);
+  const [editSwipeDx, setEditSwipeDx] = useState(0);
+  const isEditSwiping = useRef(false);
+  function onEditSwipeTouchStart(e: React.TouchEvent) { editSwipeStartX.current = e.touches[0].clientX; editSwipeStartY.current = e.touches[0].clientY; isEditSwiping.current = false; }
+  function onEditSwipeTouchMove(e: React.TouchEvent) {
+    const dx = e.touches[0].clientX - editSwipeStartX.current;
+    const dy = Math.abs(e.touches[0].clientY - editSwipeStartY.current);
+    if (editSwipeStartX.current < 40 && dx > 0 && dy < 60) { isEditSwiping.current = true; setEditSwipeDx(dx); }
+  }
+  function onEditSwipeTouchEnd() {
+    if (isEditSwiping.current && editSwipeDx > 100) setActiveTab("view");
+    setEditSwipeDx(0);
+    isEditSwiping.current = false;
   }
 
   const age = calcAge(birthday);
@@ -279,29 +333,68 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   }
 
   function handleAvatar(file: File) { setCropFile({ file, type: "avatar" }); }
-  async function doUploadAvatar(blob: Blob) { setUploading(true); setCropFile(null); try { const f = new File([blob], "avatar.jpg", { type: "image/jpeg" }); const url = await uploadAvatar(f, userId); setAvatarUrl(url); await updateProfile(userId, { avatar_url: url }); onUpdate({ avatar_url: url }); } catch (e) { console.error(e); } setUploading(false); }
-  async function handlePhoto(file: File) { if (photos.length >= 6) return; setUploading(true); try { const url = await uploadPhoto(file, userId, photos.length); setPhotos(p => [...p, url]); } catch (e) { console.error(e); } setUploading(false); }
+  async function doUploadAvatar(blob: Blob) {
+    setUploading(true);
+    setCropFile(null);
+    try {
+      const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+      const url = await uploadAvatar(file, userId);
+      await updateProfile(userId, { avatar_url: url });
+      setAvatarUrl(url);
+      onUpdate({ avatar_url: url });
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : "大頭照上傳失敗，請稍後再試");
+    } finally {
+      setUploading(false);
+    }
+  }
+  async function handlePhoto(file: File) {
+    if (photos.length >= 6) return;
+    setUploading(true);
+    try {
+      const url = await uploadPhoto(file, userId, photos.length);
+      setPhotos(current => [...current, url]);
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : "照片上傳失敗，請稍後再試");
+    } finally {
+      setUploading(false);
+    }
+  }
   async function save() {
     setSaving(true);
-    const patch: Partial<UserProfile> = { display_name: name, bio: bio || null, birthday: birthday || null, location_text: loc || null, ethnicity, hobbies, mbti, gender, looking_for_gender: lookingFor, avatar_url: avatarUrl || null, photos, ...({ occupation: occupation || null, education: education || null, income: income || null, height_cm: heightCm || null, drinking: drinking || null, smoking: smoking || null, exercise: exercise || null, has_pets: hasPets || null, want_children: wantChildren || null, relationship_goal: relGoal || null, love_language: loveLanguage || null } as any) };
-    await updateProfile(userId, patch);
-    const { data: refreshed } = await sb.from("profiles").select("*").eq("id", userId).single();
-    if (refreshed) onUpdate(refreshed as any);
-    setActiveTab("view"); setSaving(false); sound.pop();
+    const patch: Partial<UserProfile> = { display_name: name, bio: bio || null, birthday: birthday || null, location_text: loc || null, latitude: pinLat, longitude: pinLon, ethnicity, hobbies, mbti, gender, looking_for_gender: lookingFor, avatar_url: avatarUrl || null, photos, ...({ occupation: occupation || null, education: education || null, income: income || null, height_cm: heightCm || null, drinking: drinking || null, smoking: smoking || null, exercise: exercise || null, has_pets: hasPets || null, want_children: wantChildren || null, relationship_goal: relGoal || null, love_language: loveLanguage || null } as any) };
+    try {
+      await updateProfile(userId, patch);
+      const { data: refreshed, error } = await sb.from("profiles").select("*").eq("id", userId).single();
+      if (error) throw error;
+      if (refreshed) onUpdate(refreshed as UserProfile);
+      setActiveTab("view");
+      sound.pop();
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : "儲存失敗，請稍後再試");
+    } finally {
+      setSaving(false);
+    }
   }
   async function handleLocate() {
     if (!navigator.geolocation) { alert("你的瀏覽器不支援定位"); return; }
+    const currentRequest = ++geocodeRequest.current;
     setLocating(true);
     try {
       const pos = await new Promise<GeolocationPosition>((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000, enableHighAccuracy: true }));
-      const { city } = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-      if (city) { setLoc(city); setEditText(city); }
+      const place = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+      if (currentRequest !== geocodeRequest.current) return;
+      const locationLabel = formatLocation(place.city, place.state, place.country);
+      if (locationLabel) { setLoc(locationLabel); setEditText(locationLabel); }
       setPinLat(pos.coords.latitude); setPinLon(pos.coords.longitude);
-      await updateProfile(userId, { latitude: pos.coords.latitude, longitude: pos.coords.longitude, location_text: city || loc } as any);
     } catch (e: any) {
       if (e.code === 1) alert("請允許瀏覽器使用定位權限"); else alert("定位失敗，請手動輸入城市");
+    } finally {
+      setLocating(false);
     }
-    setLocating(false);
   }
 
   const edu: Record<string, string> = { high_school: "高中", college: "大專", bachelor: "本科", master: "碩士", phd: "博士" };
@@ -332,7 +425,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           </div>
           {profile.is_verified ? (
             <div style={{ position: "absolute", bottom: 2, right: 2, width: 22, height: 22, borderRadius: "50%", background: C.gold, border: `2.5px solid ${C.bg}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ color: "#12100C", fontSize: 10, fontWeight: 800 }}>V</span>
+              <span style={{ color: "#fff", fontSize: 10, fontWeight: 800 }}>V</span>
             </div>
           ) : (
             <span style={{ position: "absolute", bottom: 3, right: 3, width: 16, height: 16, borderRadius: "50%", background: "#06d6a0", border: `2.5px solid ${C.bg}`, boxShadow: "0 0 6px rgba(6,214,160,.5)" }} />
@@ -347,9 +440,9 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <div style={{ fontSize: 13, color: C.textMuted, marginTop: 2 }}>@{profile.username}</div>
           {bio && <div style={{ fontSize: 13.5, color: C.textSub, marginTop: 8, lineHeight: 1.5 }}>{bio}</div>}
           <div style={{ display: "flex", gap: 7, flexWrap: "wrap" as const, marginTop: 10 }}>
-            {age != null && <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{age}</span>}
-            {loc && <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub, display: "flex", alignItems: "center", gap: 4 }}><Si n="globe" s={12} c={C.textMuted} />{loc}</span>}
-            {zodiac && <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{zodiac}</span>}
+            {age != null && <span style={{ padding: "5px 12px", borderRadius: 20, background: C.surfHigh, border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{age}</span>}
+            {loc && <span style={{ padding: "5px 12px", borderRadius: 20, background: C.surfHigh, border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub, display: "flex", alignItems: "center", gap: 4 }}><Si n="globe" s={12} c={C.textMuted} />{loc}</span>}
+            {zodiac && <span style={{ padding: "5px 12px", borderRadius: 20, background: C.surfHigh, border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{zodiac}</span>}
           </div>
         </div>
       </div>
@@ -358,15 +451,15 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
 
         {/* Premium upsell banner */}
         {!isPremiumUser && (
-          <div onClick={() => setShowPremium(true)} style={{ display: "flex", alignItems: "center", gap: 14, background: "linear-gradient(135deg,rgba(201,168,76,0.14),rgba(201,168,76,0.05))", border: "1px solid rgba(201,168,76,0.3)", borderRadius: 18, padding: "14px 16px", marginBottom: 14, cursor: "pointer" }}>
-            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(201,168,76,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div onClick={() => setShowPremium(true)} style={{ display: "flex", alignItems: "center", gap: 14, background: "linear-gradient(135deg,rgba(103,87,217,0.14),rgba(239,95,122,0.05))", border:`1px solid ${C.borderHigh}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14, cursor: "pointer", boxShadow:C.shadow }}>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: C.goldSoft, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Si n="crown" s={22} c={C.gold} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: C.gold }}>NYX Premium</div>
               <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>解鎖無限喜歡・誰喜歡了你・更多專屬特權</div>
             </div>
-            <div style={{ padding: "9px 18px", borderRadius: 20, background: "linear-gradient(135deg,#C9A84C,#E2C068)", color: "#12100C", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>升級</div>
+            <div style={{ padding: "9px 18px", borderRadius: 20, background: C.grad, color: "#fff", fontSize: 13, fontWeight: 800, flexShrink: 0, boxShadow:`0 6px 18px ${C.goldGlow}` }}>升級</div>
           </div>
         )}
 
@@ -380,7 +473,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           ].map((s, i) => (
             <div key={s.label} onClick={() => s.panel ? openStatsPanel(s.panel) : (!isPremiumUser && setStatsGate(true))}
               style={{ flex: 1, textAlign: "center" as const, padding: "16px 0", borderRight: i < 3 ? `1px solid ${C.border}` : "none", cursor: "pointer", transition: "background .15s" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
+              onMouseEnter={e => (e.currentTarget.style.background = C.surf)}
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 4 }}>
                 <Si n={s.ico} s={17} c={s.color} />
@@ -420,9 +513,9 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
       {/* ── Stats Panel ── */}
       {statsPanel && (
         <div style={{ position:"fixed",inset:0,zIndex:200,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.65)",backdropFilter:"blur(16px)" }} onClick={()=>setStatsPanel(null)}>
-          <div onClick={e=>e.stopPropagation()} style={{ width:"100%",maxWidth:480,margin:"0 auto",background:"#141210",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",maxHeight:"82vh",display:"flex",flexDirection:"column" as const,position:"absolute",bottom:0,animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%",maxWidth:480,margin:"0 auto",background:C.bgElevated,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",maxHeight:"82vh",display:"flex",flexDirection:"column" as const,position:"absolute",bottom:0,boxShadow:C.shadowStrong,animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
             {/* Handle */}
-            <div style={{ padding:"14px 0 0",display:"flex",justifyContent:"center" }}><div style={{ width:40,height:5,borderRadius:3,background:"rgba(255,255,255,0.15)" }}/></div>
+            <div style={{ padding:"14px 0 0",display:"flex",justifyContent:"center" }}><div style={{ width:40,height:5,borderRadius:3,background:C.borderHigh }}/></div>
             {/* Header */}
             <div style={{ padding:"12px 20px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
               <div>
@@ -433,7 +526,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                   {statsPanel==="liked_me"?`${stats.likesReceived} 人`:statsPanel==="i_liked"?`${stats.likesGiven} 人`:`${stats.matches} 個配對`}
                 </div>
               </div>
-              <button onClick={()=>{setStatsPanel(null);setShowAllMatches(false);}} style={{ width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"none",color:C.textMuted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16 }}>✕</button>
+              <button onClick={()=>{setStatsPanel(null);setShowAllMatches(false);}} style={{ width:32,height:32,borderRadius:"50%",background:C.surfHigh,border:"none",color:C.textMuted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16 }}>✕</button>
             </div>
             {/* Content */}
             <div style={{ flex:1,overflowY:"auto",padding:"8px 0 32px" }}>
@@ -453,14 +546,14 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                       <div key={m.matchId}
                         onClick={()=>{ setStatsPanel(null); onOpenChat?.(m.matchId, m.userId, m.name, m.avatar); }}
                         style={{ display:"flex",alignItems:"center",gap:14,padding:"12px 20px",cursor:"pointer",transition:"background .15s" }}
-                        onMouseEnter={e=>(e.currentTarget.style.background="rgba(255,255,255,0.025)")}
+                        onMouseEnter={e=>(e.currentTarget.style.background=C.surf)}
                         onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
                         <Av url={m.avatar} name={m.name} size={54}/>
                         <div style={{ flex:1,minWidth:0 }}>
                           <div style={{ fontSize:15,fontWeight:600,color:C.text }}>{m.name}{m.age?`, ${m.age}`:""}</div>
                           <div style={{ fontSize:12.5,color:C.textMuted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const }}>{m.lastMsg}</div>
                         </div>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(245,237,214,0.25)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textDim} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                       </div>
                     ))}
                     {myMatches.length > 8 && !showAllMatches && (
@@ -497,7 +590,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                           <div style={{ fontSize:11.5,fontWeight:700,color:C.textMuted,letterSpacing:".5px",padding:"14px 20px 8px",textTransform:"uppercase" as const }}>{group.label}</div>
                           {group.items.map(item=>(
                             <div key={item.id} style={{ display:"flex",alignItems:"center",gap:14,padding:"12px 20px",transition:"background .15s" }}
-                              onMouseEnter={e=>(e.currentTarget.style.background="rgba(255,255,255,0.02)")}
+                              onMouseEnter={e=>(e.currentTarget.style.background=C.surf)}
                               onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
                               <Av url={item.avatar} name={item.name} size={54}/>
                               <div style={{ flex:1,minWidth:0 }}>
@@ -518,7 +611,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                                     setStats(s=>({...s,likesReceived:s.likesReceived-1}));
                                     sound.match();
                                   }}
-                                  style={{ padding:"8px 16px",borderRadius:20,background:"linear-gradient(135deg,#C9A84C,#E2C068)",border:"none",color:"#12100C",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0 }}>
+                                  style={{ padding:"8px 16px",borderRadius:20,background:C.grad,border:"none",color:"#fff",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0 }}>
                                   喜歡
                                 </button>
                               )}
@@ -542,7 +635,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <div style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.65, marginBottom: 28 }}>所有資料、配對、對話將永久刪除，無法復原。</div>
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={() => setShowDelete(false)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.surf, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: "inherit", fontSize: 14, cursor: "pointer" }}>取消</button>
-            <button onClick={() => deleteAccount(userId)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.12)", border: "1px solid rgba(255,60,60,0.28)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>確定刪除</button>
+            <button disabled={deleting} onClick={confirmDeleteAccount} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.12)", border: "1px solid rgba(255,60,60,0.28)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: deleting ? "wait" : "pointer", opacity: deleting ? .6 : 1 }}>{deleting ? "刪除中…" : "確定刪除"}</button>
           </div>
         </div>
       </BottomSheet>}
@@ -562,17 +655,15 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
 
   /* ── EDIT MODE ── */
   const editJSX = (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease" }}>
+    <div onTouchStart={onEditSwipeTouchStart} onTouchMove={onEditSwipeTouchMove} onTouchEnd={onEditSwipeTouchEnd}
+      style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease",
+        touchAction: "pan-y", transform: `translateX(${editSwipeDx}px)`, transition: editSwipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
+        boxShadow: editSwipeDx > 10 ? "-10px 0 30px rgba(0,0,0,0.6)" : "none" }}>
       {/* Edit header bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 12px", borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: C.bg }}>
-        <button onClick={() => setActiveTab("view")} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 14, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>取消</button>
+        <button onClick={() => setActiveTab("view")} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>‹</button>
         <span style={{ fontSize: 16, fontWeight: 700, color: C.text }}>編輯資料</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={save} disabled={saving} style={{ background: "none", border: "none", color: C.rose, fontSize: 14, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, opacity: saving ? .6 : 1 }}>{saving ? "儲存中..." : "儲存"}</button>
-          <button onClick={() => setActiveTab("settings")} style={{ width: 32, height: 32, borderRadius: "50%", background: C.bgCard, border: `1px solid ${C.border}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Si n="gear" s={15} c={C.textMuted} />
-          </button>
-        </div>
+        <button onClick={save} disabled={saving} style={{ background: "none", border: "none", color: C.rose, fontSize: 14, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, opacity: saving ? .6 : 1 }}>{saving ? "儲存中..." : "儲存"}</button>
       </div>
 
       <div style={{ flex: 1, overflowY: "auto" }}>
@@ -584,7 +675,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
               <Si n="question" s={14} c={C.textMuted} />
             </div>
           </div>
-          <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 3, marginBottom: 8 }}>
+          <div style={{ height: 4, background: C.surfHigh, borderRadius: 3, marginBottom: 8 }}>
             <div style={{ height: "100%", width: `${comp}%`, background: "linear-gradient(90deg,#e8365d,#ff6b8a)", borderRadius: 3 }} />
           </div>
           <div style={{ fontSize: 12, color: C.textMuted }}>
@@ -680,7 +771,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>感情目標</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginBottom: 20 }}>
             {[["serious", "認真交往"], ["friends_first", "先朋友再說"], ["casual", "隨緣"], ["open", "開放"]].map(([v, l]) => (
-              <button key={v} onClick={() => setRelGoal(relGoal === v ? "" : v)} style={{ padding: "7px 14px", borderRadius: 20, border: `1px solid ${relGoal === v ? C.gold : C.border}`, background: relGoal === v ? "rgba(201,168,76,0.12)" : "transparent", color: relGoal === v ? C.gold : C.textSub, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>{l}</button>
+              <button key={v} onClick={() => setRelGoal(relGoal === v ? "" : v)} style={{ padding: "7px 14px", borderRadius: 20, border: `1px solid ${relGoal === v ? C.gold : C.border}`, background: relGoal === v ? C.goldSoft : "transparent", color: relGoal === v ? C.gold : C.textSub, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>{l}</button>
             ))}
           </div>
 
@@ -703,7 +794,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
               onChange={e => setEditText(e.target.value)}
               type={editField === "height" ? "number" : "text"}
               placeholder={editField === "height" ? "例：170" : editField === "occupation" ? "設計師、工程師、學生..." : "輸入名稱"}
-              style={{ width: "100%", padding: "14px 16px", background: "rgba(255,255,255,0.05)", border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 16, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 16 }}
+              style={{ width: "100%", padding: "14px 16px", background: C.surf, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 16, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 16 }}
               onFocus={e => e.target.style.borderColor = C.gold}
               onBlur={e => e.target.style.borderColor = C.border}
               onKeyDown={e => { if (e.key === "Enter") { if (editField === "name") setName(editText); else if (editField === "occupation") setOccupation(editText); else if (editField === "height") setHeightCm(editText); setEditField(null); } }}
@@ -727,7 +818,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
               value={editText}
               onChange={e => setEditText(e.target.value)}
               type="date"
-              style={{ width: "100%", padding: "14px 16px", background: "rgba(255,255,255,0.05)", border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 16, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 16, colorScheme: "dark" } as any}
+              style={{ width: "100%", padding: "14px 16px", background: C.surf, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 16, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 16, colorScheme: "light" } as any}
               onFocus={e => e.target.style.borderColor = C.gold}
               onBlur={e => e.target.style.borderColor = C.border}
             />
@@ -740,7 +831,25 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         <BottomSheet onClose={() => setEditField(null)}>
           <div style={{ padding: "8px 20px 40px" }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>所在地</div>
-            <CityInput value={editText} onChange={setEditText} onSelect={(city, lat, lon) => { setLoc(city); setEditText(city); setPinLat(lat); setPinLon(lon); updateProfile(userId, { latitude: lat, longitude: lon }); }} near={pinLat != null && pinLon != null ? { lat: pinLat, lon: pinLon } : null} />
+            <CityInput
+              value={editText}
+              onChange={value => {
+                geocodeRequest.current += 1;
+                setGeocoding(false);
+                setEditText(value);
+                setPinLat(null);
+                setPinLon(null);
+              }}
+              onSelect={(city, lat, lon) => {
+                geocodeRequest.current += 1;
+                setGeocoding(false);
+                setLoc(city);
+                setEditText(city);
+                setPinLat(lat);
+                setPinLon(lon);
+              }}
+              near={pinLat != null && pinLon != null ? { lat: pinLat, lon: pinLon } : null}
+            />
             <div style={{ display: "flex", gap: 10, marginTop: 16, marginBottom: 16 }}>
               <button onClick={handleLocate} disabled={locating} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(232,54,93,0.08)", border: `1px solid rgba(232,54,93,0.25)`, color: C.rose, fontFamily: "inherit", fontSize: 14, cursor: "pointer", opacity: locating ? .6 : 1 }}>
                 {locating ? "定位中..." : "📍 GPS 定位"}
@@ -754,9 +863,15 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                 longitude={pinLon ?? 121.5654}
                 onChange={(lat, lon) => {
                   setPinLat(lat); setPinLon(lon);
-                  updateProfile(userId, { latitude: lat, longitude: lon });
+                  const currentRequest = ++geocodeRequest.current;
                   setGeocoding(true);
-                  reverseGeocode(lat, lon).then(({ city }) => { if (city) { setLoc(city); setEditText(city); } }).finally(() => setGeocoding(false));
+                  reverseGeocode(lat, lon)
+                    .then(place => {
+                      if (currentRequest !== geocodeRequest.current) return;
+                      const label = formatLocation(place.city, place.state, place.country);
+                      if (label) { setLoc(label); setEditText(label); }
+                    })
+                    .finally(() => { if (currentRequest === geocodeRequest.current) setGeocoding(false); });
                 }}
               />
             </div>
@@ -770,7 +885,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>學歷</div>
             {[["high_school","高中 / 中專"],["college","大專"],["bachelor","本科"],["master","碩士"],["phd","博士"]].map(([v,l]) => (
               <button key={v} onClick={() => { setEducation(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: education === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${education === v ? C.gold : C.border}`, color: education === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: education === v ? 600 : 400 }}>
+                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: education === v ? C.goldSoft : C.surf, border: `1px solid ${education === v ? C.gold : C.border}`, color: education === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: education === v ? 600 : 400 }}>
                 <span>{l}</span>
                 {education === v && <span style={{ fontSize: 16 }}>✓</span>}
               </button>
@@ -785,7 +900,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>年收入</div>
             {[["","不透露"],["<20","20萬以下"],["20-50","20–50萬"],["50-100","50–100萬"],[">100","100萬以上"]].map(([v,l]) => (
               <button key={v} onClick={() => { setIncome(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: income === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${income === v ? C.gold : C.border}`, color: income === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: income === v ? 600 : 400 }}>
+                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: income === v ? C.goldSoft : C.surf, border: `1px solid ${income === v ? C.gold : C.border}`, color: income === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: income === v ? 600 : 400 }}>
                 <span>{l}</span>
                 {income === v && <span style={{ fontSize: 16 }}>✓</span>}
               </button>
@@ -800,7 +915,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>抽菸習慣</div>
             {[["never","不抽菸"],["sometimes","偶爾抽菸"],["often","常抽菸"]].map(([v,l]) => (
               <button key={v} onClick={() => { setSmoking(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: smoking === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${smoking === v ? C.gold : C.border}`, color: smoking === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: smoking === v ? 600 : 400 }}>
+                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: smoking === v ? C.goldSoft : C.surf, border: `1px solid ${smoking === v ? C.gold : C.border}`, color: smoking === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: smoking === v ? 600 : 400 }}>
                 <span>{l}</span>{smoking === v && <span>✓</span>}
               </button>
             ))}
@@ -814,7 +929,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>飲酒習慣</div>
             {[["never","不喝酒"],["sometimes","偶爾喝酒"],["often","常喝酒"]].map(([v,l]) => (
               <button key={v} onClick={() => { setDrinking(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: drinking === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${drinking === v ? C.gold : C.border}`, color: drinking === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: drinking === v ? 600 : 400 }}>
+                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: drinking === v ? C.goldSoft : C.surf, border: `1px solid ${drinking === v ? C.gold : C.border}`, color: drinking === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: drinking === v ? 600 : 400 }}>
                 <span>{l}</span>{drinking === v && <span>✓</span>}
               </button>
             ))}
@@ -828,7 +943,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>運動習慣</div>
             {[["never","從不運動"],["sometimes","偶爾運動"],["weekly","每週運動"],["daily","每天運動"]].map(([v,l]) => (
               <button key={v} onClick={() => { setExercise(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: exercise === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${exercise === v ? C.gold : C.border}`, color: exercise === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: exercise === v ? 600 : 400 }}>
+                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: exercise === v ? C.goldSoft : C.surf, border: `1px solid ${exercise === v ? C.gold : C.border}`, color: exercise === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: exercise === v ? 600 : 400 }}>
                 <span>{l}</span>{exercise === v && <span>✓</span>}
               </button>
             ))}
@@ -842,7 +957,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>寵物</div>
             {[["none","無寵物"],["cat","有養貓"],["dog","有養狗"],["other","有養其他"]].map(([v,l]) => (
               <button key={v} onClick={() => { setHasPets(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: hasPets === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${hasPets === v ? C.gold : C.border}`, color: hasPets === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: hasPets === v ? 600 : 400 }}>
+                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: hasPets === v ? C.goldSoft : C.surf, border: `1px solid ${hasPets === v ? C.gold : C.border}`, color: hasPets === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: hasPets === v ? 600 : 400 }}>
                 <span>{l}</span>{hasPets === v && <span>✓</span>}
               </button>
             ))}
@@ -867,7 +982,15 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <SettingRow icon="volume" label="音效" right={<Toggle on={soundOn} onChange={() => { sound.enabled = !sound.enabled; setSoundOn(s => !s); }} />} />
           <SettingRow icon="globe" label="語言" right={<div style={{ display: "flex", gap: 6 }}>{(["zh", "en"] as Lang[]).map(l => <button key={l} onClick={() => { setLang(l); updateProfile(userId, { language: l } as any); sound.tap(); }} style={{ padding: "5px 13px", borderRadius: 20, background: lang === l ? C.grad : "transparent", border: `1px solid ${lang === l ? "transparent" : C.border}`, color: lang === l ? "#fff" : C.textMuted, fontFamily: "inherit", fontSize: 12, fontWeight: lang === l ? 600 : 400, cursor: "pointer" }}>{l === "zh" ? "中文" : "EN"}</button>)}</div>} />
           <SettingRow icon="eye" label="隱藏在線狀態" sub="開啟後你也看不到其他人的在線狀態" right={<Toggle on={hideOnline} onChange={() => { const v = !hideOnline; setHideOnline(v); updateProfile(userId, { hide_online_status: v } as any); onUpdate({ hide_online_status: v } as any); }} />} />
-          <SettingRow icon="bell" label="推播通知" sub="打包 iOS 後開放" right={<span style={{ fontSize: 11.5, color: C.textDim }}>即將推出</span>} />
+          <SettingRow icon="bell" label="推播通知" sub="新配對與新訊息通知" right={<Toggle on={pushOn} onChange={async () => {
+            if (pushOn) {
+              await removePush(userId);
+              setPushOn(false);
+            } else {
+              await initPush(userId, true);
+              setPushOn(await getPushEnabled());
+            }
+          }} />} />
           <SettingRow icon="moon" label="暫停帳號" sub="暫停後你不會出現在探索頁" right={<Toggle on={(profile as any).is_paused || false} onChange={() => { const v = !((profile as any).is_paused || false); updateProfile(userId, { is_paused: v } as any); onUpdate({ is_paused: v } as any); sound.tap(); }} />} last />
         </div>
         <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 24 }}>
@@ -892,7 +1015,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <div style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.65, marginBottom: 28 }}>所有資料、配對、對話將永久刪除，無法復原。</div>
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={() => setShowDelete(false)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.surf, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: "inherit", fontSize: 14, cursor: "pointer" }}>取消</button>
-            <button onClick={() => deleteAccount(userId)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.12)", border: "1px solid rgba(255,60,60,0.28)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>確定刪除</button>
+            <button disabled={deleting} onClick={confirmDeleteAccount} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.12)", border: "1px solid rgba(255,60,60,0.28)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: deleting ? "wait" : "pointer", opacity: deleting ? .6 : 1 }}>{deleting ? "刪除中…" : "確定刪除"}</button>
           </div>
         </div>
       </BottomSheet>}

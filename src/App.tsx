@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { sb, C, WRAP, GLOBAL_CSS, getProfile, getMatches, getUnreadCount } from "./utils";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { sb, C, WRAP, GLOBAL_CSS, getProfile, getMatches, getUnreadCount, updateProfile, uploadAvatar } from "./utils";
 import type { UserProfile, MatchItem } from "./types";
 import { LoginScreen, SplashScreen } from "./screens/AuthScreens";
 import { initPush, removePush } from "./pushNotifications";
@@ -8,12 +8,14 @@ import { NyxChatScreen } from "./screens/NyxChatScreen";
 import { ExploreScreen } from "./screens/ExploreScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { OnboardingScreen } from "./screens/OnboardingScreen";
+import { isNativeApp } from "./platform";
+import { clearPendingAvatar, loadPendingAvatar } from "./pendingAvatar";
 
 type Tab = "explore" | "chat" | "profile";
 
 /* ─── SVG Icons ──────────────────────────────────────── */
 function TabIcon({ tab, active }: { tab: Tab; active: boolean }) {
-  const c = active ? C.gold : "rgba(245,237,214,0.30)";
+  const c = active ? C.gold : C.textDim;
   const w = "1.7";
   if (tab === "explore") return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
   if (tab === "chat")    return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
@@ -27,17 +29,17 @@ const TAB_LABELS: Record<Tab, string> = { explore:"探索", chat:"消息", profi
 function BottomTabBar({ tab, setTab, unread }: { tab: Tab; setTab: (t: Tab) => void; unread: number }) {
   const tabs: Tab[] = ["explore", "chat", "profile"];
   return (
-    <div style={{ display:"flex", background:"rgba(12,10,8,0.98)", backdropFilter:"blur(24px)", borderTop:`1px solid ${C.border}`, paddingBottom:"env(safe-area-inset-bottom,0px)", flexShrink:0 }}>
+    <nav aria-label="主要導覽" style={{ display:"flex", margin:0, padding:"5px 10px calc(5px + env(safe-area-inset-bottom,0px))", background:C.nav, backdropFilter:"blur(28px) saturate(145%)", WebkitBackdropFilter:"blur(28px) saturate(145%)", borderTop:`1px solid ${C.border}`, boxShadow:"0 -12px 34px rgba(57,42,101,.08)", flexShrink:0 }}>
       {tabs.map(id => (
-        <button key={id} onClick={() => setTab(id)} style={{ flex:1, padding:"10px 0 7px", background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:4, fontFamily:"inherit", position:"relative" }}>
+        <button key={id} type="button" aria-label={TAB_LABELS[id]} aria-current={tab===id ? "page" : undefined} onClick={() => setTab(id)} style={{ flex:1, minHeight:54, padding:"7px 0 5px", background:tab===id?C.goldSoft:"transparent", border:tab===id?`1px solid ${C.borderHigh}`:"1px solid transparent", borderRadius:19, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, fontFamily:"inherit", position:"relative", transition:"background .22s, border-color .22s, transform .22s" }}>
           <div style={{ position:"relative" }}>
             <TabIcon tab={id} active={tab===id}/>
             {id==="chat" && unread>0 && <div style={{ position:"absolute", top:-4, right:-6, minWidth:16, height:16, borderRadius:8, background:C.gradRose, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#fff", fontWeight:700, border:`2px solid ${C.bg}`, padding:"0 3px" }}>{unread>99?"99+":unread}</div>}
           </div>
-          <span style={{ fontSize:10.5, color:tab===id?C.gold:"rgba(245,237,214,0.28)", fontWeight:tab===id?600:400, transition:"color .2s" }}>{TAB_LABELS[id]}</span>
+          <span style={{ fontSize:10.5, color:tab===id?C.gold:C.textDim, fontWeight:tab===id?700:500, transition:"color .2s" }}>{TAB_LABELS[id]}</span>
         </button>
       ))}
-    </div>
+    </nav>
   );
 }
 
@@ -46,14 +48,13 @@ function BottomTabBar({ tab, setTab, unread }: { tab: Tab; setTab: (t: Tab) => v
 /* ── PWA Install Banner ── */
 function InstallBanner() {
   const [show, setShow] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
+  const [isIOS] = useState(() => /iphone|ipad|ipod/i.test(navigator.userAgent));
 
   useEffect(() => {
-    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isNativeApp) return;
     const standalone = (window.navigator as any).standalone === true
       || window.matchMedia("(display-mode: standalone)").matches;
     if (standalone) return;
-    setIsIOS(ios);
     const dismissed = localStorage.getItem("nyx-install-dismissed");
     if (dismissed) return;
     const t = setTimeout(() => setShow(true), 3000);
@@ -64,19 +65,19 @@ function InstallBanner() {
 
   return (
     <div style={{ position:"fixed", bottom:72, left:12, right:12, zIndex:999,
-      background:"rgba(20,18,12,0.97)", backdropFilter:"blur(20px)",
-      border:"1px solid rgba(201,168,76,0.3)", borderRadius:16,
+      background:C.glass, backdropFilter:"blur(24px) saturate(150%)",
+      border:`1px solid ${C.borderHigh}`, borderRadius:18,
       padding:"14px 16px", display:"flex", alignItems:"flex-start", gap:12,
-      boxShadow:"0 8px 32px rgba(0,0,0,0.5)", animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
-      <div style={{ width:40,height:40,borderRadius:10,background:"linear-gradient(135deg,#C9A84C,#E2C068)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0 }}>N</div>
+      boxShadow:C.shadowStrong, animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
+      <div style={{ width:40,height:40,borderRadius:12,background:C.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"#fff",flexShrink:0 }}>N</div>
       <div style={{ flex:1,minWidth:0 }}>
-        <div style={{ fontSize:14,fontWeight:700,color:"#F5EDD6",marginBottom:3 }}>加入主畫面以接收通知</div>
+        <div style={{ fontSize:14,fontWeight:700,color:C.text,marginBottom:3 }}>加入主畫面以接收通知</div>
         {isIOS
-          ? <div style={{ fontSize:12,color:"rgba(245,237,214,0.55)",lineHeight:1.5 }}>點底部 <span style={{ fontSize:13 }}>⎙</span> 分享 → 「加入主畫面」</div>
-          : <div style={{ fontSize:12,color:"rgba(245,237,214,0.55)",lineHeight:1.5 }}>瀏覽器右上角 ⋮ → 「加入主畫面」</div>}
+          ? <div style={{ fontSize:12,color:C.textMuted,lineHeight:1.5 }}>點底部 <span style={{ fontSize:13 }}>⎙</span> 分享 → 「加入主畫面」</div>
+          : <div style={{ fontSize:12,color:C.textMuted,lineHeight:1.5 }}>瀏覽器右上角 ⋮ → 「加入主畫面」</div>}
       </div>
-      <button onClick={()=>{ setShow(false); localStorage.setItem("nyx-install-dismissed","1"); }}
-        style={{ background:"none",border:"none",color:"rgba(245,237,214,0.35)",fontSize:18,cursor:"pointer",padding:"0 4px",flexShrink:0,lineHeight:1 }}>✕</button>
+      <button type="button" aria-label="關閉安裝提示" onClick={()=>{ setShow(false); localStorage.setItem("nyx-install-dismissed","1"); }}
+        style={{ background:"none",border:"none",color:C.textMuted,fontSize:18,cursor:"pointer",padding:"0 4px",flexShrink:0,lineHeight:1 }}>✕</button>
     </div>
   );
 }
@@ -96,15 +97,18 @@ export default function App() {
   const [unreadPerMatch, setUnreadPerMatch] = useState<Record<string,number>>({});
   const [totalUnread, setTotalUnread] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const finishSplash = useCallback(() => { setSplashSeen(true); setResuming(false); }, []);
 
   useEffect(() => {
     sb.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) { setAuthed(true); setUserId(session.user.id); setSplashSeen(true); }
+      if (session?.user) { setProfileLoading(true); setLoadError(""); setAuthed(true); setUserId(session.user.id); setSplashSeen(true); }
       setLoading(false);
     });
     const { data: { subscription } } = sb.auth.onAuthStateChange((_, session) => {
-      if (session?.user) { setAuthed(true); setUserId(session.user.id); }
-      else { setAuthed(false); setUserId(null); setProfile(null); }
+      if (session?.user) { setProfileLoading(true); setLoadError(""); setAuthed(true); setUserId(session.user.id); }
+      else { setAuthed(false); setUserId(null); setProfile(null); setLoadError(""); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -112,14 +116,17 @@ export default function App() {
   // Push notifications — separate from realtime, runs once after login
   useEffect(() => {
     if (!userId || !authed) return;
-    const timer = setTimeout(() => initPush(userId).catch(() => {}), 2000);
+    const timer = setTimeout(() => initPush(userId, false).catch(() => {}), 2000);
     const handler = (e: MessageEvent) => {
       if (e.data?.type === "NOTIFICATION_CLICK") setTab("chat");
     };
+    const nativeHandler = () => setTab("chat");
     navigator.serviceWorker?.addEventListener("message", handler);
+    window.addEventListener("nyx:native-notification-click", nativeHandler);
     return () => {
       clearTimeout(timer);
       navigator.serviceWorker?.removeEventListener("message", handler);
+      window.removeEventListener("nyx:native-notification-click", nativeHandler);
     };
   }, [userId, authed]);
 
@@ -146,19 +153,102 @@ export default function App() {
     }
   }, [userId, authed]);
 
+  const loadUnread = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const { data } = await sb.rpc("get_unread_per_match", { p_user_id: userId });
+      const rows = (data || []) as { match_id: string; unread_count: number | string }[];
+      const map: Record<string,number> = {};
+      let total = 0;
+      rows.forEach(row => {
+        map[row.match_id] = Number(row.unread_count);
+        total += Number(row.unread_count);
+      });
+      setUnreadPerMatch(map);
+      setTotalUnread(total);
+    } catch {
+      setTotalUnread(await getUnreadCount(userId));
+    }
+  }, [userId]);
+
+  const loadAll = useCallback(async () => {
+    if (!userId) return;
+    let p = await getProfile(userId);
+    const { data: au, error: authError } = await sb.auth.getUser();
+    if (authError) throw authError;
+    const meta = au?.user?.user_metadata || {};
+    const registrationProfile = meta.registration_profile as (Partial<UserProfile> & { onboarding_done?: boolean }) | undefined;
+    if (!p) {
+      const email = au?.user?.email || "";
+      const uname = meta.username || email.split("@")[0] || "user";
+      const { error } = await sb.from("profiles").upsert({
+        id: userId,
+        username: uname,
+        display_name: registrationProfile?.display_name || meta.display_name || uname,
+        email,
+        birthday: registrationProfile?.birthday || meta.birthday || null,
+        gender: registrationProfile?.gender || meta.gender || "male",
+        mbti: registrationProfile?.mbti || meta.mbti || "INFP",
+        onboarding_done: registrationProfile?.onboarding_done ?? false,
+      }, { onConflict:"id", ignoreDuplicates:true });
+      if (error) throw error;
+      p = await getProfile(userId);
+    }
+    if (p && registrationProfile) {
+      try {
+        await updateProfile(userId, registrationProfile);
+        p = { ...p, ...registrationProfile };
+        const { error } = await sb.auth.updateUser({ data: { registration_profile: null } });
+        if (error) console.error("Unable to clear completed registration metadata", error);
+      } catch (error) {
+        // Keep the metadata so the profile can be completed on the next load.
+        console.error("Unable to apply registration profile", error);
+      }
+    }
+    const accountEmail = au?.user?.email;
+    if (p && accountEmail) {
+      const pendingAvatar = await loadPendingAvatar(accountEmail).catch(() => undefined);
+      if (pendingAvatar) {
+        try {
+          const avatarUrl = await uploadAvatar(new File([pendingAvatar], "avatar.jpg", { type: "image/jpeg" }), userId);
+          await updateProfile(userId, { avatar_url: avatarUrl });
+          p = { ...p, avatar_url: avatarUrl };
+          await clearPendingAvatar(accountEmail);
+        } catch (error) {
+          console.error("Unable to finish pending avatar upload", error);
+        }
+      }
+    }
+    if (!p) throw new Error("Profile could not be created");
+    setProfile(p);
+    if (!p.onboarding_done) setShowOnboarding(true);
+    setMatches(await getMatches(userId));
+    await loadUnread();
+  }, [loadUnread, userId]);
+
   useEffect(() => {
     if (!userId || !authed) return;
     // Update last_active immediately on login and on every app focus
-    const updateActive = () => sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId);
-    updateActive();
-    const onFocus = () => { if (document.visibilityState === "visible") updateActive(); };
+    const updateActive = async () => {
+      const { error } = await sb.rpc("touch_last_active");
+      if (error) await sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId);
+    };
+    void updateActive();
+    const onFocus = () => { if (document.visibilityState === "visible") void updateActive(); };
     document.addEventListener("visibilitychange", onFocus);
-    loadAll();
+    const initialLoadTimer = setTimeout(() => {
+      void loadAll()
+        .catch(error => {
+          console.error("Unable to load account data", error);
+          setLoadError("暫時無法載入帳號資料，請檢查網路後重試");
+        })
+        .finally(() => setProfileLoading(false));
+    }, 0);
 
     // Broadcast channel — instant UI update, no DB round-trip
     const broadcastCh = sb.channel(`user-inbox:${userId}`)
-      .on("broadcast", { event: "new_message" }, (payload: any) => {
-        const { matchId, senderName, preview, ts } = payload.payload || {};
+      .on("broadcast", { event: "new_message" }, payload => {
+        const { matchId, preview, ts } = payload.payload || {};
         // Instantly update the match in state
         setMatches(prev => {
           const now = ts || Date.now();
@@ -179,24 +269,9 @@ export default function App() {
         }));
       })
       .on("broadcast", { event: "new_match" }, () => {
-        getMatches(userId!).then(setMatches);
+        getMatches(userId).then(setMatches);
       })
       .subscribe();
-
-    // Subscribe to typing events for all current matches
-    const typingTimers: Record<string, ReturnType<typeof setTimeout>> = {};
-    const typingChannels = (matches || []).map(m => {
-      return sb.channel(`typing-${m.matchId}`)
-        .on("broadcast", { event: "typing" }, (payload: any) => {
-          if (payload.payload?.userId === userId) return; // ignore own typing
-          setTypingMatchIds(prev => { const s = new Set(prev); s.add(m.matchId); return s; });
-          clearTimeout(typingTimers[m.matchId]);
-          typingTimers[m.matchId] = setTimeout(() => {
-            setTypingMatchIds(prev => { const s = new Set(prev); s.delete(m.matchId); return s; });
-          }, 3000);
-        })
-        .subscribe();
-    });
 
     // postgres_changes for matches & notifications (low frequency, reliable)
     const ch = sb.channel(`app-${userId}`)
@@ -205,7 +280,7 @@ export default function App() {
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"matches",
         filter:`user2_id=eq.${userId}` }, () => { getMatches(userId!).then(setMatches); })
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"notifications",
-        filter:`user_id=eq.${userId}` }, () => loadAll())
+        filter:`user_id=eq.${userId}` }, () => { void loadAll().catch(error => console.error("Unable to refresh account data", error)); })
       .subscribe();
 
     // Fallback poll every 30s (safety net only)
@@ -226,34 +301,51 @@ export default function App() {
     };
     document.addEventListener("visibilitychange", onVisible);
 
-    const iv = setInterval(() => sb.from("profiles").update({ last_active: new Date().toISOString() }).eq("id", userId), 4*60*1000);
-    return () => { sb.removeChannel(ch); sb.removeChannel(broadcastCh); typingChannels.forEach(c => sb.removeChannel(c)); clearInterval(iv); clearInterval(pollInterval); document.removeEventListener("visibilitychange", onVisible); document.removeEventListener("visibilitychange", onFocus); };
-  }, [userId, authed]);
+    const iv = setInterval(() => { if (document.visibilityState === "visible") void updateActive(); }, 4*60*1000);
+    return () => { clearTimeout(initialLoadTimer); sb.removeChannel(ch); sb.removeChannel(broadcastCh); clearInterval(iv); clearInterval(pollInterval); document.removeEventListener("visibilitychange", onVisible); document.removeEventListener("visibilitychange", onFocus); };
+  }, [userId, authed, loadAll, loadUnread]);
 
-  async function loadAll() {
-    let p = await getProfile(userId!);
-    if (!p) {
-      const { data: au } = await sb.auth.getUser();
-      const email = au?.user?.email || "";
-      const meta  = au?.user?.user_metadata || {};
-      const uname = meta.username || email.split("@")[0] || "user";
-      await sb.from("profiles").upsert({ id:userId, username:uname, display_name:uname, email, gender:"male", mbti:"INFP", onboarding_done:false }, { onConflict:"id", ignoreDuplicates:true });
-      p = await getProfile(userId!);
-    }
-    if (p) { setProfile(p); if (!(p as any).onboarding_done) setShowOnboarding(true); }
-    const m = await getMatches(userId!);
-    setMatches(m);
-    loadUnread();
-  }
+  // Matches arrive after the initial account load, so typing subscriptions
+  // must track the current match list instead of being frozen at login time.
+  useEffect(() => {
+    if (!userId || !authed || matches.length === 0) return;
+    const typingTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+    const typingChannels = matches.map(match => sb.channel(`typing-${match.matchId}`)
+      .on("broadcast", { event: "typing" }, payload => {
+        if (payload.payload?.userId === userId) return;
+        setTypingMatchIds(current => {
+          const next = new Set(current);
+          next.add(match.matchId);
+          return next;
+        });
+        clearTimeout(typingTimers[match.matchId]);
+        typingTimers[match.matchId] = setTimeout(() => {
+          setTypingMatchIds(current => {
+            const next = new Set(current);
+            next.delete(match.matchId);
+            return next;
+          });
+        }, 3000);
+      })
+      .subscribe());
 
-  async function loadUnread() {
-    if (!userId) return;
+    return () => {
+      Object.values(typingTimers).forEach(clearTimeout);
+      typingChannels.forEach(channel => { void sb.removeChannel(channel); });
+    };
+  }, [authed, matches, userId]);
+
+  async function retryLoadAll() {
+    setProfileLoading(true);
+    setLoadError("");
     try {
-      const { data } = await sb.rpc("get_unread_per_match", { p_user_id: userId });
-      const map: Record<string,number> = {}; let total = 0;
-      (data||[]).forEach((r: any) => { map[r.match_id] = Number(r.unread_count); total += Number(r.unread_count); });
-      setUnreadPerMatch(map); setTotalUnread(total);
-    } catch { setTotalUnread(await getUnreadCount(userId)); }
+      await loadAll();
+    } catch (error) {
+      console.error("Unable to load account data", error);
+      setLoadError("暫時無法載入帳號資料，請檢查網路後重試");
+    } finally {
+      setProfileLoading(false);
+    }
   }
 
   function openMatch(m: MatchItem) {
@@ -284,7 +376,18 @@ export default function App() {
   </>;
 
   if (!authed) return <><style>{GLOBAL_CSS}</style><LoginScreen onLogin={() => setAuthed(true)}/></>;
-  if (!splashSeen || resuming) return <><style>{GLOBAL_CSS}</style><SplashScreen onDone={() => { setSplashSeen(true); setResuming(false); }}/></>;
+  if (!splashSeen || resuming) return <><style>{GLOBAL_CSS}</style><SplashScreen onDone={finishSplash}/></>;
+  if (!profile) return <>
+    <style>{GLOBAL_CSS}</style>
+    <div style={{ minHeight:"100dvh", background:C.bg, color:C.text, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:18, padding:24, textAlign:"center" }}>
+      {profileLoading
+        ? <div style={{ width:40, height:40, border:`2px solid ${C.border}`, borderTopColor:C.gold, borderRadius:"50%", animation:"spin .7s linear infinite" }}/>
+        : <>
+          <div style={{ fontSize:15, lineHeight:1.6, color:C.textSub }}>{loadError || "暫時無法載入帳號資料"}</div>
+          <button type="button" onClick={retryLoadAll} style={{ minHeight:46, padding:"0 24px", borderRadius:24, border:"none", background:C.grad, color:"#fff", fontFamily:"inherit", fontWeight:800, cursor:"pointer", boxShadow:`0 8px 24px ${C.goldGlow}` }}>重新載入</button>
+        </>}
+    </div>
+  </>;
   if (profile && ((profile as any).is_banned || (profile as any).is_active === false || (profile as any).deleted_at)) {
     return <><style>{GLOBAL_CSS}</style><BlockedScreen profile={profile} onLogout={logout}/></>;
   }
@@ -294,7 +397,7 @@ export default function App() {
     <>
       <style>{GLOBAL_CSS}</style>
       <InstallBanner/>
-      <div style={{ display:"flex", flexDirection:"column", height:"100dvh", paddingTop:"env(safe-area-inset-top,0px)", ...WRAP, background:C.bg, overflow:"hidden", boxSizing:"border-box" as const }}
+      <div className="nyx-app-shell" style={{ display:"flex", flexDirection:"column", ...WRAP, background:C.bg, overflow:"hidden", boxSizing:"border-box" as const }}
         onTouchStart={e=>{
           // only trigger from edge (left <30px or right >screen-30px)
           const x = e.touches[0].clientX;
@@ -335,7 +438,7 @@ export default function App() {
               <div style={{ position:"absolute", inset:0 }}>
                 <ChatListScreen profile={profile} matches={matches} unreadPerMatch={unreadPerMatch} typingMatchIds={typingMatchIds} onOpenNyx={() => setInChat(true)} onOpenMatch={openMatch}/>
               </div>
-              {inChat && <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", justifyContent:"center" }}><div style={{ width:"100%", maxWidth:480, height:"100%", position:"relative" }}>
+              {inChat && <div className="nyx-fullscreen-layer" style={{ position:"fixed", inset:0, zIndex:50, display:"flex", justifyContent:"center", background:C.bg }}><div style={{ width:"100%", maxWidth:480, height:"100%", position:"relative" }}>
                 {!activeMatch
                   ? <NyxChatScreen userId={userId} profile={profile} onBack={() => setInChat(false)}/>
                   : <RealChatScreen matchId={activeMatch.matchId} myUserId={userId} myProfile={profile} other={activeMatch} onBack={() => { setInChat(false); setActiveMatch(null); loadUnread(); getMatches(userId!).then(setMatches); }}/>
@@ -398,7 +501,7 @@ function BlockedScreen({ profile, onLogout }: { profile: any; onLogout: () => vo
       <div style={{ fontSize:14, color:C.textMuted, lineHeight:1.7 }}>{reason}</div>
 
       {pending && (
-        <div style={{ background:"rgba(201,168,76,0.1)", border:"1px solid rgba(201,168,76,0.3)", borderRadius:12, padding:"12px 18px", fontSize:13, color:C.gold, lineHeight:1.6 }}>
+        <div style={{ background:C.goldSoft, border:`1px solid ${C.borderHigh}`, borderRadius:12, padding:"12px 18px", fontSize:13, color:C.gold, lineHeight:1.6 }}>
           申訴已提交，等待審核<br/>
           <span style={{ opacity:.7 }}>{new Date(appeal.created_at).toLocaleString("zh-TW")}</span>
         </div>
@@ -418,7 +521,7 @@ function BlockedScreen({ profile, onLogout }: { profile: any; onLogout: () => vo
       {showForm && (
         <div style={{ width:"100%", maxWidth:340, display:"flex", flexDirection:"column", gap:10 }}>
           <textarea value={text} onChange={e=>setText(e.target.value)} rows={4} placeholder="請說明情況（例如：我認為這是誤判，原因是⋯）"
-            style={{ width:"100%", boxSizing:"border-box", background:"#141210", border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontFamily:"inherit", fontSize:14, resize:"vertical", outline:"none" }}/>
+            style={{ width:"100%", boxSizing:"border-box", background:C.bgCard, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontFamily:"inherit", fontSize:14, resize:"vertical", outline:"none" }}/>
           {err && <div style={{ fontSize:12.5, color:C.rose }}>{err}</div>}
           <div style={{ display:"flex", gap:10 }}>
             <button onClick={()=>{ setShowForm(false); setErr(""); }} style={{ flex:1, padding:"12px", borderRadius:50, background:"transparent", border:`1px solid ${C.border}`, color:C.textMuted, fontFamily:"inherit", fontSize:14, cursor:"pointer" }}>取消</button>

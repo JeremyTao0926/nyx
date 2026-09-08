@@ -96,7 +96,7 @@ export function ImageCropper({ file, aspectRatio, onConfirm, onCancel, shape = "
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.95)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", animation: "fadeIn .2s ease" }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 16 }}>拖動調整位置</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 16 }}>拖動調整位置</div>
       {/* Frame */}
       <div ref={containerRef} style={{ width: FRAME_W, height: FRAME_H, borderRadius: shape === "circle" ? "50%" : 16, overflow: "hidden", border: `2px solid ${C.rose}`, cursor: dragging ? "grabbing" : "grab", position: "relative", flexShrink: 0, boxShadow: `0 0 0 9999px rgba(0,0,0,0.6)` }}
         onMouseDown={onMouseDown} onTouchStart={onMouseDown}>
@@ -114,7 +114,7 @@ export function ImageCropper({ file, aspectRatio, onConfirm, onCancel, shape = "
       {/* Scale slider */}
       <div style={{ marginTop: 16, fontSize: 12, color: "rgba(255,255,255,0.35)", textAlign: "center" as const, marginBottom: 4 }}>拖動移動 · 滑動縮放</div>
   <div style={{ marginTop: 4, width: FRAME_W, display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ fontSize: 12, color: C.textMuted }}>縮小</span>
+        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>縮小</span>
         <input type="range" min={0.1} max={3} step={0.05} value={scale}
           onChange={e => {
             const s = parseFloat(e.target.value);
@@ -123,11 +123,11 @@ export function ImageCropper({ file, aspectRatio, onConfirm, onCancel, shape = "
             if (img) setOffset(o => clampOffset(o.x, o.y, img.naturalWidth, img.naturalHeight));
           }}
           style={{ flex: 1 }} />
-        <span style={{ fontSize: 12, color: C.textMuted }}>放大</span>
+        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>放大</span>
       </div>
       {/* Buttons */}
       <div style={{ display: "flex", gap: 12, marginTop: 24, width: FRAME_W }}>
-        <button onClick={onCancel} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: "inherit", fontSize: 14, cursor: "pointer" }}>取消</button>
+        <button onClick={onCancel} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", color: "rgba(255,255,255,0.78)", fontFamily: "inherit", fontSize: 14, cursor: "pointer" }}>取消</button>
         <button onClick={confirm} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 16px ${C.roseGlow}` }}>確認裁剪</button>
       </div>
     </div>

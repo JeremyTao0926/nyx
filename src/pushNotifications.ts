@@ -1,5 +1,8 @@
 // NYX Web Push — Client side
 
+import { isNativeApp } from './platform';
+import { PushNotifications } from '@capacitor/push-notifications';
+
 const VAPID_PUBLIC = 'BF2EDLbL292Wn-EuER8fWLbBFCjnoEOlqqP9d9jNNEjREmTYduDh4XtziaX3b9uvEpNMcnaDQbYTXVhe6woPxQM';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -19,7 +22,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
-export async function initPush(userId: string): Promise<PushSubscription | null> {
+export async function initPush(userId: string, requestPermission = true): Promise<PushSubscription | null> {
+  if (isNativeApp) {
+    await initNativePush(userId, requestPermission);
+    return null;
+  }
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
   try {
     // Register SW — don't await ready here, it can hang
@@ -31,7 +38,7 @@ export async function initPush(userId: string): Promise<PushSubscription | null>
     // Only ask permission if not already granted (avoid repeated prompts)
     const perm = Notification.permission === 'granted'
       ? 'granted'
-      : await Notification.requestPermission();
+      : requestPermission ? await Notification.requestPermission() : Notification.permission;
     if (perm !== 'granted') return null;
 
     // Check for existing subscription first
@@ -45,10 +52,41 @@ export async function initPush(userId: string): Promise<PushSubscription | null>
     const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
     await savePushSubscription(userId, sub);
     return sub;
-  } catch (e) {
+  } catch {
     // Silently fail — push is non-critical, must not affect app functionality
     return null;
   }
+}
+
+async function initNativePush(userId: string, requestPermission: boolean) {
+  const { sb } = await import('./utils');
+  await PushNotifications.removeAllListeners();
+  await PushNotifications.addListener('registration', async ({ value: deviceToken }) => {
+    await sb.from('push_subscriptions').upsert({
+      user_id: userId,
+      platform: 'ios',
+      device_token: deviceToken,
+      endpoint: null,
+      p256dh: null,
+      auth: null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' });
+  });
+  await PushNotifications.addListener('registrationError', error => {
+    console.error('APNs registration failed', error);
+  });
+  await PushNotifications.addListener('pushNotificationActionPerformed', action => {
+    window.dispatchEvent(new CustomEvent('nyx:native-notification-click', { detail: action.notification.data }));
+  });
+
+  let permission = await PushNotifications.checkPermissions();
+  if (permission.receive === 'prompt' && requestPermission) permission = await PushNotifications.requestPermissions();
+  if (permission.receive === 'granted') await PushNotifications.register();
+}
+
+export async function getPushEnabled() {
+  if (isNativeApp) return (await PushNotifications.checkPermissions()).receive === 'granted';
+  return 'Notification' in window && Notification.permission === 'granted';
 }
 
 async function savePushSubscription(userId: string, sub: PushSubscription) {
@@ -57,15 +95,25 @@ async function savePushSubscription(userId: string, sub: PushSubscription) {
     const payload = sub.toJSON();
     await sb.from('push_subscriptions').upsert({
       user_id: userId,
+      platform: 'web',
+      device_token: null,
       endpoint: payload.endpoint,
       p256dh: (payload.keys as Record<string, string>)?.p256dh,
       auth: (payload.keys as Record<string, string>)?.auth,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' });
-  } catch {}
+  } catch {
+    // Push is optional; database/network failures must not block the app.
+  }
 }
 
 export async function removePush(userId: string) {
+  if (isNativeApp) {
+    await PushNotifications.removeAllListeners();
+    const { sb } = await import('./utils');
+    await sb.from('push_subscriptions').delete().eq('user_id', userId).eq('platform', 'ios');
+    return;
+  }
   if (!('serviceWorker' in navigator)) return;
   try {
     const reg = await navigator.serviceWorker.getRegistration('/sw.js');
@@ -73,5 +121,7 @@ export async function removePush(userId: string) {
     if (sub) await sub.unsubscribe();
     const { sb } = await import('./utils');
     await sb.from('push_subscriptions').delete().eq('user_id', userId);
-  } catch {}
+  } catch {
+    // The subscription may already be gone; keep notification opt-out idempotent.
+  }
 }

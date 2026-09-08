@@ -10,7 +10,7 @@ export function Av({ url, name, size=38, grad=C.grad, online, onClick }:
     <div style={{ position:"relative", flexShrink:0, display:"inline-block" }} onClick={onClick}>
       {url
         ? <img src={url} alt="" style={{ width:size, height:size, borderRadius:"50%", objectFit:"cover", display:"block", border:`1px solid ${C.border}`, cursor:onClick?"pointer":"default" }} />
-        : <div style={{ width:size, height:size, borderRadius:"50%", background:`linear-gradient(135deg,#2A2218,#3D3220)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:size*.38, fontWeight:700, color:C.gold, border:`1px solid ${C.border}`, cursor:onClick?"pointer":"default" }}>
+        : <div style={{ width:size, height:size, borderRadius:"50%", background:"linear-gradient(135deg,#EEEAFE,#FCECF1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:size*.38, fontWeight:700, color:C.gold, border:`1px solid ${C.border}`, cursor:onClick?"pointer":"default" }}>
             {name?name.charAt(0).toUpperCase():"✦"}
           </div>}
       {online && <span style={{ position:"absolute", bottom:1, right:1, width:size>36?10:8, height:size>36?10:8, borderRadius:"50%", background:C.mint, border:`2px solid ${C.bg}` }} />}
@@ -21,7 +21,7 @@ export function Av({ url, name, size=38, grad=C.grad, online, onClick }:
 /* ─── Icon Button ────────────────────────────────────── */
 export function IconBtn({ icon, label, active, color, size=52, onClick }:
   { icon:string; label?:string; active?:boolean; color?:string; size?:number; onClick?:()=>void }) {
-  const bg = active ? (color||C.rose) : "rgba(255,255,255,0.05)";
+  const bg = active ? (color||C.rose) : C.surf;
   const border = active ? `1.5px solid ${color||C.rose}` : `1px solid ${C.border}`;
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, cursor:"pointer" }} onClick={onClick}>
@@ -80,13 +80,13 @@ export function Lightbox({ lb, onClose }:{ lb:LB; onClose:()=>void }) {
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,zIndex:300,background:"rgba(0,0,0,0.96)",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",animation:"fadeIn .15s ease" }}>
       <div style={{ position:"absolute",top:16,right:16,display:"flex",gap:8 }}>
-        <button onClick={e=>{e.stopPropagation();const a=document.createElement("a");a.href=src;a.download=`nyx_${Date.now()}.jpg`;document.body.appendChild(a);a.click();document.body.removeChild(a);}} style={{ width:38,height:38,borderRadius:"50%",background:"rgba(255,255,255,0.08)",border:`1px solid ${C.border}`,color:C.text,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>↓</button>
-        <button onClick={onClose} style={{ width:38,height:38,borderRadius:"50%",background:"rgba(255,255,255,0.08)",border:`1px solid ${C.border}`,color:C.text,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>✕</button>
+        <button onClick={e=>{e.stopPropagation();const a=document.createElement("a");a.href=src;a.download=`nyx_${Date.now()}.jpg`;document.body.appendChild(a);a.click();document.body.removeChild(a);}} style={{ width:38,height:38,borderRadius:"50%",background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.18)",color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>↓</button>
+        <button onClick={onClose} style={{ width:38,height:38,borderRadius:"50%",background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.18)",color:"#fff",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>✕</button>
       </div>
       <div onClick={e=>e.stopPropagation()} style={{ maxWidth:"90vw",maxHeight:"85vh",display:"flex",alignItems:"center",gap:12 }}>
-        {lb.images.length>1&&<button onClick={()=>setIdx(i=>(i-1+lb.images.length)%lb.images.length)} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.08)",border:`1px solid ${C.border}`,color:C.text,fontSize:20,cursor:"pointer" }}>‹</button>}
+        {lb.images.length>1&&<button onClick={()=>setIdx(i=>(i-1+lb.images.length)%lb.images.length)} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.18)",color:"#fff",fontSize:20,cursor:"pointer" }}>‹</button>}
         <img src={src} alt="" style={{ maxWidth:lb.images.length>1?"72vw":"86vw",maxHeight:"82vh",objectFit:"contain",borderRadius:16 }}/>
-        {lb.images.length>1&&<button onClick={()=>setIdx(i=>(i+1)%lb.images.length)} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.08)",border:`1px solid ${C.border}`,color:C.text,fontSize:20,cursor:"pointer" }}>›</button>}
+        {lb.images.length>1&&<button onClick={()=>setIdx(i=>(i+1)%lb.images.length)} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.18)",color:"#fff",fontSize:20,cursor:"pointer" }}>›</button>}
       </div>
       {lb.images.length>1&&<div style={{ display:"flex",gap:6,marginTop:16 }}>
         {lb.images.map((_,i)=><div key={i} style={{ width:i===idx?20:6,height:4,borderRadius:3,background:i===idx?C.gold:"rgba(255,255,255,0.25)",transition:"all .25s" }}/>)}
@@ -107,7 +107,7 @@ export function MatchAnimation({ myAvatar,myName,theirAvatar,theirName,onChat,on
   return (
     <div style={{ position:"fixed",inset:0,zIndex:500,background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",animation:"fadeIn .3s ease" }}>
       {/* Warm glow */}
-      <div style={{ position:"absolute",inset:0,background:"radial-gradient(ellipse 60% 50% at 50% 45%,rgba(201,168,76,0.06) 0%,transparent 70%)",pointerEvents:"none" }}/>
+      <div style={{ position:"absolute",inset:0,background:"radial-gradient(ellipse 60% 50% at 50% 45%,rgba(103,87,217,0.10) 0%,transparent 70%)",pointerEvents:"none" }}/>
       {/* Avatars */}
       <div style={{ display:"flex",alignItems:"center",gap:ph>=2?-20:60,marginBottom:44,transition:"gap .75s cubic-bezier(.34,1.56,.64,1)",position:"relative",zIndex:1 }}>
         <div style={{ opacity:ph>=1?1:0,transform:ph>=1?"translateX(0)":"translateX(-50px)",transition:"all .55s cubic-bezier(.34,1.56,.64,1)",borderRadius:"50%",boxShadow:`0 0 0 3px ${C.bg},0 0 0 5px ${C.gold}66,0 0 30px ${C.goldGlow}` }}>
@@ -129,7 +129,7 @@ export function MatchAnimation({ myAvatar,myName,theirAvatar,theirName,onChat,on
       <div style={{ opacity:ph>=3?1:0,transition:"opacity .4s .1s",fontSize:14,color:C.textMuted,marginBottom:48,zIndex:1 }}>開始你們的故事吧</div>
       {/* Buttons */}
       <div style={{ opacity:ph>=4?1:0,transform:ph>=4?"translateY(0)":"translateY(18px)",transition:"all .5s ease",display:"flex",gap:10,flexDirection:"column",width:"80%",maxWidth:300,zIndex:1 }}>
-        <button onClick={onChat} style={{ padding:"16px",borderRadius:50,background:C.grad,border:"none",color:C.bg,fontFamily:"inherit",fontSize:15,fontWeight:700,cursor:"pointer",animation:"btnPulse 3s ease-in-out infinite" }}>開始聊天</button>
+        <button onClick={onChat} style={{ padding:"16px",borderRadius:50,background:C.grad,border:"none",color:"#fff",fontFamily:"inherit",fontSize:15,fontWeight:700,cursor:"pointer",animation:"btnPulse 3s ease-in-out infinite" }}>開始聊天</button>
         {onIcebreaker&&<button onClick={onIcebreaker} style={{ padding:"13px",borderRadius:50,background:C.surfGold,border:`1px solid ${C.gold}44`,color:C.gold,fontFamily:"inherit",fontSize:14,fontWeight:600,cursor:"pointer" }}>✦ 破冰建議</button>}
         <button onClick={onContinue} style={{ padding:"12px",borderRadius:50,background:"transparent",border:`1px solid ${C.border}`,color:C.textMuted,fontFamily:"inherit",fontSize:13,cursor:"pointer" }}>繼續探索</button>
       </div>
