@@ -1,6 +1,6 @@
 # NYX iOS Preflight Test Report
 
-Updated: 2026-09-02
+Updated: 2026-09-08
 
 ## Current result
 
@@ -10,11 +10,11 @@ The web application and iOS wrapper pass the automated checks that can run on Wi
 
 | Check | Result | Notes |
 | --- | --- | --- |
-| Unit tests | Pass | 15/15 tests, including age/date boundaries, city ranking, location formatting, matching helpers, last-active labels, Explore sorting, and RevenueCat user switching. |
+| Unit tests | Pass | 21/21 tests, including OAuth callback parsing, web/native redirect selection, phone normalization, age/date boundaries, city ranking, matching helpers, and RevenueCat user switching. |
 | TypeScript + production web build | Pass | `npm run build`. |
 | Focused lint | Pass | New utility, persistence, purchase, and test files. React hook rules are clean in the modified screens. |
 | Production dependency audit | Pass | 0 production vulnerabilities from `npm audit --omit=dev`. |
-| Capacitor iOS sync | Pass | `npm run ios:sync` built the web assets and synced all five native plugins. |
+| Capacitor iOS sync | Pass | `npm run ios:sync` built the web assets and synced all six native plugins, including the system browser used for OAuth. |
 | Xcode simulator build | Pass | The macOS 15 GitHub Actions run compiled the Debug app for a generic iPhone Simulator with signing disabled. |
 
 The full repository lint is not yet green: it contains 256 project-wide findings, primarily the existing `no-explicit-any` typing debt and unused-code errors in large screens/utilities. This pass did not attempt a risky whole-project typing migration; the focused new modules are clean and no React hook violation remains in the modified screens. The production dependency audit is clean. The development-only audit reports three moderate findings in Capacitor CLI's `xcode` → `uuid` chain; npm's proposed fix force-downgrades Capacitor CLI, so it was not applied without a compatible upstream release.
@@ -35,6 +35,7 @@ Verified outcomes:
 
 - No horizontal document overflow.
 - No artificial empty area below the app shell.
+- Switching from the landing screen to login no longer preserves a hidden outer-container scroll offset; the shell stays at `scrollTop = 0`.
 - Login and registration actions remain visible and usable at the smallest size.
 - Registration has one consistent back control with a minimum 44×44-point target.
 - Public legal/support pages remain scrollable and readable.
@@ -47,6 +48,8 @@ Use a dedicated non-production QA account and test on at least one small-screen 
 
 - [ ] Register, reject under-18 birth date, confirm email, restore pending avatar, and finish onboarding.
 - [ ] Sign in, sign out, reset password, relaunch, and verify session restoration.
+- [ ] Sign in with Google and Apple, cancel each provider once, verify the iOS deep-link return, and complete the mandatory social profile screen.
+- [ ] Request, reject, expire, resend, and successfully verify a phone OTP; confirm SMS rate limiting and CAPTCHA behavior.
 - [ ] Allow and deny location; search cities manually; move the map pin; verify city/province/country text; confirm text relevance before distance ordering.
 - [ ] Verify Nearby map toggle only appears on Nearby; tap another user's marker and confirm the profile fully covers the map.
 - [ ] Exercise recommendation, nearby, and newly joined sorting with seeded users at known coordinates and creation dates.
@@ -64,5 +67,6 @@ Use a dedicated non-production QA account and test on at least one small-screen 
 - Apple Developer team, certificates, App ID capabilities, agreements, tax/banking, and App Store Connect metadata.
 - RevenueCat/App Store Connect product configuration and production secrets.
 - Supabase schema migration and Edge Function deployment.
+- Google OAuth, Apple Developer/Services ID, and SMS-provider credentials plus Supabase provider enablement.
 - Public privacy, terms, and support URLs.
 - Signed archive, TestFlight installation, real-device QA, screenshots, and reviewer demo account.

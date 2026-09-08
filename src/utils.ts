@@ -11,7 +11,14 @@ export const SUPABASE_KEY =
 export const GROQ_URL     = "https://api.groq.com/openai/v1/chat/completions";
 export const TEXT_MODEL   = "llama-3.3-70b-versatile";
 export const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
-export const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+export const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    flowType: "pkce",
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 
 /** Turn provider/network auth failures into short, actionable UI copy. */
 export function authErrorMessage(error: unknown, fallback = "操作失敗，請稍後再試"): string {
@@ -25,6 +32,10 @@ export function authErrorMessage(error: unknown, fallback = "操作失敗，請�
   if (normalized.includes("email not confirmed")) return "請先確認信箱中的驗證郵件";
   if (normalized.includes("invalid login")) return "帳號或密碼錯誤";
   if (normalized.includes("user already registered")) return "這個電子郵件已經註冊";
+  if (normalized.includes("provider is not enabled") || normalized.includes("unsupported provider")) return "這個登入方式尚未在服務端啟用";
+  if (normalized.includes("sms") && (normalized.includes("provider") || normalized.includes("send"))) return "驗證短訊暫時無法送出，請稍後再試";
+  if (normalized.includes("token has expired") || normalized.includes("otp expired")) return "驗證碼已過期，請重新取得";
+  if (normalized.includes("invalid token") || normalized.includes("invalid otp")) return "驗證碼不正確，請重新輸入";
   if (
     normalized.includes("failed to fetch") ||
     normalized.includes("fetch failed") ||
@@ -226,11 +237,12 @@ export async function lookupEmailByUsername(username: string): Promise<string | 
   return data?.email || null;
 }
 
-export async function checkUsernameAvailable(username: string): Promise<boolean> {
+export async function checkUsernameAvailable(username: string, currentUserId?: string): Promise<boolean> {
   const clean = username.toLowerCase().trim();
   if (!/^[a-z0-9_]{3,20}$/.test(clean)) return false;
-  const { data } = await sb.from("profiles").select("id").eq("username", clean).maybeSingle();
-  return !data;
+  const { data, error } = await sb.from("profiles").select("id").eq("username", clean).maybeSingle();
+  if (error) throw error;
+  return !data || data.id === currentUserId;
 }
 
 export async function getOrCreateConv(uid: string): Promise<string> {

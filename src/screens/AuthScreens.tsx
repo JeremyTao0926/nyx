@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { sb, C, sound, calcAge, MBTI_LIST, HOBBIES, lookupEmailByUsername, checkUsernameAvailable, reverseGeocode, searchCities, formatLocation, authErrorMessage } from "../utils";
+import { sb, C, sound, calcAge, MBTI_LIST, HOBBIES, lookupEmailByUsername, checkUsernameAvailable, reverseGeocode, searchCities, formatLocation, authErrorMessage, updateProfile } from "../utils";
+import type { UserProfile } from "../types";
 import { ImageCropper } from "../components/ImageCropper";
 import { clearPendingAvatar, savePendingAvatar } from "../pendingAvatar";
+import { getAuthCallbackParams, normalizePhoneNumber } from "../authHelpers";
+import { getAuthProviderAvailability, signInWithSocialProvider, type AuthProviderAvailability, type NyxSocialProvider } from "../auth";
 
 /* ─── Shared input style ─────────────────────────────── */
 const INP = {
@@ -74,14 +77,162 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
   );
 }
 
+const PHONE_COUNTRIES = [
+  ["+852", "香港"], ["+886", "台灣"], ["+86", "中國"], ["+1", "美國／加拿大"],
+  ["+81", "日本"], ["+82", "韓國"], ["+65", "新加坡"], ["+60", "馬來西亞"],
+  ["+44", "英國"], ["+61", "澳洲"],
+] as const;
+
+function GoogleMark() {
+  return <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24"><path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.06H12v3.9h5.38a4.6 4.6 0 0 1-2 3.02v2.53h3.24c1.9-1.75 2.98-4.33 2.98-7.39Z"/><path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.38l-3.24-2.53c-.9.6-2.05.96-3.38.96-2.6 0-4.81-1.76-5.6-4.13H3.06v2.61A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.4 13.92A6 6 0 0 1 6.08 12c0-.67.11-1.32.32-1.92V7.47H3.06A10 10 0 0 0 2 12c0 1.61.39 3.14 1.06 4.53l3.34-2.61Z"/><path fill="#EA4335" d="M12 5.95c1.47 0 2.78.5 3.82 1.49l2.87-2.87A9.64 9.64 0 0 0 12 2a10 10 0 0 0-8.94 5.47l3.34 2.61c.79-2.37 3-4.13 5.6-4.13Z"/></svg>;
+}
+
+function AppleMark() {
+  return <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.54c-.02-2.3 1.88-3.42 1.97-3.48a4.22 4.22 0 0 0-3.32-1.8c-1.4-.15-2.76.84-3.47.84-.73 0-1.82-.82-3-.8a4.43 4.43 0 0 0-3.73 2.27c-1.61 2.8-.41 6.91 1.14 9.17.78 1.11 1.68 2.35 2.87 2.3 1.16-.05 1.6-.74 3-.74 1.38 0 1.8.74 3.02.71 1.25-.02 2.03-1.11 2.78-2.23a9.13 9.13 0 0 0 1.27-2.58 3.98 3.98 0 0 1-2.53-3.66ZM14.79 5.78A4.09 4.09 0 0 0 15.73 2a4.17 4.17 0 0 0-2.7 1.3 3.9 3.9 0 0 0-.97 3.68 3.45 3.45 0 0 0 2.73-1.2Z"/></svg>;
+}
+
+function PhoneMark() {
+  return <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10 18.2h4"/></svg>;
+}
+
+function PhoneOtpForm({ onBack, onAuthenticated }: { onBack: () => void; onAuthenticated?: () => void }) {
+  const [countryCode, setCountryCode] = useState("+852");
+  const [phoneInput, setPhoneInput] = useState("");
+  const [normalizedPhone, setNormalizedPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = window.setInterval(() => setCooldown(value => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldown]);
+
+  async function sendCode() {
+    const phone = normalizePhoneNumber(countryCode, phoneInput);
+    if (!phone) { setErr("請輸入有效的國際手機號碼"); return; }
+    setBusy(true); setErr("");
+    try {
+      const { error } = await sb.auth.signInWithOtp({
+        phone,
+        options: { shouldCreateUser: true, data: { auth_origin: "phone" } },
+      });
+      if (error) throw error;
+      setNormalizedPhone(phone);
+      setSent(true);
+      setCooldown(60);
+    } catch (error) {
+      setErr(authErrorMessage(error, "無法發送驗證碼，請稍後再試"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifyCode() {
+    if (!/^\d{6}$/.test(otp)) { setErr("請輸入 6 位數驗證碼"); return; }
+    setBusy(true); setErr("");
+    try {
+      const { data, error } = await sb.auth.verifyOtp({ phone: normalizedPhone, token: otp, type: "sms" });
+      if (error) throw error;
+      if (!data.session) throw new Error("驗證完成但未取得登入狀態，請重試");
+      onAuthenticated?.();
+    } catch (error) {
+      setErr(authErrorMessage(error, "驗證失敗，請重新輸入"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="nyx-phone-auth">
+      <button type="button" className="nyx-phone-back" onClick={onBack}>‹ <span>其他登入方式</span></button>
+      <div className="nyx-phone-title">{sent ? "輸入驗證碼" : "手機號碼登入"}</div>
+      <div className="nyx-phone-copy">{sent ? `6 位數驗證碼已發送至 ${normalizedPhone}` : "我們會以短訊傳送一次性驗證碼"}</div>
+      {!sent ? (
+        <div className="nyx-phone-row">
+          <select aria-label="國家／地區代碼" value={countryCode} onChange={event => setCountryCode(event.target.value)} className="nyx-country-select">
+            {PHONE_COUNTRIES.map(([code, country]) => <option key={code} value={code}>{country} {code}</option>)}
+          </select>
+          <input aria-label="手機號碼" inputMode="tel" autoComplete="tel-national" value={phoneInput} onChange={event => setPhoneInput(event.target.value)} onKeyDown={event => event.key === "Enter" && sendCode()} placeholder="手機號碼" style={INP}/>
+        </div>
+      ) : (
+        <input aria-label="六位數驗證碼" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otp} onChange={event => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} onKeyDown={event => event.key === "Enter" && verifyCode()} placeholder="000000" className="nyx-otp-input"/>
+      )}
+      {err && <div className="nyx-auth-error" role="alert">{err}</div>}
+      <button type="button" className="nyx-auth-primary nyx-phone-submit" disabled={busy} onClick={sent ? verifyCode : sendCode}>{busy ? "處理中…" : sent ? "驗證並登入" : "取得驗證碼"}</button>
+      {sent && <button type="button" className="nyx-phone-resend" disabled={busy || cooldown > 0} onClick={sendCode}>{cooldown > 0 ? `${cooldown} 秒後可重新發送` : "重新發送驗證碼"}</button>}
+    </div>
+  );
+}
+
+function SocialAuthOptions({ onAuthenticated, onPhoneModeChange }: { onAuthenticated?: () => void; onPhoneModeChange?: (open: boolean) => void }) {
+  const [busy, setBusy] = useState<NyxSocialProvider | null>(null);
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const [availability, setAvailability] = useState<AuthProviderAvailability | null>(null);
+  const [err, setErr] = useState(() => {
+    try {
+      const callbackError = getAuthCallbackParams(window.location.href).error;
+      return callbackError ? authErrorMessage(decodeURIComponent(callbackError.replace(/\+/g, " ")), "登入失敗，請重新嘗試") : "";
+    } catch {
+      return "";
+    }
+  });
+
+  useEffect(() => {
+    const onAuthError = (event: Event) => {
+      const message = (event as CustomEvent<string>).detail;
+      setErr(authErrorMessage(message, "登入失敗，請重新嘗試"));
+    };
+    window.addEventListener("nyx:auth-error", onAuthError);
+    if (window.location.pathname === "/auth/callback" && getAuthCallbackParams(window.location.href).error) {
+      window.history.replaceState({}, "", "/");
+    }
+    return () => window.removeEventListener("nyx:auth-error", onAuthError);
+  }, []);
+
+  useEffect(() => {
+    let current = true;
+    void getAuthProviderAvailability()
+      .then(result => { if (current) setAvailability(result); })
+      .catch(() => { if (current) setAvailability({ google:false, apple:false, phone:false }); });
+    return () => { current = false; };
+  }, []);
+
+  async function startProvider(provider: NyxSocialProvider) {
+    setBusy(provider); setErr("");
+    try {
+      await signInWithSocialProvider(provider);
+    } catch (error) {
+      setErr(authErrorMessage(error, "登入失敗，請重新嘗試"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (phoneOpen) return <PhoneOtpForm onBack={() => { setPhoneOpen(false); setErr(""); onPhoneModeChange?.(false); }} onAuthenticated={onAuthenticated}/>;
+
+  return (
+    <div className="nyx-social-auth">
+      <button type="button" className="nyx-social-button nyx-google-button" disabled={busy !== null || availability?.google !== true} onClick={() => startProvider("google")}><GoogleMark/><span>{busy === "google" ? "正在開啟 Google…" : availability?.google === false ? "Google 登入 · 設定中" : "使用 Google 繼續"}</span></button>
+      <button type="button" className="nyx-social-button nyx-apple-button" disabled={busy !== null || availability?.apple !== true} onClick={() => startProvider("apple")}><AppleMark/><span>{busy === "apple" ? "正在開啟 Apple…" : availability?.apple === false ? "Apple 登入 · 設定中" : "使用 Apple 繼續"}</span></button>
+      <button type="button" className="nyx-social-button nyx-phone-button" disabled={busy !== null || availability?.phone !== true} onClick={() => { setPhoneOpen(true); onPhoneModeChange?.(true); }}><PhoneMark/><span>{availability?.phone === false ? "手機登入 · 設定中" : "使用手機號碼繼續"}</span></button>
+      {err && <div className="nyx-auth-error" role="alert">{err}</div>}
+    </div>
+  );
+}
+
 /* ═══ REGISTRATION — Multi-step ══════════════════════ */
 
 // Step 1: Email + Password
-function Step1({ onNext }: { onNext: (email: string, pass: string) => void }) {
+function Step1({ onNext, onAuthenticated }: { onNext: (email: string, pass: string) => void; onAuthenticated: () => void }) {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [pass2, setPass2] = useState("");
   const [err, setErr] = useState("");
+  const [phoneMode, setPhoneMode] = useState(false);
 
   function next() {
     setErr("");
@@ -94,7 +245,10 @@ function Step1({ onNext }: { onNext: (email: string, pass: string) => void }) {
 
   return <>
     <div style={{ fontSize: 24, fontWeight: 800, color: C.text, marginBottom: 6 }}>建立帳號</div>
-    <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 24 }}>請輸入你的電子郵件和密碼</div>
+    <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 20 }}>選擇最方便的方式開始</div>
+    <SocialAuthOptions onAuthenticated={onAuthenticated} onPhoneModeChange={setPhoneMode}/>
+    {!phoneMode && <>
+    <div className="nyx-auth-divider"><span>或使用電郵註冊</span></div>
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <input value={email} onChange={e => setEmail(e.target.value)} placeholder="電子郵件" type="email" style={INP} onFocus={e => (e.target.style.borderColor = C.borderFocus)} onBlur={e => (e.target.style.borderColor = C.border)} />
       <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="密碼（至少6位）" style={INP} onFocus={e => (e.target.style.borderColor = C.borderFocus)} onBlur={e => (e.target.style.borderColor = C.border)} />
@@ -102,6 +256,7 @@ function Step1({ onNext }: { onNext: (email: string, pass: string) => void }) {
       {err && <div style={{ fontSize: 13, color: C.rose, textAlign: "center" }}>{err}</div>}
       <button onClick={next} style={{ width: "100%", padding: "15px", borderRadius: 50, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>繼續 →</button>
     </div>
+    </>}
   </>;
 }
 
@@ -122,8 +277,13 @@ function Step2({ onNext }: { onNext: (name: string, username: string, birthday: 
     if (timer.current) clearTimeout(timer.current);
     setChecking(true);
     timer.current = setTimeout(async () => {
-      const ok = await checkUsernameAvailable(v);
-      setUsernameOk(ok); setChecking(false);
+      try {
+        setUsernameOk(await checkUsernameAvailable(v));
+      } catch {
+        setUsernameOk(null);
+      } finally {
+        setChecking(false);
+      }
     }, 500);
   }
 
@@ -374,7 +534,7 @@ function Step8({ onNext }: { onNext: (hobbies: string[]) => void }) {
 }
 
 /* ─── Registration flow controller ───────────────────── */
-function RegisterFlow({ onBack }: { onBack: () => void }) {
+function RegisterFlow({ onBack, onAuthenticated }: { onBack: () => void; onAuthenticated: () => void }) {
   const [step, setStep] = useState(1);
   const [sentEmail, setSentEmail] = useState<string | null>(null);
   // Collected data
@@ -457,7 +617,7 @@ function RegisterFlow({ onBack }: { onBack: () => void }) {
         <button onClick={step === 1 ? onBack : () => setStep(s => s - 1)} aria-label={step === 1 ? "返回登入" : "上一步"} style={{ width:44, height:44, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", fontFamily: "inherit", marginLeft:-10, marginRight:8, lineHeight: 1 }}>‹</button>
         <div style={{ flex: 1 }}><StepBar step={step} total={TOTAL} /></div>
       </div>
-      {step === 1 && <Step1 onNext={(email, pass) => { data.current.email = email; data.current.pass = pass; setStep(2); }} />}
+      {step === 1 && <Step1 onAuthenticated={onAuthenticated} onNext={(email, pass) => { data.current.email = email; data.current.pass = pass; setStep(2); }} />}
       {step === 2 && <Step2 onNext={(name, username, birthday) => { data.current.name = name; data.current.username = username; data.current.birthday = birthday; setStep(3); }} />}
       {step === 3 && <Step3 onNext={g => { data.current.gender = g; setStep(4); }} />}
       {step === 4 && <Step4 onNext={lf => { data.current.lookingFor = lf; setStep(5); }} />}
@@ -471,7 +631,9 @@ function RegisterFlow({ onBack }: { onBack: () => void }) {
 
 /* ─── LoginScreen (main entry) ───────────────────────── */
 export function LoginScreen({ onLogin }: { onLogin: () => void }) {
-  const [mode, setMode] = useState<"landing" | "login" | "register">("landing");
+  const previewMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get("auth-screen") === "login" ? "login" : "landing";
+  const [mode, setMode] = useState<"landing" | "login" | "register">(previewMode);
+  const [phoneMode, setPhoneMode] = useState(false);
 
   // Landing page — porcelain-violet editorial style
   if (mode === "landing") return (
@@ -512,7 +674,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
         <div className="nyx-auth-form-scroll">
           <div className="nyx-auth-form-top">
             {mode === "login"
-              ? <button className="nyx-auth-back" onClick={() => setMode("landing")} aria-label="返回首頁">‹</button>
+              ? <button className="nyx-auth-back" onClick={() => { setPhoneMode(false); setMode("landing"); }} aria-label="返回首頁">‹</button>
               : <span style={{ width:44 }} />}
             <div className="nyx-auth-brand"><span className="nyx-auth-brand-mark">✦</span><span>NYX</span></div>
           </div>
@@ -521,16 +683,123 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
             {mode === "login" ? (
               <>
                 <div style={{ fontSize:24, fontWeight:800, color:C.text, marginBottom:4 }}>歡迎回來</div>
-                <div style={{ fontSize:13.5, color:C.textMuted, marginBottom:24 }}>用電郵或用戶名登入</div>
+                <div style={{ fontSize:13.5, color:C.textMuted, marginBottom:20 }}>選擇最方便的登入方式</div>
+                <SocialAuthOptions onAuthenticated={onLogin} onPhoneModeChange={setPhoneMode}/>
+                {!phoneMode && <>
+                <div className="nyx-auth-divider"><span>或使用電郵／用戶名</span></div>
                 <LoginForm onLogin={onLogin} />
                 <div style={{ textAlign:"center", marginTop:16 }}>
                   <span style={{ fontSize:13.5, color:C.textMuted }}>還沒有帳號？</span>
-                  <button onClick={() => { setMode("register"); sound.tap(); }} style={{ background:"none", border:"none", color:C.gold, fontSize:13.5, fontWeight:600, cursor:"pointer", fontFamily:"inherit", marginLeft:4 }}>立即註冊</button>
+                  <button onClick={() => { setPhoneMode(false); setMode("register"); sound.tap(); }} style={{ background:"none", border:"none", color:C.gold, fontSize:13.5, fontWeight:600, cursor:"pointer", fontFamily:"inherit", marginLeft:4 }}>立即註冊</button>
                 </div>
+                </>}
               </>
             ) : (
-              <RegisterFlow onBack={() => setMode("login")} />
+              <RegisterFlow onBack={() => setMode("login")} onAuthenticated={onLogin}/>
             )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AccountSetupScreen({
+  userId,
+  profile,
+  onComplete,
+  onLogout,
+}: {
+  userId: string;
+  profile: UserProfile;
+  onComplete: (patch: Partial<UserProfile>) => void;
+  onLogout: () => void;
+}) {
+  const generatedName = /^nyx_[a-f0-9]{6,}$/i.test(profile.username || "");
+  const [name, setName] = useState(profile.display_name?.startsWith("NYX ") ? "" : profile.display_name || "");
+  const [username, setUsername] = useState(generatedName ? "" : profile.username || "");
+  const [birthday, setBirthday] = useState(profile.birthday || "");
+  const [gender, setGender] = useState<"male" | "female">(profile.gender || "male");
+  const [usernameOk, setUsernameOk] = useState<boolean | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (checkTimer.current) clearTimeout(checkTimer.current); }, []);
+
+  function changeUsername(value: string) {
+    const clean = value.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 20);
+    setUsername(clean); setUsernameOk(null); setErr("");
+    if (checkTimer.current) clearTimeout(checkTimer.current);
+    if (clean.length < 3) { setChecking(false); return; }
+    setChecking(true);
+    checkTimer.current = setTimeout(async () => {
+      try {
+        setUsernameOk(await checkUsernameAvailable(clean, userId));
+      } catch {
+        setUsernameOk(null);
+        setErr("暫時無法檢查用戶名，請稍後再試");
+      } finally {
+        setChecking(false);
+      }
+    }, 400);
+  }
+
+  async function finishSetup() {
+    setErr("");
+    const cleanName = name.trim();
+    const cleanUsername = username.trim();
+    if (!cleanName) { setErr("請輸入顯示名稱"); return; }
+    if (!/^[a-z0-9_]{3,20}$/.test(cleanUsername)) { setErr("用戶名需為 3–20 位英文、數字或底線"); return; }
+    if (!birthday) { setErr("請填寫生日"); return; }
+    const age = calcAge(birthday);
+    if (!age || age < 18) { setErr("NYX 僅供年滿 18 歲人士使用"); return; }
+
+    setBusy(true);
+    try {
+      const available = await checkUsernameAvailable(cleanUsername, userId);
+      if (!available) { setUsernameOk(false); throw new Error("此用戶名已被使用"); }
+      const patch: Partial<UserProfile> = { display_name: cleanName, username: cleanUsername, birthday, gender };
+      await updateProfile(userId, patch);
+      onComplete(patch);
+    } catch (error) {
+      setErr(authErrorMessage(error, "無法儲存資料，請稍後再試"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="nyx-auth-shell">
+      <div className="nyx-auth-frame nyx-profile-setup-frame">
+        <div className="nyx-auth-form-art" aria-hidden="true"/>
+        <div className="nyx-profile-setup-scroll">
+          <div className="nyx-auth-form-top">
+            <button type="button" className="nyx-auth-back" onClick={onLogout} aria-label="登出">‹</button>
+            <div className="nyx-auth-brand"><span className="nyx-auth-brand-mark">✦</span><span>NYX</span></div>
+          </div>
+          <div className="nyx-auth-form-card nyx-profile-setup-card">
+            <div className="nyx-setup-kicker">最後一步</div>
+            <div className="nyx-setup-heading">完成你的基本資料</div>
+            <div className="nyx-setup-copy">為保障成人社群安全，生日與用戶名必須先完成。生日不會公開顯示。</div>
+            {profile.avatar_url && <img className="nyx-setup-avatar" src={profile.avatar_url} alt="你的個人頭像"/>}
+            <div className="nyx-setup-fields">
+              <label className="nyx-field-label">顯示名稱<input autoComplete="name" value={name} onChange={event => setName(event.target.value)} placeholder="其他人看到的名字" style={INP}/></label>
+              <label className="nyx-field-label">用戶名
+                <div className="nyx-username-field"><input autoCapitalize="none" autoCorrect="off" value={username} onChange={event => changeUsername(event.target.value)} placeholder="英文、數字或底線" style={{ ...INP, paddingRight:44 }}/><span>{checking ? "…" : usernameOk === true ? "✓" : usernameOk === false ? "!" : ""}</span></div>
+              </label>
+              <label className="nyx-field-label">生日（必須年滿 18 歲）<input type="date" value={birthday} onChange={event => setBirthday(event.target.value)} style={{ ...INP, colorScheme:"light" }}/></label>
+              <div className="nyx-field-label">性別
+                <div className="nyx-gender-row">
+                  <button type="button" className={gender === "male" ? "active" : ""} onClick={() => setGender("male")}>男性</button>
+                  <button type="button" className={gender === "female" ? "active" : ""} onClick={() => setGender("female")}>女性</button>
+                </div>
+              </div>
+            </div>
+            {err && <div className="nyx-auth-error" role="alert">{err}</div>}
+            <button type="button" className="nyx-auth-primary nyx-setup-submit" disabled={busy || checking || usernameOk === false} onClick={finishSetup}>{busy ? "儲存中…" : "完成並進入 NYX"}</button>
+            <div className="nyx-setup-privacy">繼續即確認你已年滿 18 歲，並同意服務條款與隱私政策。</div>
           </div>
         </div>
       </div>
