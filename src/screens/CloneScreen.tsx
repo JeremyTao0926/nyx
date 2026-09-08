@@ -479,7 +479,7 @@ ${status.plan === "free" ? "升級 Premium 獲得更多次數" : "明天再試"}
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", justifyContent: "center", background: C.overlay, backdropFilter:"blur(14px)" }}>
       <div
         onTouchStart={onSwipeStart}
         onTouchMove={onSwipeMove}
@@ -487,7 +487,7 @@ ${status.plan === "free" ? "升級 Premium 獲得更多次數" : "明天再試"}
         style={{ width: "100%", maxWidth: 480, background: C.bg, display: "flex", flexDirection: "column", height: "100%", position: "relative",
           transform: `translateX(${swipeDx}px)`,
           transition: swipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
-          boxShadow: swipeDx > 10 ? "-8px 0 24px rgba(0,0,0,0.5)" : "none" }}>
+          boxShadow: swipeDx > 10 ? "-8px 0 28px rgba(57,42,101,0.24)" : "none" }}>
         {/* Header */}
         <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, borderBottom: `1px solid ${C.border}`, background: C.nav, backdropFilter: "blur(24px) saturate(145%)", flexShrink: 0 }}>
           <button onClick={phase === "chat" ? () => setPhase("select") : onClose}

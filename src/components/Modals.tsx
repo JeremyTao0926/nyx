@@ -32,7 +32,7 @@ export function BottomSheet({ children, onClose, title, maxH="86vh" }:
 
   return (
     <div
-      style={{ position:"fixed",inset:0,zIndex:200,background:closing?"rgba(0,0,0,0)":"rgba(0,0,0,0.65)",backdropFilter:closing?"none":"blur(16px)",display:"flex",alignItems:"flex-end",justifyContent:"center",transition:"background .28s" }}
+      style={{ position:"fixed",inset:0,zIndex:200,background:closing?"rgba(36,30,53,0)":C.overlay,backdropFilter:closing?"none":"blur(16px)",display:"flex",alignItems:"flex-end",justifyContent:"center",transition:"background .28s" }}
       onClick={close}>
       <div
         onClick={e => e.stopPropagation()}
@@ -87,7 +87,7 @@ export function MultiSelect({ label, options, value, onChange, color=C.rose }:{ 
       <span style={{ transform:open?"rotate(180deg)":"none",transition:"transform .2s",fontSize:10,opacity:.5,flexShrink:0 }}>▼</span>
     </button>
     {open&&<div style={{ position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:C.bgElevated,backdropFilter:"blur(24px)",border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden",zIndex:200,maxHeight:260,overflowY:"auto",boxShadow:C.shadowStrong,animation:"dropDown .18s ease" }}>
-      {options.map(o=>{const sel=value.includes(o);return<button key={o} onClick={()=>{onChange(sel?value.filter(x=>x!==o):[...value,o]);sound.tap();}} style={{ width:"100%",padding:"11px 16px",background:sel?"rgba(232,54,93,0.08)":"transparent",border:"none",color:sel?color:C.text,fontFamily:"inherit",fontSize:13.5,cursor:"pointer",textAlign:"left" as const,display:"flex",alignItems:"center",gap:12,fontWeight:sel?600:400,transition:"background .12s" }} onMouseEnter={e=>(e.currentTarget.style.background=C.surf)} onMouseLeave={e=>(e.currentTarget.style.background=sel?"rgba(232,54,93,0.08)":"transparent")}>
+      {options.map(o=>{const sel=value.includes(o);return<button key={o} onClick={()=>{onChange(sel?value.filter(x=>x!==o):[...value,o]);sound.tap();}} style={{ width:"100%",padding:"11px 16px",background:sel?C.roseSoft:"transparent",border:"none",color:sel?color:C.text,fontFamily:"inherit",fontSize:13.5,cursor:"pointer",textAlign:"left" as const,display:"flex",alignItems:"center",gap:12,fontWeight:sel?600:400,transition:"background .12s" }} onMouseEnter={e=>(e.currentTarget.style.background=C.surf)} onMouseLeave={e=>(e.currentTarget.style.background=sel?C.roseSoft:"transparent")}>
         <span style={{ width:18,height:18,borderRadius:5,border:`1.5px solid ${sel?color:C.border}`,background:sel?color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",flexShrink:0,transition:"all .15s" }}>{sel?"✓":""}</span>{o}
       </button>;})}
     </div>}
@@ -197,7 +197,7 @@ export function SimulateModal({ onEnter, onClose }:{ onEnter:(imgs:ImgItem[],mod
           </button>)}
       </>}
       {step==="extracting"&&<div style={{ textAlign:"center",padding:"44px 0" }}>
-        <div style={{ display:"flex",gap:7,justifyContent:"center",marginBottom:18 }}>{[0,1,2].map(i=><span key={i} style={{ width:10,height:10,borderRadius:"50%",background:"#FF9A3C",display:"inline-block",animation:`dot 1.2s ${i*.2}s ease-in-out infinite` }}/>)}</div>
+        <div style={{ display:"flex",gap:7,justifyContent:"center",marginBottom:18 }}>{[0,1,2].map(i=><span key={i} style={{ width:10,height:10,borderRadius:"50%",background:C.warning,display:"inline-block",animation:`dot 1.2s ${i*.2}s ease-in-out infinite` }}/>)}</div>
         <div style={{ fontSize:14,color:C.textMuted }}>正在分析截圖...</div>
       </div>}
       {step==="preview"&&ex&&<>

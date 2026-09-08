@@ -14,7 +14,7 @@ function StatCard({ label, value, sub, color, C }: any) {
   );
 }
 
-export function AdminDashboard({ role, C }: Props) {
+export function AdminDashboard({ C }: Props) {
   const [stats, setStats]     = useState<PlatformStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshed, setRefreshed] = useState<Date | null>(null);
@@ -34,7 +34,7 @@ export function AdminDashboard({ role, C }: Props) {
           <div style={{ fontSize:24, fontWeight:800, color:C.text }}>平台總覽</div>
           {refreshed && <div style={{ fontSize:12, color:C.textMuted, marginTop:3 }}>最後更新：{refreshed.toLocaleTimeString()}</div>}
         </div>
-        <button onClick={load} style={{ padding:"8px 18px", borderRadius:20, background:C.grad, border:"none", color:C.bg, fontFamily:"inherit", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+        <button onClick={load} style={{ padding:"8px 18px", borderRadius:20, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:13, fontWeight:600, cursor:"pointer", boxShadow:"0 8px 20px rgba(103,87,217,.18)" }}>
           重新整理
         </button>
       </div>
@@ -51,7 +51,7 @@ export function AdminDashboard({ role, C }: Props) {
             <StatCard label="真實用戶" value={stats.total_users} C={C} color={C.gold}/>
             <StatCard label="24小時活躍" value={stats.active_24h} sub={`佔總用戶 ${stats.total_users ? Math.round(stats.active_24h/stats.total_users*100) : 0}%`} C={C} color={C.mint}/>
             <StatCard label="7天活躍" value={stats.active_7d} C={C}/>
-            <StatCard label="測試帳號" value={stats.test_users} C={C} color="rgba(245,237,214,0.4)"/>
+            <StatCard label="測試帳號" value={stats.test_users} C={C} color={C.textMuted}/>
             <StatCard label="封禁帳號" value={stats.banned_users} C={C} color={C.rose}/>
           </div>
 

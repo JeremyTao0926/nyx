@@ -24,12 +24,12 @@ export function TermsScreen({ onBack, type = "terms" }: { onBack: () => void; ty
     <div onTouchStart={onSwipeTouchStart} onTouchMove={onSwipeTouchMove} onTouchEnd={onSwipeTouchEnd}
       style={{ position:"fixed",inset:0,zIndex:300,background:C.bg,display:"flex",flexDirection:"column" as const,
         touchAction:"pan-y",transform:`translateX(${swipeDx}px)`,transition:swipeDx===0?"transform .3s cubic-bezier(.32,.72,0,1)":"none",
-        boxShadow:swipeDx>10?"-10px 0 30px rgba(0,0,0,0.6)":"none" }}>
-      <div style={{ display:"flex",alignItems:"center",gap:12,padding:"16px 18px",borderBottom:`1px solid ${C.border}`,flexShrink:0 }}>
-        <button onClick={onBack} style={{ background:"none",border:"none",color:C.textMuted,fontSize:22,cursor:"pointer",lineHeight:1 }}>‹</button>
+        boxShadow:swipeDx>10?"-12px 0 36px rgba(57,42,101,0.22)":"none" }}>
+      <div style={{ display:"flex",alignItems:"center",gap:12,padding:"max(12px, env(safe-area-inset-top)) 18px 12px",borderBottom:`1px solid ${C.border}`,flexShrink:0,background:C.nav,backdropFilter:"blur(24px) saturate(145%)" }}>
+        <button type="button" aria-label="返回" onClick={onBack} style={{ width:44,height:44,display:"flex",alignItems:"center",justifyContent:"center",background:C.surfHigh,border:`1px solid ${C.border}`,borderRadius:"50%",color:C.textMuted,fontSize:24,cursor:"pointer",lineHeight:1 }}>‹</button>
         <span style={{ fontSize:16,fontWeight:700,color:C.text }}>{isTerms ? "服務條款" : "隱私政策"}</span>
       </div>
-      <div style={{ flex:1,overflowY:"auto",padding:"20px 20px 48px",fontSize:13.5,color:C.textSub,lineHeight:1.75 }}>
+      <div style={{ flex:1,overflowY:"auto",padding:"24px 20px max(48px, env(safe-area-inset-bottom))",fontSize:13.5,color:C.textSub,lineHeight:1.75 }}>
         {isTerms ? (
           <>
             <p style={{ color:C.textMuted,marginBottom:20 }}>最後更新：2025年1月1日</p>

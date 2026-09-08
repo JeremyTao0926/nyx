@@ -507,7 +507,7 @@ function BlockedScreen({ profile, onLogout }: { profile: any; onLogout: () => vo
         </div>
       )}
       {rejected && !showForm && (
-        <div style={{ background:"rgba(232,54,93,0.08)", border:"1px solid rgba(232,54,93,0.3)", borderRadius:12, padding:"12px 18px", fontSize:13, color:C.rose, lineHeight:1.6, maxWidth:320 }}>
+        <div style={{ background:C.dangerSoft, border:`1px solid ${C.danger}4d`, borderRadius:12, padding:"12px 18px", fontSize:13, color:C.danger, lineHeight:1.6, maxWidth:320 }}>
           上次申訴已被駁回{appeal.admin_note ? `：${appeal.admin_note}` : ""}
         </div>
       )}

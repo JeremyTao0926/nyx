@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { C, sound, submitSparkAnswer, sb } from "../utils";
+import { C, sound, sb } from "../utils";
 import type { DailySpark } from "../utils";
 
 interface Props {
@@ -27,8 +27,9 @@ export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAn
 
   // Sync if parent passes updated spark (realtime)
   useEffect(() => {
-    setSpark(initSpark);
-  }, [initSpark.answerUser1, initSpark.answerUser2, initSpark.revealedAt?.toString()]);
+    const timer = window.setTimeout(() => setSpark(initSpark), 0);
+    return () => window.clearTimeout(timer);
+  }, [initSpark]);
 
   // Check if already reacted — one reaction per spark per user
   useEffect(() => {
@@ -38,14 +39,13 @@ export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAn
       .select("id").eq("match_id", matchId).eq("sender_id", myUserId)
       .like("content", `[SPARK_REACT]%${snippet}%`)
       .then(({ data }) => { if (data && data.length > 0) setReacted(true); });
-  }, [revealed]);
+  }, [matchId, myUserId, revealed, spark.question]);
 
   async function submit() {
     if (!input.trim() || myAnswer || submitting) return;
     setSubmitting(true); sound.pop();
     const ans = input.trim();
 
-    const field = isUser1 ? "choice_user1" : "choice_user2";
     // Use the DailySpark column names
     const col = isUser1 ? "answer_user1" : "answer_user2";
     await sb.from("daily_sparks").update({ [col]: ans }).eq("id", spark.id);
@@ -93,7 +93,7 @@ export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAn
 
   return (
     <div style={{ margin: "8px 0", animation: "cardReveal .4s ease" }}>
-      <div style={{ background: `linear-gradient(135deg,rgba(14,12,8,0.98),rgba(22,16,12,0.97))`, border: `1px solid ${C.rose}33`, borderRadius: 18, overflow: "hidden" }}>
+      <div style={{ background: C.bgCard, border: `1px solid ${C.rose}33`, borderRadius: 20, overflow: "hidden", boxShadow: C.shadow, backdropFilter: "blur(18px)" }}>
         {/* Header */}
         <div style={{ padding: "12px 16px 8px", borderBottom: `1px solid ${C.rose}18`, display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 13, color: C.rose }}>♥</span>
@@ -112,16 +112,16 @@ export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAn
               <div>
                 <textarea value={input} onChange={e => setInput(e.target.value)}
                   placeholder="說說你的想法..." rows={2}
-                  style={{ width: "100%", padding: "11px 14px", background: C.surf, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit", resize: "none", boxSizing: "border-box" as const, lineHeight: 1.6 }}
+                  style={{ width: "100%", padding: "12px 14px", background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit", resize: "none", boxSizing: "border-box" as const, lineHeight: 1.6 }}
                   onFocus={e => (e.target.style.borderColor = C.rose)}
                   onBlur={e => (e.target.style.borderColor = C.border)} />
                 <button onClick={submit} disabled={!input.trim() || submitting}
-                  style={{ marginTop: 8, width: "100%", padding: "12px", borderRadius: 12, background: input.trim() ? C.gradRose : C.surfHigh, border: "none", color: input.trim() ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: input.trim() ? "pointer" : "default", transition: "all .2s" }}>
+                  style={{ marginTop: 8, width: "100%", minHeight: 46, padding: "12px", borderRadius: 14, background: input.trim() ? C.gradRose : C.surfHigh, border: "none", color: input.trim() ? C.white : C.textDim, fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: input.trim() ? "pointer" : "default", transition: "all .2s" }}>
                   {submitting ? "提交中..." : "提交"}
                 </button>
               </div>
             ) : (
-              <div style={{ background: C.surf, borderRadius: 12, padding: "14px 16px" }}>
+              <div style={{ background: C.surf, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px" }}>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>你的回答</div>
                 <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6 }}>{myAnswer}</div>
                 <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}>
@@ -160,7 +160,7 @@ export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAn
                       <button onClick={() => setShowReact(false)}
                         style={{ flex: 1, padding: "10px", borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}>取消</button>
                       <button onClick={sendReaction} disabled={!reactInput.trim()}
-                        style={{ flex: 2, padding: "10px", borderRadius: 12, background: reactInput.trim() ? C.gradRose : C.surfHigh, border: "none", color: reactInput.trim() ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 13, fontWeight: 700, cursor: reactInput.trim() ? "pointer" : "default" }}>
+                        style={{ flex: 2, padding: "10px", borderRadius: 12, background: reactInput.trim() ? C.gradRose : C.surfHigh, border: "none", color: reactInput.trim() ? C.white : C.textDim, fontFamily: "inherit", fontSize: 13, fontWeight: 700, cursor: reactInput.trim() ? "pointer" : "default" }}>
                         發送（不可撤回）
                       </button>
                     </div>

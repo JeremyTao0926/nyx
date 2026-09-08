@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { C, sound, fmtTime, buildSys, groqChat, groqVision, toB64, getOrCreateConv, loadNyxMsgs, saveNyxMsg, loadHistory, saveHistory, updateProfile, splitA, splitC, detMs, casMs, sleep, detectMode, saveAnalysis, loadAnalysisHistory, mbtiCompatibility } from "../utils";
+import { C, sound, fmtTime, buildSys, groqChat, groqVision, toB64, getOrCreateConv, loadNyxMsgs, saveNyxMsg, loadHistory, saveHistory, updateProfile, splitA, splitC, detMs, casMs, sleep, detectMode } from "../utils";
 import { Av, TypingBubble, NyxText, Lightbox, NyxAnalysisSheet } from "../components/Atoms";
 import { MbtiSheet, EmojiPanel, SimulateModal } from "../components/Modals";
-import type { Msg, GMsg, ImgItem, ExtractedConvo, LB, AppMode, UserProfile, NyxAnalysis } from "../types";
+import type { Msg, GMsg, ImgItem, ExtractedConvo, LB, AppMode, UserProfile } from "../types";
 
 /* ─── Nyx Analysis Sheet ─────────────────────────────── */
 export function NyxChatScreen({ userId, profile, onBack }: { userId: string; profile: UserProfile; onBack: () => void }) {
@@ -10,7 +10,7 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
   const [convId, setConvId] = useState<string | null>(null); const [loaded, setLoaded] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>("normal");
   const [simMsgs, setSimMsgs] = useState<Msg[]>([]); const [simHist, setSimHist] = useState<GMsg[]>([]);
-  const [simImgs, setSimImgs] = useState<ImgItem[]>([]); const [simName, setSimName] = useState(""); const [simStyle, setSimStyle] = useState(""); const [simAvatar, setSimAvatar] = useState("");
+  const [simName, setSimName] = useState(""); const [simStyle, setSimStyle] = useState(""); const simAvatar = "";
   const [mbti, setMbti] = useState(profile.mbti || "INFP"); const [gender, setGender] = useState<"male" | "female">(profile.gender || "male");
   const [typing, setTyping] = useState(false); const [pendingImgs, setPendingImgs] = useState<ImgItem[]>([]);
   const [showEmoji, setShowEmoji] = useState(false); const [showMbti, setShowMbti] = useState(false);
@@ -93,14 +93,14 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
   }
 
   function enterSim(imgs: ImgItem[], mode: "new" | "continue", ex: ExtractedConvo | null) {
-    setSimImgs(imgs); setSimName(ex?.name ?? ""); setSimStyle(ex?.styleDesc ?? ""); setShowSim(false);
+    setSimName(ex?.name ?? ""); setSimStyle(ex?.styleDesc ?? ""); setShowSim(false);
     const init: Msg[] = [];
     if (mode === "continue" && ex?.messages.length) ex.messages.forEach((m, i) => init.push({ id: `ex${i}`, from: m.from === "me" ? "user" : "nyx", text: m.text, timestamp: new Date() }));
     init.push({ id: "ss", from: "nyx", text: mode === "new" ? `💭 模擬開始\n直接輸入你想對${ex?.name || "她"}說的話` : `💭 已載入對話\n接著打下一句吧`, timestamp: new Date() });
     setSimMsgs(init); setSimHist([]); setAppMode("simulate");
   }
 
-  const ac = isSim ? "#ff9a3c" : C.pink;
+  const ac = isSim ? C.warning : C.pink;
 
   return <div
     onTouchStart={onSwipeTouchStart}
@@ -110,7 +110,7 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
       touchAction: "pan-y",
       transform: `translateX(${swipeDx}px)`,
       transition: swipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
-      boxShadow: swipeDx > 10 ? "-8px 0 24px rgba(0,0,0,0.5)" : "none" }}>
+      boxShadow: swipeDx > 10 ? "-12px 0 36px rgba(57,42,101,0.22)" : "none" }}>
     <div style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", background: isSim ? "radial-gradient(ellipse 70% 40% at 50% 0%,rgba(255,154,60,0.06) 0%,transparent 70%)" : "radial-gradient(ellipse 70% 40% at 50% 0%,rgba(155,114,207,0.07) 0%,transparent 70%)", transition: "background .5s" }} />
     {/* Header - centered */}
     <div style={{ position: "relative", zIndex: 10, padding: "14px 16px", background: C.nav, backdropFilter: "blur(24px) saturate(145%)", borderBottom: `1px solid ${isSim ? "rgba(255,154,60,0.2)" : C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
@@ -118,14 +118,14 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0 }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{isSim ? (simName || "模擬對話") : "Nyx"}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 1 }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: isSim ? "#ff9a3c" : C.teal, boxShadow: `0 0 6px ${isSim ? "#ff9a3c" : C.teal}`, display: "inline-block" }} />
-          <span style={{ fontSize: 11.5, color: isSim ? "#D96B20" : C.teal }}>{isSim ? "模擬中..." : "AI 戀愛分析師"}{typing && " · 輸入中..."}</span>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: isSim ? C.warning : C.teal, boxShadow: `0 0 6px ${isSim ? C.warning : C.teal}`, display: "inline-block" }} />
+          <span style={{ fontSize: 11.5, color: isSim ? C.warning : C.teal }}>{isSim ? "模擬中..." : "AI 戀愛分析師"}{typing && " · 輸入中..."}</span>
         </div>
       </div>
       <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
         {isSim
-          ? <button onClick={() => setAppMode("normal")} style={{ background: "rgba(255,107,107,0.15)", border: "1px solid rgba(255,107,107,0.35)", borderRadius: 20, padding: "5px 12px", color: "#ff9a3c", fontFamily: "inherit", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>退出</button>
-          : <button onClick={() => { setShowSim(true); sound.tap(); }} style={{ width: 32, height: 32, borderRadius: "50%", background: C.surf, border: `1px solid ${C.border}`, color: C.textMuted, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }} onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#D96B20"; }} onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = C.textMuted; }}>💭</button>}
+          ? <button onClick={() => setAppMode("normal")} style={{ background: C.roseSoft, border: `1px solid ${C.rose}59`, borderRadius: 20, padding: "5px 12px", color: C.warning, fontFamily: "inherit", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>退出</button>
+          : <button onClick={() => { setShowSim(true); sound.tap(); }} style={{ width: 32, height: 32, borderRadius: "50%", background: C.surf, border: `1px solid ${C.border}`, color: C.textMuted, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }} onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = C.warning; }} onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = C.textMuted; }}>💭</button>}
         {!isSim && <button onClick={() => setGender(g => g === "male" ? "female" : "male")} style={{ background: gender === "male" ? "rgba(79,127,234,0.11)" : C.roseSoft, border: gender === "male" ? "1px solid rgba(79,127,234,0.28)" : `1px solid ${C.rose}44`, borderRadius: 20, padding: "5px 10px", color: gender === "male" ? "#3F6FC7" : C.pink, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{gender === "male" ? "♂" : "♀"}</button>}
         {!isSim && <button onClick={() => { setShowMbti(true); sound.tap(); }} style={{ background: "rgba(201,24,74,0.15)", border: `1px solid ${C.border}`, borderRadius: 20, padding: "5px 10px", color: C.pink, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>✦ {mbti}</button>}
       </div>
@@ -136,7 +136,7 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
       {curMsgs.map(msg => (
         <div key={msg.id} style={{ display: "flex", flexDirection: msg.from === "user" ? "row-reverse" : "row", alignItems: "flex-end", gap: 8, animation: `${msg.from === "user" ? "userIn" : "nyxIn"} .3s cubic-bezier(.34,1.4,.64,1) both` }}
           onContextMenu={e => { e.preventDefault(); if (msg.text) setMenuMsg(msg); }}>
-          {msg.from === "nyx" && (isSim ? <Av url={simAvatar} name={simName} size={30} grad="linear-gradient(145deg,#ff9a3c,#ff6b6b)" /> : <Av size={30} />)}
+          {msg.from === "nyx" && (isSim ? <Av url={simAvatar} name={simName} size={30} grad={C.gradRose} /> : <Av size={30} />)}
           <div style={{ maxWidth: "78%", display: "flex", flexDirection: "column", alignItems: msg.from === "user" ? "flex-end" : "flex-start" }}>
             {msg.images && msg.images.length > 0 && <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 4, marginBottom: msg.text ? 6 : 0, justifyContent: msg.from === "user" ? "flex-end" : "flex-start" }}>{msg.images.map((src, i) => <img key={i} src={src} alt="" onClick={() => setLb({ images: msg.images!, index: i })} style={{ height: 72, width: 72, objectFit: "cover" as const, borderRadius: 12, border: `1px solid ${C.border}`, cursor: "zoom-in" }} />)}</div>}
             {msg.text && <div style={{ padding: msg.from === "nyx" ? "14px 16px" : "11px 16px", borderRadius: msg.from === "user" ? "18px 4px 18px 18px" : "4px 18px 18px 18px", background: msg.from === "user" ? C.grad : isSim ? "rgba(255,247,239,0.98)" : C.bgCard, border: msg.from === "nyx" ? `1px solid ${isSim ? "rgba(217,107,32,0.16)" : C.border}` : undefined, boxShadow: msg.from === "user" ? `0 6px 20px ${C.goldGlow}` : C.shadow, backdropFilter: "blur(8px)" }}>
@@ -164,7 +164,7 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
           <button onClick={() => { setShowEmoji(p => !p); sound.tap(); }} style={{ width: 30, height: 30, borderRadius: "50%", flexShrink: 0, background: showEmoji ? `${ac}22` : "transparent", border: "none", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: showEmoji ? ac : C.textMuted }}>😊</button>
           <button onClick={() => fileRef.current?.click()} style={{ width: 30, height: 30, borderRadius: "50%", flexShrink: 0, background: "transparent", border: "none", color: C.textMuted, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }} onMouseEnter={e => (e.currentTarget.style.color = C.violet)} onMouseLeave={e => (e.currentTarget.style.color = C.textMuted)}>⊕</button>
           <textarea ref={textRef} onChange={e => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 130) + "px"; }} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={isSim ? `輸入你想對${simName || "她"}說的話...` : "貼上聊天內容，或問 Nyx 任何問題..."} rows={1} style={{ background: "transparent", border: "none", outline: "none", color: C.text, resize: "none", fontSize: 14.5, lineHeight: 1.55, width: "100%", maxHeight: 130, overflowY: "auto", paddingTop: 5, fontFamily: "'Plus Jakarta Sans','Noto Sans TC',sans-serif" }} />
-          <button onClick={send} disabled={typing} style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0, background: `linear-gradient(145deg,${ac},${isSim ? "#ff6b6b" : C.violet})`, border: "none", color: "#fff", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 3px 14px ${ac}70`, transition: "all .2s", opacity: typing ? .5 : 1, fontFamily: "inherit" }}>{typing ? <span style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "#fff", borderRadius: "50%", display: "inline-block", animation: "spin .7s linear infinite" }} /> : <span style={{ marginLeft: 2 }}>➤</span>}</button>
+          <button onClick={send} disabled={typing} style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0, background: `linear-gradient(145deg,${ac},${isSim ? C.rose : C.violet})`, border: "none", color: C.white, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 3px 14px ${ac}70`, transition: "all .2s", opacity: typing ? .5 : 1, fontFamily: "inherit" }}>{typing ? <span style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.4)", borderTopColor: C.white, borderRadius: "50%", display: "inline-block", animation: "spin .7s linear infinite" }} /> : <span style={{ marginLeft: 2 }}>➤</span>}</button>
         </div>
       </div>
       </div>
@@ -173,7 +173,7 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
     {lb && <Lightbox lb={lb} onClose={() => setLb(null)} />}
 
     {/* Long press menu */}
-    {menuMsg && <div style={{ position: "fixed", inset: 0, zIndex: 150, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }} onClick={() => setMenuMsg(null)}>
+    {menuMsg && <div style={{ position: "fixed", inset: 0, zIndex: 150, display: "flex", alignItems: "center", justifyContent: "center", background: C.overlay, backdropFilter:"blur(8px)" }} onClick={() => setMenuMsg(null)}>
       <div onClick={e => e.stopPropagation()} style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 18, overflow: "hidden", minWidth: 200, boxShadow: C.shadowStrong, animation: "springIn .2s ease" }}>
         {[
           { icon: "📋", label: "複製", fn: () => navigator.clipboard?.writeText(menuMsg.text || "") },

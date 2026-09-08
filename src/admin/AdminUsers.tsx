@@ -59,7 +59,7 @@ export function AdminUsers({ tab, role, C }: Props) {
     catch (e: any) { setMsg(e.message); }
   }
 
-  const INP = { padding:"9px 12px", background:"rgba(255,255,255,0.05)", border:`1px solid ${C.border}`, borderRadius:8, color:C.text, fontSize:13, outline:"none", fontFamily:"inherit" };
+  const INP = { padding:"9px 12px", background:C.surf, border:`1px solid ${C.border}`, borderRadius:8, color:C.text, fontSize:13, outline:"none", fontFamily:"inherit" };
 
   return (
     <div>
@@ -70,20 +70,20 @@ export function AdminUsers({ tab, role, C }: Props) {
         {isTestTab ? "標記測試帳號、清除測試數據" : "查看用戶、封禁/解封"}
       </div>
 
-      {msg && <div style={{ background:"rgba(0,201,167,0.1)", border:"1px solid rgba(0,201,167,0.25)", borderRadius:10, padding:"10px 14px", color:C.mint, fontSize:13, marginBottom:16 }} onClick={()=>setMsg("")}>{msg}</div>}
+      {msg && <div style={{ background:"rgba(22,165,137,0.10)", border:"1px solid rgba(22,165,137,0.25)", borderRadius:10, padding:"10px 14px", color:C.mint, fontSize:13, marginBottom:16 }} onClick={()=>setMsg("")}>{msg}</div>}
 
       {/* Search */}
       <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" as const }}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜尋用戶名 / 電郵..."
           style={{ ...INP, flex:1 }}/>
-        <button onClick={load} style={{ padding:"9px 18px", borderRadius:8, background:C.grad, border:"none", color:C.bg, fontFamily:"inherit", fontSize:13, fontWeight:600, cursor:"pointer" }}>搜尋</button>
+        <button onClick={load} style={{ padding:"9px 18px", borderRadius:10, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:13, fontWeight:600, cursor:"pointer", boxShadow:"0 8px 20px rgba(103,87,217,.18)" }}>搜尋</button>
       </div>
 
       {/* Table */}
       <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" as any }}>
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden", minWidth:520 }}>
         {/* Header — hidden on mobile */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 100px 140px", padding:"10px 16px", background:"rgba(255,255,255,0.03)", borderBottom:`1px solid ${C.border}` }} className="admin-table-header">
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 100px 140px", padding:"10px 16px", background:C.surf, borderBottom:`1px solid ${C.border}` }} className="admin-table-header">
           {["用戶名","電郵","最後活躍","狀態","操作"].map(h => (
             <div key={h} style={{ fontSize:11, fontWeight:700, color:C.textMuted, letterSpacing:".5px", textTransform:"uppercase" as const }}>{h}</div>
           ))}
@@ -95,22 +95,22 @@ export function AdminUsers({ tab, role, C }: Props) {
             <div>
               <div style={{ fontSize:13.5, color:C.text, fontWeight:500 }}>{u.display_name || u.username}</div>
               <div style={{ fontSize:11, color:C.textMuted }}>@{u.username}</div>
-              {u.is_test_account && <span style={{ fontSize:10, background:"rgba(74,144,217,0.15)", color:"#4A90D9", padding:"1px 7px", borderRadius:10, marginTop:3, display:"inline-block" }}>🧪 {u.test_label || "測試"}</span>}
+              {u.is_test_account && <span style={{ fontSize:10, background:C.superlikeSoft, color:C.superlike, padding:"1px 7px", borderRadius:10, marginTop:3, display:"inline-block" }}>🧪 {u.test_label || "測試"}</span>}
             </div>
             <div style={{ fontSize:12.5, color:C.textSub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" as const }}>{u.email}</div>
             <div style={{ fontSize:12, color:C.textMuted }}>{u.last_active ? new Date(u.last_active).toLocaleDateString("zh-TW") : "從未"}</div>
             <div>
               {u.is_banned
-                ? <span style={{ fontSize:11, background:"rgba(232,54,93,0.15)", color:C.rose, padding:"2px 8px", borderRadius:10 }}>封禁</span>
-                : <span style={{ fontSize:11, background:"rgba(0,201,167,0.12)", color:C.mint, padding:"2px 8px", borderRadius:10 }}>正常</span>}
+                ? <span style={{ fontSize:11, background:"rgba(239,95,122,0.13)", color:C.rose, padding:"2px 8px", borderRadius:10 }}>封禁</span>
+                : <span style={{ fontSize:11, background:"rgba(22,165,137,0.12)", color:C.mint, padding:"2px 8px", borderRadius:10 }}>正常</span>}
               {(u as any).is_active === false && !(u as any).deleted_at && (
-                <span style={{ fontSize:11, background:"rgba(245,166,35,0.15)", color:"#F5A623", padding:"2px 8px", borderRadius:10, marginLeft:4 }}>停用</span>
+                <span style={{ fontSize:11, background:C.warningSoft, color:C.warning, padding:"2px 8px", borderRadius:10, marginLeft:4 }}>停用</span>
               )}
               {(u as any).deleted_at && (
-                <span style={{ fontSize:11, background:"rgba(150,150,150,0.15)", color:"#999", padding:"2px 8px", borderRadius:10, marginLeft:4 }}>已刪除</span>
+                <span style={{ fontSize:11, background:C.surfHigh, color:C.textMuted, padding:"2px 8px", borderRadius:10, marginLeft:4 }}>已刪除</span>
               )}
               {(u as any).is_premium && (
-                <span style={{ fontSize:11, background:(u as any).premium_plan==="premium_plus"?"rgba(124,58,237,0.15)":"rgba(201,168,76,0.12)", color:(u as any).premium_plan==="premium_plus"?"#A78BFA":"#C9A84C", padding:"2px 8px", borderRadius:10, marginLeft:4, fontWeight:600 }}>
+                <span style={{ fontSize:11, background:(u as any).premium_plan==="premium_plus"?"rgba(239,95,122,0.12)":"rgba(103,87,217,0.11)", color:(u as any).premium_plan==="premium_plus"?C.rose:C.gold, padding:"2px 8px", borderRadius:10, marginLeft:4, fontWeight:600 }}>
                   {(u as any).premium_plan==="premium_plus"?"P+":"P"}
                 </span>
               )}
@@ -128,7 +128,7 @@ export function AdminUsers({ tab, role, C }: Props) {
 
       {/* Detail panel */}
       {selected && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100 }} onClick={()=>setSelected(null)}>
+        <div style={{ position:"fixed", inset:0, background:"rgba(36,30,53,0.44)", backdropFilter:"blur(12px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100 }} onClick={()=>setSelected(null)}>
           <div onClick={e=>e.stopPropagation()} style={{ width:480, background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:"28px", maxHeight:"80vh", overflowY:"auto" }}>
             <div style={{ fontSize:18, fontWeight:700, color:C.text, marginBottom:4 }}>{selected.display_name || selected.username}</div>
             <div style={{ fontSize:12.5, color:C.textMuted, marginBottom:20 }}>ID: {selected.id}</div>
@@ -160,7 +160,7 @@ export function AdminUsers({ tab, role, C }: Props) {
             </div>
 
             {selected.is_banned && (
-              <div style={{ background:"rgba(232,54,93,0.1)", border:"1px solid rgba(232,54,93,0.25)", borderRadius:10, padding:"10px 14px", marginBottom:16 }}>
+              <div style={{ background:"rgba(239,95,122,0.09)", border:"1px solid rgba(239,95,122,0.25)", borderRadius:10, padding:"10px 14px", marginBottom:16 }}>
                 <div style={{ fontSize:12, color:C.rose, fontWeight:700 }}>已封禁</div>
                 <div style={{ fontSize:12.5, color:C.textSub, marginTop:2 }}>{selected.ban_reason}</div>
               </div>
@@ -169,18 +169,18 @@ export function AdminUsers({ tab, role, C }: Props) {
             <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
               {/* Mark test */}
               {canDo(role, "tester") && (
-                <div style={{ padding:"14px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:`1px solid ${C.border}` }}>
+                <div style={{ padding:"14px", background:C.surf, borderRadius:10, border:`1px solid ${C.border}` }}>
                   <div style={{ fontSize:12, color:C.textMuted, marginBottom:8, fontWeight:600 }}>測試帳號</div>
                   {!selected.is_test_account ? (
                     <div style={{ display:"flex", gap:8 }}>
                       <input value={testLabel} onChange={e=>setTestLabel(e.target.value)} placeholder="標籤（如：Jeremy dev）" style={{ ...INP, flex:1 }}/>
-                      <button onClick={()=>handleMarkTest(selected,true)} style={{ padding:"8px 14px", borderRadius:8, background:"rgba(74,144,217,0.2)", border:"1px solid rgba(74,144,217,0.3)", color:"#4A90D9", fontFamily:"inherit", fontSize:12, cursor:"pointer" }}>標記</button>
+                      <button onClick={()=>handleMarkTest(selected,true)} style={{ padding:"8px 14px", borderRadius:8, background:C.superlikeSoft, border:`1px solid ${C.superlike}4D`, color:C.superlike, fontFamily:"inherit", fontSize:12, cursor:"pointer" }}>標記</button>
                     </div>
                   ) : (
                     <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                      <span style={{ fontSize:12, color:"#4A90D9" }}>🧪 {selected.test_label}</span>
+                      <span style={{ fontSize:12, color:C.superlike }}>🧪 {selected.test_label}</span>
                       <button onClick={()=>handleMarkTest(selected,false)} style={{ padding:"6px 12px", borderRadius:8, background:"transparent", border:`1px solid ${C.border}`, color:C.textMuted, fontFamily:"inherit", fontSize:11, cursor:"pointer" }}>移除標記</button>
-                      <button onClick={()=>handleDeleteTestData(selected)} style={{ padding:"6px 12px", borderRadius:8, background:"rgba(232,54,93,0.1)", border:"1px solid rgba(232,54,93,0.25)", color:C.rose, fontFamily:"inherit", fontSize:11, cursor:"pointer" }}>清除數據</button>
+                      <button onClick={()=>handleDeleteTestData(selected)} style={{ padding:"6px 12px", borderRadius:8, background:"rgba(239,95,122,0.09)", border:"1px solid rgba(239,95,122,0.25)", color:C.rose, fontFamily:"inherit", fontSize:11, cursor:"pointer" }}>清除數據</button>
                     </div>
                   )}
                 </div>
@@ -189,7 +189,7 @@ export function AdminUsers({ tab, role, C }: Props) {
 
               {/* Account tools */}
               {role === "super_admin" && (
-                <div style={{ padding:"14px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:`1px solid ${C.border}` }}>
+                <div style={{ padding:"14px", background:C.surf, borderRadius:10, border:`1px solid ${C.border}` }}>
                   <div style={{ fontSize:12, color:C.textMuted, marginBottom:8, fontWeight:600 }}>
                     帳號管理
                   </div>
@@ -200,7 +200,7 @@ export function AdminUsers({ tab, role, C }: Props) {
                         try { await disableUser(selected.id); setMsg("✓ 帳號已停用"); load(); }
                         catch (e: any) { setMsg("✗ 停用失敗：" + (e?.message || e)); }
                       }}
-                      style={{ padding:"8px 12px", borderRadius:8, background:"rgba(245,166,35,0.15)", border:"1px solid rgba(245,166,35,0.3)", color:"#F5A623", cursor:"pointer", fontFamily:"inherit" }}
+                      style={{ padding:"8px 12px", borderRadius:8, background:C.warningSoft, border:`1px solid ${C.warning}4D`, color:C.warning, cursor:"pointer", fontFamily:"inherit" }}
                     >
                       停用帳號
                     </button>
@@ -210,7 +210,7 @@ export function AdminUsers({ tab, role, C }: Props) {
                         try { await restoreUser(selected.id); setMsg("✓ 帳號已恢復"); load(); }
                         catch (e: any) { setMsg("✗ 恢復失敗：" + (e?.message || e)); }
                       }}
-                      style={{ padding:"8px 12px", borderRadius:8, background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.25)", color:C.mint, cursor:"pointer", fontFamily:"inherit" }}
+                      style={{ padding:"8px 12px", borderRadius:8, background:"rgba(22,165,137,0.12)", border:"1px solid rgba(22,165,137,0.25)", color:C.mint, cursor:"pointer", fontFamily:"inherit" }}
                     >
                       恢復帳號
                     </button>
@@ -221,7 +221,7 @@ export function AdminUsers({ tab, role, C }: Props) {
                         try { await softDeleteUser(selected.id); setMsg("✓ 帳號已軟刪除"); setSelected(null); load(); }
                         catch (e: any) { setMsg("✗ 軟刪除失敗：" + (e?.message || e)); }
                       }}
-                      style={{ padding:"8px 12px", borderRadius:8, background:"rgba(232,54,93,0.12)", border:"1px solid rgba(232,54,93,0.25)", color:C.rose, cursor:"pointer", fontFamily:"inherit" }}
+                      style={{ padding:"8px 12px", borderRadius:8, background:"rgba(239,95,122,0.12)", border:"1px solid rgba(239,95,122,0.25)", color:C.rose, cursor:"pointer", fontFamily:"inherit" }}
                     >
                       軟刪除
                     </button>
@@ -231,7 +231,7 @@ export function AdminUsers({ tab, role, C }: Props) {
 
               {/* Premium Management */}
               {canDo(role, "super_admin") && (
-                <div style={{ padding:"14px", background:"rgba(201,168,76,0.04)", borderRadius:10, border:`1px solid rgba(201,168,76,0.15)` }}>
+                <div style={{ padding:"14px", background:"rgba(103,87,217,0.055)", borderRadius:12, border:`1px solid rgba(103,87,217,0.15)` }}>
                   <div style={{ fontSize:12, color:C.gold, marginBottom:10, fontWeight:600 }}>Premium 管理</div>
                   <div style={{ fontSize:12, color:C.textMuted, marginBottom:10 }}>
                     目前：{(selected as any).is_premium
@@ -239,23 +239,23 @@ export function AdminUsers({ tab, role, C }: Props) {
                       : <span>無訂閱</span>}
                   </div>
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap" as const }}>
-                    <button onClick={()=>handleGrantPremium(selected,"premium")} style={{ padding:"7px 13px", borderRadius:8, background:"rgba(201,168,76,0.1)", border:"1px solid rgba(201,168,76,0.3)", color:C.gold, fontFamily:"inherit", fontSize:12, fontWeight:600, cursor:"pointer" }}>授予 Premium</button>
-                    <button onClick={()=>handleGrantPremium(selected,"premium_plus")} style={{ padding:"7px 13px", borderRadius:8, background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.3)", color:"#A78BFA", fontFamily:"inherit", fontSize:12, fontWeight:600, cursor:"pointer" }}>授予 Premium+</button>
-                    {(selected as any).is_premium && <button onClick={()=>handleGrantPremium(selected,null)} style={{ padding:"7px 13px", borderRadius:8, background:"rgba(255,60,60,0.08)", border:"1px solid rgba(255,60,60,0.2)", color:"#FF6B6B", fontFamily:"inherit", fontSize:12, cursor:"pointer" }}>移除</button>}
+                    <button onClick={()=>handleGrantPremium(selected,"premium")} style={{ padding:"7px 13px", borderRadius:8, background:"rgba(103,87,217,0.10)", border:"1px solid rgba(103,87,217,0.3)", color:C.gold, fontFamily:"inherit", fontSize:12, fontWeight:600, cursor:"pointer" }}>授予 Premium</button>
+                    <button onClick={()=>handleGrantPremium(selected,"premium_plus")} style={{ padding:"7px 13px", borderRadius:8, background:"rgba(239,95,122,0.10)", border:"1px solid rgba(239,95,122,0.3)", color:C.rose, fontFamily:"inherit", fontSize:12, fontWeight:600, cursor:"pointer" }}>授予 Premium+</button>
+                    {(selected as any).is_premium && <button onClick={()=>handleGrantPremium(selected,null)} style={{ padding:"7px 13px", borderRadius:8, background:C.dangerSoft, border:`1px solid ${C.danger}33`, color:C.danger, fontFamily:"inherit", fontSize:12, cursor:"pointer" }}>移除</button>}
                   </div>
                 </div>
               )}
 
               {/* Ban/Unban */}
               {canDo(role, "moderator") && (
-                <div style={{ padding:"14px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:`1px solid ${C.border}` }}>
+                <div style={{ padding:"14px", background:C.surf, borderRadius:10, border:`1px solid ${C.border}` }}>
                   <div style={{ fontSize:12, color:C.textMuted, marginBottom:8, fontWeight:600 }}>帳號封禁</div>
                   {selected.is_banned ? (
-                    <button onClick={()=>handleUnban(selected)} style={{ padding:"8px 16px", borderRadius:8, background:C.grad, border:"none", color:C.bg, fontFamily:"inherit", fontSize:12, fontWeight:600, cursor:"pointer" }}>解除封禁</button>
+                    <button onClick={()=>handleUnban(selected)} style={{ padding:"8px 16px", borderRadius:8, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:12, fontWeight:600, cursor:"pointer" }}>解除封禁</button>
                   ) : (
                     <div style={{ display:"flex", gap:8 }}>
                       <input value={banReason} onChange={e=>setBanReason(e.target.value)} placeholder="封禁原因（必填）" style={{ ...INP, flex:1 }}/>
-                      <button onClick={()=>handleBan(selected)} style={{ padding:"8px 14px", borderRadius:8, background:"rgba(232,54,93,0.2)", border:"1px solid rgba(232,54,93,0.35)", color:C.rose, fontFamily:"inherit", fontSize:12, fontWeight:600, cursor:"pointer" }}>封禁</button>
+                      <button onClick={()=>handleBan(selected)} style={{ padding:"8px 14px", borderRadius:8, background:"rgba(239,95,122,0.16)", border:"1px solid rgba(239,95,122,0.35)", color:C.rose, fontFamily:"inherit", fontSize:12, fontWeight:600, cursor:"pointer" }}>封禁</button>
                     </div>
                   )}
                 </div>

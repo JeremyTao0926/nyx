@@ -414,19 +414,19 @@ ${ctxStr}
     else setSheetTranslate(0);
   }
 
-  return <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(4,3,14,0.92)", backdropFilter: "blur(16px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+  return <div style={{ position: "fixed", inset: 0, zIndex: 200, background: C.overlay, backdropFilter: "blur(16px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
     <div onClick={e => e.stopPropagation()}
       onTouchStart={onSheetTouchStart}
       onTouchMove={onSheetTouchMove}
       onTouchEnd={onSheetTouchEnd}
-      style={{ ...MAX_W, background: C.surf, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, padding: "24px 22px 44px", maxHeight: "72vh", overflowY: "auto", animation: "slideUp .32s cubic-bezier(.34,1.56,.64,1)", transform: `translateY(${sheetTranslate}px)`, transition: sheetTranslate === 0 ? "transform .3s ease" : "none" }}>
+      style={{ ...MAX_W, background: C.bgElevated, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, padding: "24px 22px 44px", maxHeight: "72vh", overflowY: "auto", animation: "slideUp .32s cubic-bezier(.34,1.56,.64,1)", transform: `translateY(${sheetTranslate}px)`, transition: sheetTranslate === 0 ? "transform .3s ease" : "none", boxShadow: C.shadowStrong }}>
       <div style={{ width: 36, height: 4, borderRadius: 2, background: C.borderHigh, margin: "0 auto 18px", cursor: "pointer" }} onClick={onClose}/>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <span style={{ fontSize: 18 }}>🔍</span>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
           {isMe ? "分析我的說法" : "對方訊息解讀"}
         </div>
-        {!loading && result && <span style={{ fontSize: 10, color: C.mint, background: "rgba(0,201,167,0.12)", padding: "2px 8px", borderRadius: 10 }}>已緩存</span>}
+        {!loading && result && <span style={{ fontSize: 10, color: C.mint, background: C.mintSoft, padding: "2px 8px", borderRadius: 10 }}>已緩存</span>}
       </div>
       <div style={{ background: C.surf, borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: C.textMuted, fontStyle: "italic", borderLeft: `2px solid ${C.gold}` }}>{msg.content}</div>
       {loading ? (
@@ -478,7 +478,7 @@ function MsgMenu({ msg, isMe, onCopy, onDelete, onHide, onRecall, onReply, onAna
   return (
     <div style={{ position:"fixed", inset:0, zIndex:150 }} onClick={onClose}>
       {/* Very subtle dim only */}
-      <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.18)" }}/>
+      <div style={{ position:"absolute", inset:0, background:"rgba(36,30,53,0.20)", backdropFilter:"blur(4px)" }}/>
 
       {/* 480px container */}
       <div style={{ position:"relative", maxWidth:480, margin:"0 auto", height:"100%", pointerEvents:"none" }}>
@@ -486,12 +486,12 @@ function MsgMenu({ msg, isMe, onCopy, onDelete, onHide, onRecall, onReply, onAna
           style={{ position:"absolute", top:topPos,
             left:leftVal, right:rightVal,
             width:180, pointerEvents:"all",
-            background:"rgba(18,16,12,0.82)",
+            background:C.glass,
             backdropFilter:"blur(28px)",
             WebkitBackdropFilter:"blur(28px)",
             border:`1px solid ${C.borderHigh}`,
             borderRadius:14, overflow:"hidden",
-            boxShadow:"0 4px 24px rgba(0,0,0,0.4)",
+            boxShadow:C.shadowStrong,
             animation:"dropDown .15s ease" }}>
           {actions.map((action, i) => (
             <button key={i} onClick={() => { action.fn(); onClose(); sound.tap(); }}
@@ -565,11 +565,11 @@ export function ChatListScreen({ profile, matches, unreadPerMatch, typingMatchId
         const status = item.isNyx ? { label: "在線", color: C.teal, dot: true } : onlineStatus(item.lastActive, hideOnline || (item as any).hideOnline, statusNow);
         return <div key={item.id} style={{ animation: `nyxIn .3s ${idx * .05}s ease both` }}>
           <div onClick={() => { sound.tap(); item.isNyx ? onOpenNyx() : onOpenMatch(matches.find(m => m.id === item.id)!); }}
-            style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 20px", cursor: "pointer", transition: "background .15s", background: hasUnread ? "rgba(255,56,92,0.04)" : "transparent" }}
-            onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,56,92,0.06)")}
-            onMouseLeave={e => (e.currentTarget.style.background = hasUnread ? "rgba(255,56,92,0.04)" : "transparent")}>
+            style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 20px", cursor: "pointer", transition: "background .15s", background: hasUnread ? C.roseSoft : "transparent" }}
+            onMouseEnter={e => (e.currentTarget.style.background = C.roseSoft)}
+            onMouseLeave={e => (e.currentTarget.style.background = hasUnread ? C.roseSoft : "transparent")}>
             <div style={{ position: "relative", flexShrink: 0 }}>
-              <Av url={item.avatar} name={item.name} size={52} grad={item.isNyx ? C.grad : "linear-gradient(145deg,#ff9a3c,#ff6b6b)"} />
+              <Av url={item.avatar} name={item.name} size={52} grad={item.isNyx ? C.grad : C.gradRose} />
               {status.dot && <span style={{ position: "absolute", bottom: 1, right: 1, width: 13, height: 13, borderRadius: "50%", background: status.color, border: `2px solid ${C.bg}`, boxShadow: `0 0 6px ${status.color}` }} />}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -594,7 +594,7 @@ export function ChatListScreen({ profile, matches, unreadPerMatch, typingMatchId
               </div>
             </div>
           </div>
-          <div style={{ height: 1, background: `rgba(255,56,92,0.08)`, marginLeft: 86 }} />
+          <div style={{ height: 1, background: C.border, marginLeft: 86 }} />
         </div>;
       })}
     </div>
@@ -889,7 +889,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
             {/* Avatar — only render for other person */}
             {!isMe && (
               <div style={{ width:32, flexShrink:0, cursor:"pointer" }} onClick={()=>setShowOtherProfile(true)}>
-                <Av url={other.avatar} name={other.name} size={30} grad="linear-gradient(145deg,#ff9a3c,#ff6b6b)" />
+                <Av url={other.avatar} name={other.name} size={30} grad={C.gradRose} />
               </div>
             )}
             <div style={{ maxWidth:"72%", background:isMe?C.roseSoft:C.bgCard, border:`1px solid ${C.rose}44`, borderRadius:16, padding:"12px 14px", boxShadow:C.shadow }}>
@@ -921,7 +921,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           {/* Avatar — only render div for other person's messages */}
           {!isMe && (
             <div style={{ width: 32, flexShrink: 0, cursor:"pointer" }} onClick={()=>setShowOtherProfile(true)}>
-              {showAvatar && <Av url={other.avatar} name={other.name} size={30} grad="linear-gradient(145deg,#ff9a3c,#ff6b6b)" />}
+              {showAvatar && <Av url={other.avatar} name={other.name} size={30} grad={C.gradRose} />}
             </div>
           )}
           <div style={{ maxWidth: "72%", display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
@@ -989,7 +989,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       touchAction: "pan-y", position: "absolute", inset: 0,
       transform: `translateX(${swipeDx}px)`,
       transition: swipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
-      boxShadow: swipeDx > 10 ? `-8px 0 24px rgba(0,0,0,0.5)` : "none" }}>
+      boxShadow: swipeDx > 10 ? `-8px 0 28px rgba(57,42,101,0.24)` : "none" }}>
     {/* Header - centered name */}
     <div style={{ padding: "14px 16px", background: C.nav, backdropFilter: "blur(24px) saturate(145%)", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
       <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", fontFamily: "inherit", width: 36 }}>‹</button>
@@ -1033,7 +1033,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
     </div>
 
     {/* Reply preview */}
-    {replyTo && <div style={{ padding: "8px 16px", background: "rgba(255,56,92,0.08)", borderTop: `1px solid rgba(255,56,92,0.2)`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    {replyTo && <div style={{ padding: "8px 16px", background: C.roseSoft, borderTop: `1px solid ${C.rose}33`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
       <div style={{ fontSize: 12, color: C.textMuted }}>↩️ 回覆：{replyTo.content.slice(0, 40)}{replyTo.content.length > 40 ? "..." : ""}</div>
       <button onClick={() => setReplyTo(null)} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>✕</button>
     </div>}
@@ -1133,14 +1133,14 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       onClose={() => setAnalysisTarget(null)} />}
 
     {/* Report */}
-    {showReport && <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(4,3,14,0.88)", backdropFilter: "blur(14px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setShowReport(false)}>
-      <div onClick={e => e.stopPropagation()} style={{ ...MAX_W, background: C.surf, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, padding: "28px 24px 44px", animation: "slideUp .32s cubic-bezier(.34,1.56,.64,1)" }}>
+    {showReport && <div style={{ position: "fixed", inset: 0, zIndex: 100, background: C.overlay, backdropFilter: "blur(14px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setShowReport(false)}>
+      <div onClick={e => e.stopPropagation()} style={{ ...MAX_W, background: C.bgElevated, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, padding: "28px 24px 44px", animation: "slideUp .32s cubic-bezier(.34,1.56,.64,1)", boxShadow:C.shadowStrong }}>
         <div style={{ width: 36, height: 4, borderRadius: 2, background: C.borderHigh, margin: "0 auto 22px" }} />
         <div style={{ marginBottom: 8 }}>
           {REPORT_CATEGORIES.map(cat => <button key={cat.id} onClick={() => { void submitReport(cat); }} style={{ width: "100%", padding: "13px 16px", borderRadius: 14, background: C.surf, border: `1px solid ${C.border}`, color: C.textSub, fontFamily: "inherit", fontSize: 13.5, cursor: "pointer", marginBottom: 8, textAlign: "left", display: "flex", alignItems: "center", gap: 10, transition: "background .15s" }} onMouseEnter={e => (e.currentTarget.style.background = C.surfHigh)} onMouseLeave={e => (e.currentTarget.style.background = C.surf)}><span style={{fontSize:18}}>{cat.icon}</span>{cat.label}</button>)}
         </div>
         <div style={{ height: 1, background: C.border, marginBottom: 10 }} />
-        <button onClick={() => { void submitBlock(); }} style={{ width: "100%", padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.06)", border: "1px solid rgba(255,60,60,0.2)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, cursor: "pointer", marginBottom: 8 }}>封鎖 {other.name}</button>
+        <button onClick={() => { void submitBlock(); }} style={{ width: "100%", padding: "13px", borderRadius: 14, background: C.dangerSoft, border: `1px solid ${C.danger}33`, color: C.danger, fontFamily: "inherit", fontSize: 14, cursor: "pointer", marginBottom: 8 }}>封鎖 {other.name}</button>
         <button onClick={() => setShowReport(false)} style={{ width: "100%", padding: "11px", borderRadius: 14, background: "transparent", border: "none", color: C.textMuted, fontFamily: "inherit", fontSize: 14, cursor: "pointer" }}>取消</button>
       </div>
     </div>}

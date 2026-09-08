@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { sb, C, sound, calcAge, MBTI_LIST, HOBBIES, lookupEmailByUsername, checkUsernameAvailable, reverseGeocode, searchCities, formatLocation, authErrorMessage } from "../utils";
-import { CherryBlossoms } from "../components/Atoms";
 import { ImageCropper } from "../components/ImageCropper";
 import { clearPendingAvatar, savePendingAvatar } from "../pendingAvatar";
 
@@ -27,7 +26,7 @@ function StepBar({ step, total }: { step: number; total: number }) {
 }
 
 /* ─── Login Screen ───────────────────────────────────── */
-function LoginForm({ onSwitch, onLogin }: { onSwitch: () => void; onLogin: () => void }) {
+function LoginForm({ onLogin }: { onLogin: () => void }) {
   const [identifier, setIdentifier] = useState(""); // email or username
   const [pass, setPass] = useState("");
   const [err, setErr] = useState("");
@@ -114,13 +113,13 @@ function Step2({ onNext }: { onNext: (name: string, username: string, birthday: 
   const [err, setErr] = useState("");
   const [checking, setChecking] = useState(false);
   const [usernameOk, setUsernameOk] = useState<boolean | null>(null);
-  const timer = useRef<any>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function handleUsername(v: string) {
     setUsername(v); setUsernameOk(null);
     if (v.length < 3) return;
     if (!/^[a-zA-Z0-9_]+$/.test(v)) { setUsernameOk(false); return; }
-    clearTimeout(timer.current);
+    if (timer.current) clearTimeout(timer.current);
     setChecking(true);
     timer.current = setTimeout(async () => {
       const ok = await checkUsernameAvailable(v);
@@ -155,7 +154,7 @@ function Step2({ onNext }: { onNext: (name: string, username: string, birthday: 
       {usernameOk === true && <div style={{ fontSize: 12, color: C.mint }}>✓ 用戶名可用</div>}
       <div>
         <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 7 }}>生日（必須年滿18歲）</div>
-        <input value={birthday} onChange={e => setBirthday(e.target.value)} type="date" style={{ ...INP, colorScheme: "dark" } as any} onFocus={e => (e.target.style.borderColor = C.borderFocus)} onBlur={e => (e.target.style.borderColor = C.border)} />
+        <input value={birthday} onChange={e => setBirthday(e.target.value)} type="date" style={{ ...INP, colorScheme: "light" }} onFocus={e => (e.target.style.borderColor = C.borderFocus)} onBlur={e => (e.target.style.borderColor = C.border)} />
       </div>
       {err && <div style={{ fontSize: 13, color: C.rose, textAlign: "center" }}>{err}</div>}
       <button onClick={next} style={{ width: "100%", padding: "15px", borderRadius: 50, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>繼續 →</button>
@@ -214,8 +213,6 @@ function Step4({ onNext }: { onNext: (lookingFor: string) => void }) {
 function Step5({ onNext }: { onNext: (avatarUrl: string, blob: Blob) => void }) {
   const [preview, setPreview] = useState<string | null>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) { setCropFile(file); }
@@ -236,13 +233,11 @@ function Step5({ onNext }: { onNext: (avatarUrl: string, blob: Blob) => void }) 
     <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 32 }}>真實照片讓配對率提升 3 倍 ✦</div>
     <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); e.target.value = ""; }} />
     {/* Upload area */}
-    <div onClick={() => !uploading && fileRef.current?.click()}
+    <div onClick={() => fileRef.current?.click()}
       style={{ width: 180, height: 180, borderRadius: "50%", margin: "0 auto 28px", background: preview ? `url(${preview}) center/cover` : C.surf, border: `2px dashed ${preview ? C.rose : C.border}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, transition: "all .2s", position: "relative" }}
       onMouseEnter={e => !preview && ((e.currentTarget as HTMLElement).style.borderColor = C.rose)}
       onMouseLeave={e => !preview && ((e.currentTarget as HTMLElement).style.borderColor = C.border)}>
-      {uploading ? (
-        <div style={{ width: 32, height: 32, border: `3px solid ${C.borderHigh}`, borderTopColor: C.rose, borderRadius: "50%", animation: "spin .7s linear infinite" }} />
-      ) : preview ? (
+      {preview ? (
         <div style={{ position: "absolute", bottom: 8, right: 8, width: 32, height: 32, borderRadius: "50%", background: C.rose, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>✎</div>
       ) : (
         <>
@@ -251,11 +246,10 @@ function Step5({ onNext }: { onNext: (avatarUrl: string, blob: Blob) => void }) 
         </>
       )}
     </div>
-    {err && <div style={{ fontSize: 13, color: C.rose, textAlign: "center", marginBottom: 12 }}>{err}</div>}
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <button onClick={() => preview && pendingBlob && onNext(preview, pendingBlob)} disabled={!preview || uploading}
+      <button onClick={() => preview && pendingBlob && onNext(preview, pendingBlob)} disabled={!preview}
         style={{ width: "100%", padding: "15px", borderRadius: 50, background: preview ? C.grad : C.surfHigh, border: "none", color: preview ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: preview ? "pointer" : "default", transition: "all .25s" }}>
-        {uploading ? "上傳中..." : "繼續 →"}
+        繼續 →
       </button>
     </div>
   </>;
@@ -321,7 +315,7 @@ function Step6({ onNext }: { onNext: (city: string, lat?: number, lon?: number) 
         </button>)}
       </div>}
       </div>
-      <button type="button" aria-label="使用目前位置" onClick={locate} disabled={locating} style={{ minWidth:48, minHeight:48, padding: "12px", borderRadius: 14, background: C.roseSoft, border: `1px solid rgba(232,54,93,0.25)`, color: C.rose, cursor: "pointer", fontFamily: "inherit", fontSize: 18, flexShrink: 0, opacity: locating ? .6 : 1 }}>{locating ? "⏳" : "📍"}</button>
+      <button type="button" aria-label="使用目前位置" onClick={locate} disabled={locating} style={{ minWidth:48, minHeight:48, padding: "12px", borderRadius: 14, background: C.roseSoft, border: `1px solid rgba(239,95,122,0.25)`, color: C.rose, cursor: "pointer", fontFamily: "inherit", fontSize: 18, flexShrink: 0, opacity: locating ? .6 : 1 }}>{locating ? "⏳" : "📍"}</button>
     </div>
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <button onClick={() => onNext(city, coords?.lat, coords?.lon)}
@@ -479,58 +473,56 @@ function RegisterFlow({ onBack }: { onBack: () => void }) {
 export function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const [mode, setMode] = useState<"landing" | "login" | "register">("landing");
 
-  // Landing page — image 1 style
+  // Landing page — porcelain-violet editorial style
   if (mode === "landing") return (
-    <div style={{ position:"fixed", inset:0, display:"flex", justifyContent:"center", background:"#000" }}><div style={{ width:"100%", maxWidth:480, position:"relative", overflow:"hidden", height:"100%", display:"flex", flexDirection:"column", justifyContent:"flex-end" }}>
-      {/* Full-screen background photo */}
-      <div style={{ position:"absolute", inset:0, background:"url(https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=800&q=80) center/cover no-repeat", zIndex:0 }}/>
-      {/* Dark gradient overlay — stronger at bottom */}
-      <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(12,10,8,0.15) 0%, rgba(12,10,8,0.4) 40%, rgba(12,10,8,0.92) 75%, rgba(12,10,8,0.98) 100%)", zIndex:1 }}/>
-      {/* Content */}
-      <div style={{ position:"relative", zIndex:2, padding:"0 28px 52px" }}>
-        {/* Headline */}
-        <div style={{ marginBottom:36 }}>
-          <div style={{ fontSize:38, fontWeight:800, color:"#fff", lineHeight:1.15, marginBottom:12, letterSpacing:"-0.01em" }}>
-            Make<br/>Meaningful<br/>Connections
-          </div>
-          <div style={{ fontSize:14.5, color:"rgba(255,255,255,0.65)", lineHeight:1.6 }}>
-            遇見懂你的人<br/>開啟高質量社交之旅
-          </div>
+    <div className="nyx-auth-shell">
+      <div className="nyx-auth-frame nyx-auth-landing">
+        <header className="nyx-auth-topbar">
+          <div className="nyx-auth-brand"><span className="nyx-auth-brand-mark">✦</span><span>NYX</span></div>
+          <span className="nyx-auth-badge">AI MATCHING</span>
+        </header>
+
+        <div className="nyx-landing-visual" aria-hidden="true">
+          <div className="nyx-orbit-avatar nyx-orbit-avatar-a">N</div>
+          <div className="nyx-match-core"><span>✦</span></div>
+          <div className="nyx-orbit-avatar nyx-orbit-avatar-b">Y</div>
+          <div className="nyx-match-chip nyx-match-chip-score"><strong>92%</strong><span>共鳴度</span></div>
+          <div className="nyx-match-chip nyx-match-chip-interests">音樂 · 旅行 · 電影</div>
         </div>
-        {/* Buttons */}
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <button onClick={() => { sound.tap(); setMode("register"); }}
-            style={{ width:"100%", padding:"16px", borderRadius:50, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:16, fontWeight:800, cursor:"pointer", letterSpacing:"0.01em", boxShadow:`0 8px 28px ${C.goldGlow}` }}>
-            開始探索
-          </button>
-          <button onClick={() => { sound.tap(); setMode("login"); }}
-            style={{ width:"100%", padding:"15px", borderRadius:50, background:"rgba(255,255,255,0.10)", backdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.20)", color:"#fff", fontFamily:"inherit", fontSize:15, fontWeight:600, cursor:"pointer" }}>
-            登入
-          </button>
-        </div>
+
+        <section className="nyx-auth-copy">
+          <div className="nyx-auth-eyebrow">Higher signal · Real connections</div>
+          <h1 className="nyx-auth-title">遇見真正<br/><span>懂你的人。</span></h1>
+          <p className="nyx-auth-description">AI 理解個性、共同興趣與互動節奏，讓每次認識都更有方向。</p>
+          <div className="nyx-auth-actions">
+            <button className="nyx-auth-primary" onClick={() => { sound.tap(); setMode("register"); }}>開始探索</button>
+            <button className="nyx-auth-secondary" onClick={() => { sound.tap(); setMode("login"); }}>登入</button>
+          </div>
+          <div className="nyx-auth-trust"><span>18+ 成人社群</span><span>·</span><span>隱私優先</span><span>·</span><span>可隨時刪除帳號</span></div>
+        </section>
       </div>
-    </div></div>
+    </div>
   );
 
-  // Login / Register flow — same photo bg, glass card
+  // Login / Register flow — light ambient background + focused glass card
   return (
-    <div style={{ position:"fixed", inset:0, display:"flex", justifyContent:"center", background:"#000" }}>
-      <div style={{ width:"100%", maxWidth:480, position:"relative", overflow:"hidden", height:"100%" }}>
-        {/* Same background photo */}
-        <div style={{ position:"absolute", inset:0, background:"url(https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=800&q=80) center/cover no-repeat", zIndex:0 }}/>
-        <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(12,10,8,0.45) 0%, rgba(12,10,8,0.75) 35%, rgba(12,10,8,0.97) 60%)", zIndex:1 }}/>
-        {/* Content */}
-        <div style={{ position:"relative", zIndex:2, height:"100%", display:"flex", flexDirection:"column", justifyContent:"flex-end", padding:"0 24px 40px" }}>
-          {/* Back button */}
-          {mode === "login" && <button onClick={() => setMode("landing")} aria-label="返回首頁" style={{ position:"absolute", top:48, left:16, background:"rgba(12,10,8,0.5)", backdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"50%", width:44, height:44, color:"#fff", fontSize:20, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center" }}>‹</button>}
+    <div className="nyx-auth-shell">
+      <div className={`nyx-auth-frame nyx-auth-form-frame ${mode === "register" ? "nyx-auth-form-register" : ""}`}>
+        <div className="nyx-auth-form-art" aria-hidden="true" />
+        <div className="nyx-auth-form-scroll">
+          <div className="nyx-auth-form-top">
+            {mode === "login"
+              ? <button className="nyx-auth-back" onClick={() => setMode("landing")} aria-label="返回首頁">‹</button>
+              : <span style={{ width:44 }} />}
+            <div className="nyx-auth-brand"><span className="nyx-auth-brand-mark">✦</span><span>NYX</span></div>
+          </div>
 
-          {/* Glass card */}
-          <div style={{ background:"rgba(255,255,255,0.88)", backdropFilter:"blur(28px) saturate(145%)", borderRadius:24, border:`1px solid ${C.borderHigh}`, padding:"28px 24px 24px", boxShadow:C.shadowStrong, animation:"fadeUp .4s ease" }}>
+          <div className="nyx-auth-form-card">
             {mode === "login" ? (
               <>
                 <div style={{ fontSize:24, fontWeight:800, color:C.text, marginBottom:4 }}>歡迎回來</div>
                 <div style={{ fontSize:13.5, color:C.textMuted, marginBottom:24 }}>用電郵或用戶名登入</div>
-                <LoginForm onSwitch={() => setMode("register")} onLogin={onLogin} />
+                <LoginForm onLogin={onLogin} />
                 <div style={{ textAlign:"center", marginTop:16 }}>
                   <span style={{ fontSize:13.5, color:C.textMuted }}>還沒有帳號？</span>
                   <button onClick={() => { setMode("register"); sound.tap(); }} style={{ background:"none", border:"none", color:C.gold, fontSize:13.5, fontWeight:600, cursor:"pointer", fontFamily:"inherit", marginLeft:4 }}>立即註冊</button>
@@ -568,7 +560,7 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
         if (p.y < 0 || p.y > c.height) p.vy *= -1;
         ctx.save(); ctx.globalAlpha = p.o; ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(232,54,93,0.8)"; ctx.fill(); ctx.restore();
+        ctx.fillStyle = "rgba(239,95,122,0.78)"; ctx.fill(); ctx.restore();
       });
       raf = requestAnimationFrame(tick);
     };
