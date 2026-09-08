@@ -95,10 +95,10 @@ export function ImageCropper({ file, aspectRatio, onConfirm, onCancel, shape = "
   if (!imgUrl) return null;
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.95)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", animation: "fadeIn .2s ease" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 400, background: C.overlayStrong, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", animation: "fadeIn .2s ease" }}>
       <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 16 }}>拖動調整位置</div>
       {/* Frame */}
-      <div ref={containerRef} style={{ width: FRAME_W, height: FRAME_H, borderRadius: shape === "circle" ? "50%" : 16, overflow: "hidden", border: `2px solid ${C.rose}`, cursor: dragging ? "grabbing" : "grab", position: "relative", flexShrink: 0, boxShadow: `0 0 0 9999px rgba(0,0,0,0.6)` }}
+      <div ref={containerRef} style={{ width: FRAME_W, height: FRAME_H, borderRadius: shape === "circle" ? "50%" : 16, overflow: "hidden", border: `2px solid ${C.rose}`, cursor: dragging ? "grabbing" : "grab", position: "relative", flexShrink: 0, boxShadow: `0 0 0 9999px rgba(25,18,43,0.58)` }}
         onMouseDown={onMouseDown} onTouchStart={onMouseDown}>
         <img ref={imgRef} src={imgUrl} alt="" draggable={false}
           style={{ position: "absolute", left: "50%", top: "50%", transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${scale})`, transformOrigin: "center", maxWidth: "none", userSelect: "none", pointerEvents: "none" }}

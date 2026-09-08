@@ -19,7 +19,7 @@ function errorText(error: unknown, fallback: string) {
 /* ─── Who Liked Panel ────────────────────────────────── */
 function WhoLikedPanel({ items, onClose, onLike }: { items: WhoLikedItem[]; onClose: () => void; onLike: (item: WhoLikedItem) => void }) {
   return (
-    <div style={{ position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,0.7)",backdropFilter:"blur(20px)",display:"flex",alignItems:"flex-end",justifyContent:"center" }} onClick={onClose}>
+    <div style={{ position:"fixed",inset:0,zIndex:200,background:C.overlay,backdropFilter:"blur(20px)",display:"flex",alignItems:"flex-end",justifyContent:"center" }} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{ maxWidth:480,width:"100%",margin:"0 auto",background:C.bgElevated,borderRadius:"24px 24px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",maxHeight:"75vh",display:"flex",flexDirection:"column",animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
         <div style={{ padding:"18px 20px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
           <div style={{ fontSize:17,fontWeight:700,color:C.text }}>喜歡你的人 <span style={{ fontSize:13,color:C.textMuted,fontWeight:400 }}>({items.length})</span></div>
@@ -66,7 +66,7 @@ function IcebreakerSheet({ them, myMbti, myHobbies, onClose, onUse }: { them: Ex
     return () => { active = false; };
   }, [myMbti, them.bio, them.hobbies, them.mbti, them.name]);
   return (
-    <div style={{ position:"fixed",inset:0,zIndex:300,background:"rgba(0,0,0,0.7)",backdropFilter:"blur(20px)",display:"flex",alignItems:"flex-end",justifyContent:"center" }} onClick={onClose}>
+    <div style={{ position:"fixed",inset:0,zIndex:300,background:C.overlay,backdropFilter:"blur(20px)",display:"flex",alignItems:"flex-end",justifyContent:"center" }} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{ maxWidth:480,width:"100%",margin:"0 auto",background:C.bgElevated,borderRadius:"24px 24px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",padding:"24px 20px 48px",animation:"slideUp .32s cubic-bezier(.32,.72,0,1)" }}>
         <div style={{ width:40,height:4,background:C.border,borderRadius:2,margin:"0 auto 20px" }}/>
         <div style={{ background:C.bgGold,borderRadius:14,padding:"14px 16px",marginBottom:20,border:`1px solid ${C.border}` }}>
@@ -150,7 +150,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
   ].filter(Boolean) as {icon:string;label:string;sub:string}[];
 
   if (lbIdx!==null) return (
-    <div style={{ position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.97)",display:"flex",alignItems:"center",justifyContent:"center" }}>
+    <div style={{ position:"fixed",inset:0,zIndex:400,background:C.overlayStrong,display:"flex",alignItems:"center",justifyContent:"center" }}>
       <button onClick={()=>setLbIdx(null)} style={{ position:"absolute",top:16,left:16,width:38,height:38,borderRadius:"50%",background:"rgba(255,255,255,0.12)",border:"none",color:"#fff",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>‹</button>
       <div style={{ display:"flex",alignItems:"center",gap:12 }}>
         {allPhotos.length>1&&<button onClick={()=>setLbIdx(i=>Math.max(0,i!-1))} style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.12)",border:"none",color:"#fff",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>‹</button>}
@@ -221,14 +221,14 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
 
 
   return (
-    <div style={{ position:"fixed",inset:0,zIndex:1200,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.55)" }}
+    <div style={{ position:"fixed",inset:0,zIndex:1200,display:"flex",justifyContent:"center",background:C.overlay,backdropFilter:"blur(12px)" }}
       onTouchStart={e=>e.stopPropagation()}
       onTouchMove={e=>e.stopPropagation()}
       onTouchEnd={e=>e.stopPropagation()}>
       <div onTouchStart={onSwipeStart} onTouchMove={onSwipeMove} onTouchEnd={onSwipeEnd}
         style={{ width:"100%",maxWidth:480,height:"100%",background:C.bg,display:"flex",flexDirection:"column" as const,position:"relative",
           transform:`translateX(${swipeDx}px)`,transition:swipeDx===0?"transform .3s cubic-bezier(.32,.72,0,1)":"none",
-          boxShadow:swipeDx>10?"-10px 0 30px rgba(0,0,0,0.6)":"none",animation:"profileZoomIn .3s cubic-bezier(.32,.72,0,1)" }}>
+          boxShadow:swipeDx>10?"-10px 0 34px rgba(57,42,101,0.26)":"none",animation:"profileZoomIn .3s cubic-bezier(.32,.72,0,1)" }}>
 
         {/* ONE scrollable area — photo sticky on top, content below */}
         <div style={{ flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch" as any }}>
@@ -258,7 +258,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
               </div>
             </div>
             {/* Back button */}
-            <button onClick={onClose} style={{ position:"absolute",top:14,left:14,zIndex:10,width:36,height:36,borderRadius:"50%",background:"rgba(12,10,8,0.55)",backdropFilter:"blur(12px)",border:"none",color:"#fff",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1 }}>‹</button>
+            <button onClick={onClose} style={{ position:"absolute",top:14,left:14,zIndex:10,width:36,height:36,borderRadius:"50%",background:"rgba(25,18,43,0.54)",backdropFilter:"blur(12px)",border:"1px solid rgba(255,255,255,.18)",color:"#fff",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1 }}>‹</button>
           {/* dot indicators */}
             {allPhotos.length>1&&<div style={{ position:"absolute",top:14,left:58,right:14,display:"flex",gap:4,zIndex:5 }}>
               {allPhotos.map((_,i)=><div key={i} style={{ flex:1,height:3,borderRadius:2,background:i===photoIdx?"rgba(255,255,255,0.95)":"rgba(255,255,255,0.28)",transition:"all .22s" }}/>)}
@@ -266,7 +266,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
 
 
             {/* gradient */}
-            <div style={{ position:"absolute",bottom:0,left:0,right:0,height:"70%",background:"linear-gradient(transparent,rgba(12,10,8,0.9) 60%,rgba(12,10,8,1) 100%)",zIndex:4 }}/>
+            <div style={{ position:"absolute",bottom:0,left:0,right:0,height:"70%",background:"linear-gradient(transparent,rgba(25,18,43,0.88) 60%,rgba(25,18,43,0.98) 100%)",zIndex:4 }}/>
             {/* NAME OVERLAY — bottom-left inside photo */}
             <div style={{ position:"absolute",bottom:18,left:20,right:20,zIndex:5,display:"flex",alignItems:"flex-end",justifyContent:"space-between" }}>
               <div style={{ flex:1,minWidth:0 }}>
@@ -282,7 +282,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
                   <span style={{ fontSize:12.5,color:C.gold,fontWeight:600 }}>{goalShort[p.relationship_goal]}</span>
                 </div>}
               </div>
-              <div style={{ width:74,height:74,borderRadius:"50%",background:"rgba(12,10,8,0.75)",backdropFilter:"blur(12px)",border:`2.5px solid ${C.gold}`,display:"flex",flexDirection:"column" as const,alignItems:"center",justifyContent:"center",flexShrink:0,marginLeft:12 }}>
+              <div style={{ width:74,height:74,borderRadius:"50%",background:"rgba(25,18,43,0.70)",backdropFilter:"blur(12px)",border:`2.5px solid ${C.goldLight}`,display:"flex",flexDirection:"column" as const,alignItems:"center",justifyContent:"center",flexShrink:0,marginLeft:12 }}>
                 <span style={{ fontSize:18,fontWeight:800,color:C.gold,lineHeight:1 }}>{compat.score}%</span>
                 <span style={{ fontSize:8,color:"rgba(255,255,255,0.45)",marginTop:2,textAlign:"center" as const }}>相配度很高✨</span>
               </div>
@@ -308,7 +308,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
             {/* About me */}
             {p.bio&&<div style={{ marginBottom:20 }}>
               <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:8 }}>
-                <span style={{ fontSize:28,color:"#E8365D",fontFamily:"Georgia,serif",fontWeight:700,lineHeight:0.75 }}>"</span>
+                <span style={{ fontSize:28,color:C.rose,fontFamily:"Georgia,serif",fontWeight:700,lineHeight:0.75 }}>"</span>
                 <span style={{ fontSize:14,fontWeight:700,color:C.text }}>關於我</span>
               </div>
               <div style={{ fontSize:14,color:C.textSub,lineHeight:1.85 }}>{p.bio}</div>
@@ -374,7 +374,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
             {/* Relationship goal */}
             {p.relationship_goal&&goalFull[p.relationship_goal]&&<div>
               <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:8 }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="#E8365D"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill={C.rose}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 <span style={{ fontSize:15,fontWeight:700,color:C.text }}>關係目標</span>
               </div>
               <div style={{ fontSize:14,color:C.textSub,lineHeight:1.75 }}>{goalFull[p.relationship_goal]}</div>
@@ -425,12 +425,12 @@ function SwipeCard({ p, isTop, myMbti, myHobbies, onSwipe, onOpenProfile }: { p:
           <div style={{ position:"absolute",top:24,left:20,opacity:likeO,border:"3px solid #4AE06B",borderRadius:10,padding:"5px 16px",color:"#4AE06B",fontWeight:900,fontSize:20,transform:"rotate(-18deg)",letterSpacing:2,pointerEvents:"none" }}>LIKE</div>
           <div style={{ position:"absolute",top:24,right:20,opacity:passO,border:`3px solid ${C.rose}`,borderRadius:10,padding:"5px 16px",color:C.rose,fontWeight:900,fontSize:20,transform:"rotate(18deg)",letterSpacing:2,pointerEvents:"none" }}>NOPE</div>
           {/* Compat badge */}
-          <div style={{ position:"absolute",top:14,right:14,background:"rgba(12,10,8,0.75)",backdropFilter:"blur(12px)",borderRadius:20,padding:"5px 10px",zIndex:2,display:"flex",flexDirection:"column",alignItems:"center" }}>
+          <div style={{ position:"absolute",top:14,right:14,background:"rgba(25,18,43,0.70)",backdropFilter:"blur(12px)",borderRadius:20,padding:"5px 10px",zIndex:2,display:"flex",flexDirection:"column",alignItems:"center" }}>
             <div style={{ fontSize:14,fontWeight:800,color:C.goldLight }}>{compat.score}%</div>
             <div style={{ fontSize:8.5,color:"rgba(255,255,255,0.58)" }}>匹配</div>
           </div>
-          {p.verified && <div style={{ position:"absolute",top:14,left:14,background:"rgba(0,201,167,0.85)",borderRadius:20,padding:"3px 10px",fontSize:11,color:"#fff",fontWeight:700,zIndex:2 }}>✓</div>}
-          <div style={{ position:"absolute",bottom:0,left:0,right:0,height:220,background:"linear-gradient(transparent,rgba(12,10,8,0.98))",pointerEvents:"none" }}/>
+          {p.verified && <div style={{ position:"absolute",top:14,left:14,background:"rgba(22,165,137,0.88)",borderRadius:20,padding:"3px 10px",fontSize:11,color:"#fff",fontWeight:700,zIndex:2 }}>✓</div>}
+          <div style={{ position:"absolute",bottom:0,left:0,right:0,height:220,background:"linear-gradient(transparent,rgba(25,18,43,0.96))",pointerEvents:"none" }}/>
           {/* Info overlay */}
           <div style={{ position:"absolute",bottom:18,left:18,right:18,pointerEvents:"none" }}>
             <div style={{ display:"flex",alignItems:"baseline",gap:8,marginBottom:6 }}>
@@ -468,7 +468,7 @@ function GridCard({ p, myMbti, myHobbies, onClick }: { p: ExploreProfile; myMbti
     <div onClick={onClick} style={{ borderRadius:16,overflow:"hidden",cursor:"pointer",position:"relative",aspectRatio:"0.72",background:C.bgCard }}>
       <div style={{ position:"absolute",inset:0,background:p.avatar?`url(${p.avatar}) center/cover no-repeat`:"linear-gradient(145deg,#E8E4F8,#F8E7ED)" }}/>
       <div style={{ position:"absolute",top:8,right:8,background:"rgba(25,18,43,0.72)",backdropFilter:"blur(8px)",borderRadius:20,padding:"3px 8px",fontSize:11,color:"#C3BAFF",fontWeight:700 }}>{compat.score}%</div>
-      <div style={{ position:"absolute",bottom:0,left:0,right:0,height:"55%",background:"linear-gradient(transparent,rgba(12,10,8,0.97))" }}/>
+      <div style={{ position:"absolute",bottom:0,left:0,right:0,height:"55%",background:"linear-gradient(transparent,rgba(25,18,43,0.96))" }}/>
       <div style={{ position:"absolute",bottom:10,left:10,right:10 }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#fff" }}>{p.name}{p.age?`, ${p.age}`:""}</div>
         {p.location && <div style={{ fontSize:11,color:"rgba(255,255,255,0.6)",marginTop:1 }}>{p.location}</div>}
@@ -599,12 +599,12 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
           </div>
           <div style={{ display:"flex",gap:8 }}>
             {/* Who liked me */}
-            {exploreTab!=="nearby" && <button aria-label="誰喜歡我" onClick={()=>{ if(!dailyStatus?.isPremium){ setShowPremiumGate("wholiked"); return; } setShowWhoLiked(true); }} style={{ position:"relative",width:44,height:44,borderRadius:"50%",background:C.roseSoft,border:`1px solid rgba(232,54,93,0.2)`,color:C.rose,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+            {exploreTab!=="nearby" && <button aria-label="誰喜歡我" onClick={()=>{ if(!dailyStatus?.isPremium){ setShowPremiumGate("wholiked"); return; } setShowWhoLiked(true); }} style={{ position:"relative",width:44,height:44,borderRadius:"50%",background:C.roseSoft,border:`1px solid rgba(239,95,122,0.2)`,color:C.rose,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
               ♥{whoLiked.length>0&&<div style={{ position:"absolute",top:-3,right:-3,width:15,height:15,borderRadius:"50%",background:C.gradRose,fontSize:8.5,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${C.bg}` }}>{whoLiked.length}</div>}
             </button>}
             {/* Grid/Map toggle — nearby tab only */}
             {exploreTab==="nearby" && (
-              <button aria-label={mapView ? "切換為列表" : "切換為地圖"} onClick={()=>setMapView(v=>!v)} style={{ width:44,height:44,borderRadius:"50%",background:mapView?C.roseSoft:C.surf,border:`1px solid ${mapView?"rgba(232,54,93,0.3)":C.border}`,color:mapView?C.rose:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+              <button aria-label={mapView ? "切換為列表" : "切換為地圖"} onClick={()=>setMapView(v=>!v)} style={{ width:44,height:44,borderRadius:"50%",background:mapView?C.roseSoft:C.surf,border:`1px solid ${mapView?"rgba(239,95,122,0.3)":C.border}`,color:mapView?C.rose:C.textMuted,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
                 {mapView ? "☰" : "🗺️"}
               </button>
             )}

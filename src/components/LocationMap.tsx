@@ -12,7 +12,7 @@ const TILE_ATTR = '&copy; OpenStreetMap &copy; CARTO';
 function pinIcon(emoji: string, bg: string, size = 34) {
   return L.divIcon({
     className: "nyx-map-pin",
-    html: `<div style="width:${size}px;height:${size}px;border-radius:50% 50% 50% 0;background:${bg};transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.5);border:2px solid rgba(255,255,255,0.3)"><span style="transform:rotate(45deg);font-size:${Math.round(size * 0.5)}px;line-height:1">${emoji}</span></div>`,
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50% 50% 50% 0;background:${bg};transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(57,42,101,.28);border:2px solid rgba(255,255,255,0.72)"><span style="transform:rotate(45deg);font-size:${Math.round(size * 0.5)}px;line-height:1">${emoji}</span></div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size],
     popupAnchor: [0, -size],

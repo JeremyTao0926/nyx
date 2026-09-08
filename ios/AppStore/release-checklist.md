@@ -3,6 +3,8 @@
 ## Code and backend
 
 - [ ] Apply src/schema_v3.sql to production Supabase.
+- [ ] Apply supabase/migrations/20260908000000_social_phone_auth_profiles.sql before enabling social/phone auth.
+- [ ] Configure Supabase redirect URLs, then enable and test Google, Apple, and phone providers using docs/AUTH_PROVIDERS.md.
 - [ ] Deploy delete-account, groq-proxy, moderate-content, revenuecat-webhook, and send-push Edge Functions.
 - [ ] Set GROQ_API_KEY, REVENUECAT_WEBHOOK_SECRET, REVENUECAT_SECRET_API_KEY, IOS_PREMIUM_PRODUCT_ID, IOS_PREMIUM_PLUS_PRODUCT_ID, APNS_KEY_ID, APNS_TEAM_ID, APNS_PRIVATE_KEY, APNS_BUNDLE_ID, APNS_ENV, VAPID_PUBLIC, VAPID_PRIVATE, and VAPID_SUBJECT secrets.
 - [ ] Set VITE_REVENUECAT_IOS_API_KEY for the production build.
@@ -10,7 +12,7 @@
 
 ## Apple Developer and RevenueCat
 
-- [ ] Register Bundle ID com.jeremytao.nyx and enable Push Notifications + In-App Purchase.
+- [ ] Register Bundle ID com.jeremytao.nyx and enable Push Notifications, In-App Purchase, and Sign in with Apple.
 - [ ] Create an APNs .p8 key and use its Key ID and Team ID in Supabase secrets.
 - [ ] Create the app record and subscription group in App Store Connect.
 - [ ] Create nyx_premium_monthly and nyx_premium_plus_monthly, complete pricing/localization/review screenshot, and submit the first subscriptions with version 1.0.

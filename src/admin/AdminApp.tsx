@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { sb, getMyAdminRole, canDo } from "./adminUtils";
 import type { AdminRole } from "./adminUtils";
 import { AdminDashboard } from "./AdminDashboard";
@@ -17,12 +17,15 @@ const TABS: { id: AdminTab; label: string; icon: string; requires: AdminRole }[]
 ];
 
 const C = {
-  bg: "#0C0A08", card: "#141210", border: "rgba(201,168,76,0.15)",
-  gold: "#C9A84C", goldSoft: "rgba(201,168,76,0.1)",
-  text: "#F5EDD6", textSub: "rgba(245,237,214,0.6)",
-  textMuted: "rgba(245,237,214,0.35)", rose: "#E8365D",
-  mint: "#00C9A7", grad: "linear-gradient(135deg,#C9A84C,#E2C068)",
-  surf: "rgba(255,255,255,0.04)",
+  bg: "#F7F7FC", card: "rgba(255,255,255,0.94)", border: "rgba(68,52,112,0.13)",
+  gold: "#6757D9", goldSoft: "rgba(103,87,217,0.10)",
+  text: "#241E35", textSub: "rgba(36,30,53,0.70)",
+  textMuted: "rgba(36,30,53,0.46)", rose: "#EF5F7A",
+  mint: "#16A589", grad: "linear-gradient(135deg,#6757D9,#8B7FF0)",
+  surf: "rgba(92,72,172,0.06)", surfHigh: "rgba(92,72,172,0.105)",
+  warning: "#C87520", warningSoft: "rgba(232,144,50,0.13)",
+  danger: "#D94B63", dangerSoft: "rgba(217,75,99,0.10)",
+  superlike: "#4F7FEA", superlikeSoft: "rgba(79,127,234,0.11)",
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -53,7 +56,11 @@ export function AdminApp() {
   const [pass, setPass]       = useState("");
   const [loginErr, setLoginErr] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+
+  useEffect(() => {
+    document.documentElement.classList.add("nyx-admin-page");
+    return () => document.documentElement.classList.remove("nyx-admin-page");
+  }, []);
 
   useEffect(() => {
     sb.auth.getSession().then(async ({ data: { session } }) => {
@@ -84,11 +91,11 @@ export function AdminApp() {
   /* ── LOGIN ── */
   if (!authed) return (
     <div style={{ minHeight:"100dvh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:16, fontFamily:"'Noto Sans TC',system-ui,sans-serif" }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}} *{box-sizing:border-box} html,body,#root{margin:0;padding:0;background:#0C0A08}`}</style>
-      <div style={{ width:"100%", maxWidth:400, padding:"36px 28px", background:C.card, border:`1px solid ${C.border}`, borderRadius:20 }}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} *{box-sizing:border-box} html,body,#root{margin:0;padding:0;background:#F7F7FC}`}</style>
+      <div style={{ width:"100%", maxWidth:400, padding:"36px 28px", background:C.card, border:`1px solid ${C.border}`, borderRadius:24, boxShadow:"0 24px 70px rgba(57,42,101,.15)", backdropFilter:"blur(24px)" }}>
         {/* Logo */}
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:28 }}>
-          <div style={{ width:40, height:40, borderRadius:10, background:C.grad, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:800, color:C.bg }}>N</div>
+          <div style={{ width:40, height:40, borderRadius:13, background:C.grad, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:800, color:"#fff", boxShadow:"0 10px 24px rgba(103,87,217,.24)" }}>✦</div>
           <div>
             <div style={{ fontSize:18, fontWeight:800, color:C.gold, lineHeight:1 }}>NYX Admin</div>
             <div style={{ fontSize:11, color:C.textMuted, marginTop:2 }}>管理後台 — 僅限授權人員</div>
@@ -96,13 +103,13 @@ export function AdminApp() {
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="管理員電郵" type="email" autoComplete="email"
-            style={{ padding:"13px 14px", background:"rgba(255,255,255,0.05)", border:`1px solid ${C.border}`, borderRadius:12, color:C.text, fontSize:14, outline:"none", fontFamily:"inherit", width:"100%", transition:"border-color .2s" }}
+            style={{ padding:"13px 14px", background:C.surf, border:`1px solid ${C.border}`, borderRadius:14, color:C.text, fontSize:14, outline:"none", fontFamily:"inherit", width:"100%", transition:"border-color .2s" }}
             onFocus={e=>e.target.style.borderColor=C.gold} onBlur={e=>e.target.style.borderColor=C.border}/>
           <input type="password" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()} placeholder="密碼" autoComplete="current-password"
-            style={{ padding:"13px 14px", background:"rgba(255,255,255,0.05)", border:`1px solid ${C.border}`, borderRadius:12, color:C.text, fontSize:14, outline:"none", fontFamily:"inherit", width:"100%", transition:"border-color .2s" }}
+            style={{ padding:"13px 14px", background:C.surf, border:`1px solid ${C.border}`, borderRadius:14, color:C.text, fontSize:14, outline:"none", fontFamily:"inherit", width:"100%", transition:"border-color .2s" }}
             onFocus={e=>e.target.style.borderColor=C.gold} onBlur={e=>e.target.style.borderColor=C.border}/>
-          {loginErr && <div style={{ fontSize:12.5, color:C.rose, padding:"8px 12px", background:"rgba(232,54,93,0.08)", borderRadius:8 }}>{loginErr}</div>}
-          <button onClick={login} style={{ padding:"14px", borderRadius:12, background:C.grad, border:"none", color:C.bg, fontFamily:"inherit", fontSize:15, fontWeight:700, cursor:"pointer", marginTop:4 }}>登入</button>
+          {loginErr && <div style={{ fontSize:12.5, color:C.rose, padding:"8px 12px", background:"rgba(239,95,122,0.09)", borderRadius:10 }}>{loginErr}</div>}
+          <button onClick={login} style={{ padding:"14px", borderRadius:14, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:15, fontWeight:700, cursor:"pointer", marginTop:4, boxShadow:"0 10px 24px rgba(103,87,217,.22)" }}>登入</button>
         </div>
       </div>
     </div>
@@ -117,11 +124,11 @@ export function AdminApp() {
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes slideIn{from{transform:translateX(-100%)}to{transform:translateX(0)}}
         *{box-sizing:border-box;margin:0;padding:0}
-        html,body,#root{margin:0;padding:0;background:#0C0A08;}
+        html,body,#root{margin:0;padding:0;background:#F7F7FC;}
 
         ::-webkit-scrollbar{width:4px;height:4px}
         ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:rgba(201,168,76,0.2);border-radius:2px}
+        ::-webkit-scrollbar-thumb{background:rgba(103,87,217,0.2);border-radius:2px}
         @media(min-width:768px){
           .admin-layout{display:flex!important}
           .admin-sidebar{display:flex!important;position:static!important;transform:none!important;box-shadow:none!important}
@@ -148,7 +155,7 @@ export function AdminApp() {
       </div>
 
       {/* ── SIDEBAR OVERLAY (mobile) ── */}
-      {sidebarOpen && <div style={{ position:"fixed", inset:0, zIndex:50, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(8px)" }} onClick={()=>setSidebarOpen(false)}/>}
+      {sidebarOpen && <div style={{ position:"fixed", inset:0, zIndex:50, background:"rgba(36,30,53,0.42)", backdropFilter:"blur(8px)" }} onClick={()=>setSidebarOpen(false)}/>}
 
       <div className="admin-layout" style={{ display:"block" }}>
         {/* ── SIDEBAR ── */}
@@ -160,11 +167,11 @@ export function AdminApp() {
           position:"fixed", top:0, left:0, height:"100dvh", zIndex:60,
           transform:sidebarOpen?"translateX(0)":"translateX(-100%)",
           transition:"transform .28s cubic-bezier(.32,.72,0,1)",
-          boxShadow:sidebarOpen?"8px 0 32px rgba(0,0,0,0.5)":"none",
+          boxShadow:sidebarOpen?"8px 0 40px rgba(57,42,101,0.20)":"none",
         }}>
           {/* Sidebar header */}
           <div style={{ padding:"20px 20px 18px", paddingTop:"calc(20px + env(safe-area-inset-top, 0px))", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ width:36, height:36, borderRadius:9, background:C.grad, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:C.bg, flexShrink:0 }}>N</div>
+            <div style={{ width:36, height:36, borderRadius:12, background:C.grad, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", flexShrink:0, boxShadow:"0 8px 20px rgba(103,87,217,.2)" }}>✦</div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:15, fontWeight:800, color:C.gold, lineHeight:1 }}>NYX Admin</div>
               <div style={{ fontSize:11, color:C.textMuted, marginTop:2 }}>{ROLE_LABEL[role!]}</div>
@@ -177,7 +184,7 @@ export function AdminApp() {
           <div style={{ flex:1, padding:"12px 10px", overflowY:"auto" }}>
             {visibleTabs.map(t => (
               <button key={t.id} onClick={() => { setTab(t.id); setSidebarOpen(false); }}
-                style={{ width:"100%", padding:"11px 12px", borderRadius:12, background:tab===t.id?"rgba(201,168,76,0.1)":"transparent", border:`1px solid ${tab===t.id?"rgba(201,168,76,0.25)":"transparent"}`, color:tab===t.id?C.gold:C.textSub, fontFamily:"inherit", fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", gap:11, marginBottom:3, textAlign:"left" as const, fontWeight:tab===t.id?600:400, transition:"all .15s" }}
+                style={{ width:"100%", padding:"11px 12px", borderRadius:13, background:tab===t.id?C.goldSoft:"transparent", border:`1px solid ${tab===t.id?"rgba(103,87,217,0.22)":"transparent"}`, color:tab===t.id?C.gold:C.textSub, fontFamily:"inherit", fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", gap:11, marginBottom:3, textAlign:"left" as const, fontWeight:tab===t.id?700:500, transition:"all .15s" }}
                 onMouseEnter={e=>{ if(tab!==t.id)(e.currentTarget as HTMLElement).style.background=C.surf; }}
                 onMouseLeave={e=>{ if(tab!==t.id)(e.currentTarget as HTMLElement).style.background="transparent"; }}>
                 <TabIcon id={t.id} active={tab===t.id}/>
@@ -190,8 +197,8 @@ export function AdminApp() {
           {/* Logout */}
           <div style={{ padding:"12px 10px", borderTop:`1px solid ${C.border}` }}>
             <button onClick={() => { sb.auth.signOut(); setAuthed(false); setRole(null); setSidebarOpen(false); }}
-              style={{ width:"100%", padding:"11px 12px", borderRadius:12, background:"transparent", border:`1px solid rgba(232,54,93,0.25)`, color:C.rose, fontFamily:"inherit", fontSize:13.5, cursor:"pointer", display:"flex", alignItems:"center", gap:10, fontWeight:500, transition:"all .15s" }}
-              onMouseEnter={e=>(e.currentTarget.style.background="rgba(232,54,93,0.07)")}
+              style={{ width:"100%", padding:"11px 12px", borderRadius:12, background:"transparent", border:`1px solid rgba(239,95,122,0.25)`, color:C.rose, fontFamily:"inherit", fontSize:13.5, cursor:"pointer", display:"flex", alignItems:"center", gap:10, fontWeight:500, transition:"all .15s" }}
+              onMouseEnter={e=>(e.currentTarget.style.background="rgba(239,95,122,0.07)")}
               onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
               登出

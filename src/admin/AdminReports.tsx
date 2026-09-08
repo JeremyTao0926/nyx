@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getReports, authorizeReview, resolveReport, banUser, sb, getAppeals, resolveAppeal } from "./adminUtils";
+import { getReports, authorizeReview, resolveReport, banUser, getAppeals, resolveAppeal } from "./adminUtils";
 import type { Report, AdminRole, Appeal } from "./adminUtils";
 
 interface Props { role: AdminRole; C: any; }
@@ -8,7 +8,7 @@ const CATEGORY_LABELS: Record<string,string> = {
   fake:"假帳號", harassment:"騷擾", nudity:"不雅內容", scam:"詐騙", other:"其他"
 };
 
-export function AdminReports({ role, C }: Props) {
+export function AdminReports({ C }: Props) {
   const [reports, setReports]   = useState<Report[]>([]);
   const [showDone, setShowDone] = useState(false);
   const [loading, setLoading]   = useState(false);
@@ -44,7 +44,7 @@ export function AdminReports({ role, C }: Props) {
     setActive(null); setNotes(""); load();
   }
 
-  const INP = { padding:"9px 12px", background:"rgba(255,255,255,0.05)", border:`1px solid ${C.border}`, borderRadius:8, color:C.text, fontSize:13, outline:"none", fontFamily:"inherit", width:"100%", boxSizing:"border-box" as const };
+  const INP = { padding:"9px 12px", background:C.surf, border:`1px solid ${C.border}`, borderRadius:8, color:C.text, fontSize:13, outline:"none", fontFamily:"inherit", width:"100%", boxSizing:"border-box" as const };
 
   return (
     <div>
@@ -54,12 +54,12 @@ export function AdminReports({ role, C }: Props) {
           <div style={{ fontSize:13, color:C.textMuted, marginTop:3 }}>查看並處理用戶檢舉 — 查看聊天需要授權</div>
         </div>
         <div style={{ display:"flex", gap:8 }}>
-          <button onClick={()=>setShowDone(false)} style={{ padding:"7px 16px", borderRadius:20, background:!showDone?"rgba(201,168,76,0.15)":"transparent", border:`1px solid ${!showDone?C.gold:C.border}`, color:!showDone?C.gold:C.textMuted, fontFamily:"inherit", fontSize:12.5, cursor:"pointer" }}>待處理</button>
-          <button onClick={()=>setShowDone(true)} style={{ padding:"7px 16px", borderRadius:20, background:showDone?"rgba(201,168,76,0.15)":"transparent", border:`1px solid ${showDone?C.gold:C.border}`, color:showDone?C.gold:C.textMuted, fontFamily:"inherit", fontSize:12.5, cursor:"pointer" }}>已處理</button>
+          <button onClick={()=>setShowDone(false)} style={{ padding:"7px 16px", borderRadius:20, background:!showDone?"rgba(103,87,217,0.12)":"transparent", border:`1px solid ${!showDone?C.gold:C.border}`, color:!showDone?C.gold:C.textMuted, fontFamily:"inherit", fontSize:12.5, cursor:"pointer" }}>待處理</button>
+          <button onClick={()=>setShowDone(true)} style={{ padding:"7px 16px", borderRadius:20, background:showDone?"rgba(103,87,217,0.12)":"transparent", border:`1px solid ${showDone?C.gold:C.border}`, color:showDone?C.gold:C.textMuted, fontFamily:"inherit", fontSize:12.5, cursor:"pointer" }}>已處理</button>
         </div>
       </div>
 
-      {msg && <div style={{ background:"rgba(0,201,167,0.1)", border:"1px solid rgba(0,201,167,0.25)", borderRadius:10, padding:"10px 14px", color:C.mint, fontSize:13, marginBottom:16, cursor:"pointer" }} onClick={()=>setMsg("")}>{msg}</div>}
+      {msg && <div style={{ background:"rgba(22,165,137,0.10)", border:"1px solid rgba(22,165,137,0.25)", borderRadius:10, padding:"10px 14px", color:C.mint, fontSize:13, marginBottom:16, cursor:"pointer" }} onClick={()=>setMsg("")}>{msg}</div>}
 
       {/* ── 申訴處理 ── */}
       {appeals.length > 0 && (
@@ -70,9 +70,9 @@ export function AdminReports({ role, C }: Props) {
               <div key={a.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:6 }}>
                   <span style={{ fontSize:14, fontWeight:700, color:C.text }}>{a.username || a.user_id.slice(0,8)}</span>
-                  <span style={{ fontSize:11, background:"rgba(245,166,35,0.15)", color:"#F5A623", padding:"2px 8px", borderRadius:10 }}>{a.blockType}</span>
+                  <span style={{ fontSize:11, background:C.warningSoft, color:C.warning, padding:"2px 8px", borderRadius:10 }}>{a.blockType}</span>
                   <span style={{ fontSize:11.5, color:C.textMuted }}>{new Date(a.created_at).toLocaleString("zh-TW")}</span>
-                  {a.status !== "pending" && <span style={{ fontSize:11, background: a.status==="approved" ? "rgba(0,201,167,0.12)" : "rgba(232,54,93,0.15)", color: a.status==="approved" ? C.mint : C.rose, padding:"2px 8px", borderRadius:10 }}>{a.status==="approved"?"已批准":"已駁回"}</span>}
+                  {a.status !== "pending" && <span style={{ fontSize:11, background: a.status==="approved" ? "rgba(22,165,137,0.12)" : "rgba(239,95,122,0.13)", color: a.status==="approved" ? C.mint : C.rose, padding:"2px 8px", borderRadius:10 }}>{a.status==="approved"?"已批准":"已駁回"}</span>}
                 </div>
                 <div style={{ fontSize:13.5, color:C.textSub, lineHeight:1.6, marginBottom: a.status==="pending" ? 12 : 0, whiteSpace:"pre-wrap" }}>{a.message}</div>
                 {a.status === "pending" && (
@@ -81,13 +81,13 @@ export function AdminReports({ role, C }: Props) {
                       if (!confirm(`批准申訴並恢復 ${a.username || "此用戶"} 的帳號？`)) return;
                       try { await resolveAppeal(a.id, a.user_id, true, "申訴通過，帳號已恢復"); setMsg("✓ 已批准，帳號已恢復"); load(); }
                       catch (e: any) { setMsg("✗ 批准失敗：" + (e?.message || e)); }
-                    }} style={{ padding:"7px 18px", borderRadius:20, background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.35)", color:C.mint, fontFamily:"inherit", fontSize:12.5, fontWeight:700, cursor:"pointer" }}>批准並恢復帳號</button>
+                    }} style={{ padding:"7px 18px", borderRadius:20, background:"rgba(22,165,137,0.12)", border:"1px solid rgba(22,165,137,0.35)", color:C.mint, fontFamily:"inherit", fontSize:12.5, fontWeight:700, cursor:"pointer" }}>批准並恢復帳號</button>
                     <button onClick={async ()=>{
                       const note = prompt("駁回原因（會顯示給用戶）：") || "";
                       if (!note.trim()) return;
                       try { await resolveAppeal(a.id, a.user_id, false, note.trim()); setMsg("✓ 已駁回"); load(); }
                       catch (e: any) { setMsg("✗ 駁回失敗：" + (e?.message || e)); }
-                    }} style={{ padding:"7px 18px", borderRadius:20, background:"rgba(232,54,93,0.1)", border:"1px solid rgba(232,54,93,0.35)", color:C.rose, fontFamily:"inherit", fontSize:12.5, fontWeight:700, cursor:"pointer" }}>駁回</button>
+                    }} style={{ padding:"7px 18px", borderRadius:20, background:"rgba(239,95,122,0.10)", border:"1px solid rgba(239,95,122,0.35)", color:C.rose, fontFamily:"inherit", fontSize:12.5, fontWeight:700, cursor:"pointer" }}>駁回</button>
                   </div>
                 )}
               </div>
@@ -109,7 +109,7 @@ export function AdminReports({ role, C }: Props) {
               <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12 }}>
                 <div style={{ flex:1 }}>
                   <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:6 }}>
-                    <span style={{ fontSize:11, background:"rgba(232,54,93,0.12)", color:C.rose, padding:"2px 8px", borderRadius:10, fontWeight:600 }}>
+                    <span style={{ fontSize:11, background:"rgba(239,95,122,0.12)", color:C.rose, padding:"2px 8px", borderRadius:10, fontWeight:600 }}>
                       {CATEGORY_LABELS[r.category] || r.category}
                     </span>
                     <span style={{ fontSize:11, color:C.textMuted }}>{new Date(r.created_at).toLocaleDateString("zh-TW")}</span>
@@ -123,7 +123,7 @@ export function AdminReports({ role, C }: Props) {
                 </div>
                 {!showDone && (
                   <button onClick={() => setActive(r)}
-                    style={{ padding:"8px 16px", borderRadius:10, background:C.grad, border:"none", color:C.bg, fontFamily:"inherit", fontSize:12.5, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
+                    style={{ padding:"8px 16px", borderRadius:10, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:12.5, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
                     處理
                   </button>
                 )}
@@ -135,7 +135,7 @@ export function AdminReports({ role, C }: Props) {
 
       {/* Action modal */}
       {active && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200 }} onClick={()=>setActive(null)}>
+        <div style={{ position:"fixed", inset:0, background:"rgba(36,30,53,0.46)", backdropFilter:"blur(12px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200 }} onClick={()=>setActive(null)}>
           <div onClick={e=>e.stopPropagation()} style={{ width:500, background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:"28px" }}>
             <div style={{ fontSize:17, fontWeight:700, color:C.text, marginBottom:4 }}>處理檢舉</div>
             <div style={{ fontSize:12.5, color:C.textMuted, marginBottom:20 }}>
@@ -146,15 +146,15 @@ export function AdminReports({ role, C }: Props) {
 
             {/* Privacy gate for chat view */}
             {!authorized.has(active.id) ? (
-              <div style={{ background:"rgba(201,168,76,0.08)", border:`1px solid ${C.border}`, borderRadius:12, padding:"16px", marginBottom:20 }}>
+              <div style={{ background:"rgba(103,87,217,0.08)", border:`1px solid ${C.border}`, borderRadius:12, padding:"16px", marginBottom:20 }}>
                 <div style={{ fontSize:13, color:C.gold, fontWeight:600, marginBottom:6 }}>⚠️ 需要授權才能查看相關聊天</div>
                 <div style={{ fontSize:12.5, color:C.textMuted, marginBottom:12 }}>查看聊天記錄需要明確授權，此操作將被記錄在審計日誌中。</div>
-                <button onClick={()=>authorize(active)} style={{ padding:"8px 16px", borderRadius:8, background:C.grad, border:"none", color:C.bg, fontFamily:"inherit", fontSize:12.5, fontWeight:600, cursor:"pointer" }}>
+                <button onClick={()=>authorize(active)} style={{ padding:"8px 16px", borderRadius:8, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:12.5, fontWeight:600, cursor:"pointer" }}>
                   我確認授權查看此檢舉相關內容
                 </button>
               </div>
             ) : (
-              <div style={{ background:"rgba(0,201,167,0.08)", border:`1px solid rgba(0,201,167,0.2)`, borderRadius:12, padding:"12px 14px", marginBottom:20 }}>
+              <div style={{ background:"rgba(22,165,137,0.08)", border:`1px solid rgba(22,165,137,0.2)`, borderRadius:12, padding:"12px 14px", marginBottom:20 }}>
                 <div style={{ fontSize:12.5, color:C.mint }}>✓ 已授權 — 如需查看聊天，請至 Supabase 後台查詢（不在此 UI 直接顯示）</div>
               </div>
             )}
@@ -167,8 +167,8 @@ export function AdminReports({ role, C }: Props) {
 
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={()=>resolve("dismissed")} style={{ flex:1, padding:"11px", borderRadius:10, background:"transparent", border:`1px solid ${C.border}`, color:C.textMuted, fontFamily:"inherit", fontSize:13, cursor:"pointer" }}>忽略</button>
-              <button onClick={()=>resolve("warning")} style={{ flex:1, padding:"11px", borderRadius:10, background:"rgba(245,166,35,0.15)", border:"1px solid rgba(245,166,35,0.3)", color:"#F5A623", fontFamily:"inherit", fontSize:13, fontWeight:600, cursor:"pointer" }}>警告</button>
-              <button onClick={()=>resolve("ban")} style={{ flex:1, padding:"11px", borderRadius:10, background:"rgba(232,54,93,0.15)", border:"1px solid rgba(232,54,93,0.3)", color:C.rose, fontFamily:"inherit", fontSize:13, fontWeight:600, cursor:"pointer" }}>封禁</button>
+              <button onClick={()=>resolve("warning")} style={{ flex:1, padding:"11px", borderRadius:10, background:C.warningSoft, border:`1px solid ${C.warning}4D`, color:C.warning, fontFamily:"inherit", fontSize:13, fontWeight:600, cursor:"pointer" }}>警告</button>
+              <button onClick={()=>resolve("ban")} style={{ flex:1, padding:"11px", borderRadius:10, background:"rgba(239,95,122,0.13)", border:"1px solid rgba(239,95,122,0.3)", color:C.rose, fontFamily:"inherit", fontSize:13, fontWeight:600, cursor:"pointer" }}>封禁</button>
             </div>
 
             <button onClick={()=>setActive(null)} style={{ marginTop:10, width:"100%", padding:"10px", borderRadius:10, background:"transparent", border:"none", color:C.textMuted, fontFamily:"inherit", fontSize:13, cursor:"pointer" }}>取消</button>

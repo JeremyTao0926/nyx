@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { sb, C, sound, calcAge, MBTI_LIST, HOBBIES, lookupEmailByUsername, checkUsernameAvailable, reverseGeocode, searchCities, formatLocation, authErrorMessage } from "../utils";
-import { CherryBlossoms } from "../components/Atoms";
+import { sb, C, sound, calcAge, MBTI_LIST, HOBBIES, lookupEmailByUsername, checkUsernameAvailable, reverseGeocode, searchCities, formatLocation, authErrorMessage, updateProfile } from "../utils";
+import type { UserProfile } from "../types";
 import { ImageCropper } from "../components/ImageCropper";
 import { clearPendingAvatar, savePendingAvatar } from "../pendingAvatar";
+import { getAuthCallbackParams, normalizePhoneNumber } from "../authHelpers";
+import { getAuthProviderAvailability, signInWithSocialProvider, type AuthProviderAvailability, type NyxSocialProvider } from "../auth";
 
 /* ─── Shared input style ─────────────────────────────── */
 const INP = {
@@ -27,7 +29,7 @@ function StepBar({ step, total }: { step: number; total: number }) {
 }
 
 /* ─── Login Screen ───────────────────────────────────── */
-function LoginForm({ onSwitch, onLogin }: { onSwitch: () => void; onLogin: () => void }) {
+function LoginForm({ onLogin }: { onLogin: () => void }) {
   const [identifier, setIdentifier] = useState(""); // email or username
   const [pass, setPass] = useState("");
   const [err, setErr] = useState("");
@@ -75,14 +77,162 @@ function LoginForm({ onSwitch, onLogin }: { onSwitch: () => void; onLogin: () =>
   );
 }
 
+const PHONE_COUNTRIES = [
+  ["+852", "香港"], ["+886", "台灣"], ["+86", "中國"], ["+1", "美國／加拿大"],
+  ["+81", "日本"], ["+82", "韓國"], ["+65", "新加坡"], ["+60", "馬來西亞"],
+  ["+44", "英國"], ["+61", "澳洲"],
+] as const;
+
+function GoogleMark() {
+  return <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24"><path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.06H12v3.9h5.38a4.6 4.6 0 0 1-2 3.02v2.53h3.24c1.9-1.75 2.98-4.33 2.98-7.39Z"/><path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.38l-3.24-2.53c-.9.6-2.05.96-3.38.96-2.6 0-4.81-1.76-5.6-4.13H3.06v2.61A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.4 13.92A6 6 0 0 1 6.08 12c0-.67.11-1.32.32-1.92V7.47H3.06A10 10 0 0 0 2 12c0 1.61.39 3.14 1.06 4.53l3.34-2.61Z"/><path fill="#EA4335" d="M12 5.95c1.47 0 2.78.5 3.82 1.49l2.87-2.87A9.64 9.64 0 0 0 12 2a10 10 0 0 0-8.94 5.47l3.34 2.61c.79-2.37 3-4.13 5.6-4.13Z"/></svg>;
+}
+
+function AppleMark() {
+  return <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.54c-.02-2.3 1.88-3.42 1.97-3.48a4.22 4.22 0 0 0-3.32-1.8c-1.4-.15-2.76.84-3.47.84-.73 0-1.82-.82-3-.8a4.43 4.43 0 0 0-3.73 2.27c-1.61 2.8-.41 6.91 1.14 9.17.78 1.11 1.68 2.35 2.87 2.3 1.16-.05 1.6-.74 3-.74 1.38 0 1.8.74 3.02.71 1.25-.02 2.03-1.11 2.78-2.23a9.13 9.13 0 0 0 1.27-2.58 3.98 3.98 0 0 1-2.53-3.66ZM14.79 5.78A4.09 4.09 0 0 0 15.73 2a4.17 4.17 0 0 0-2.7 1.3 3.9 3.9 0 0 0-.97 3.68 3.45 3.45 0 0 0 2.73-1.2Z"/></svg>;
+}
+
+function PhoneMark() {
+  return <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10 18.2h4"/></svg>;
+}
+
+function PhoneOtpForm({ onBack, onAuthenticated }: { onBack: () => void; onAuthenticated?: () => void }) {
+  const [countryCode, setCountryCode] = useState("+852");
+  const [phoneInput, setPhoneInput] = useState("");
+  const [normalizedPhone, setNormalizedPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = window.setInterval(() => setCooldown(value => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldown]);
+
+  async function sendCode() {
+    const phone = normalizePhoneNumber(countryCode, phoneInput);
+    if (!phone) { setErr("請輸入有效的國際手機號碼"); return; }
+    setBusy(true); setErr("");
+    try {
+      const { error } = await sb.auth.signInWithOtp({
+        phone,
+        options: { shouldCreateUser: true, data: { auth_origin: "phone" } },
+      });
+      if (error) throw error;
+      setNormalizedPhone(phone);
+      setSent(true);
+      setCooldown(60);
+    } catch (error) {
+      setErr(authErrorMessage(error, "無法發送驗證碼，請稍後再試"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifyCode() {
+    if (!/^\d{6}$/.test(otp)) { setErr("請輸入 6 位數驗證碼"); return; }
+    setBusy(true); setErr("");
+    try {
+      const { data, error } = await sb.auth.verifyOtp({ phone: normalizedPhone, token: otp, type: "sms" });
+      if (error) throw error;
+      if (!data.session) throw new Error("驗證完成但未取得登入狀態，請重試");
+      onAuthenticated?.();
+    } catch (error) {
+      setErr(authErrorMessage(error, "驗證失敗，請重新輸入"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="nyx-phone-auth">
+      <button type="button" className="nyx-phone-back" onClick={onBack}>‹ <span>其他登入方式</span></button>
+      <div className="nyx-phone-title">{sent ? "輸入驗證碼" : "手機號碼登入"}</div>
+      <div className="nyx-phone-copy">{sent ? `6 位數驗證碼已發送至 ${normalizedPhone}` : "我們會以短訊傳送一次性驗證碼"}</div>
+      {!sent ? (
+        <div className="nyx-phone-row">
+          <select aria-label="國家／地區代碼" value={countryCode} onChange={event => setCountryCode(event.target.value)} className="nyx-country-select">
+            {PHONE_COUNTRIES.map(([code, country]) => <option key={code} value={code}>{country} {code}</option>)}
+          </select>
+          <input aria-label="手機號碼" inputMode="tel" autoComplete="tel-national" value={phoneInput} onChange={event => setPhoneInput(event.target.value)} onKeyDown={event => event.key === "Enter" && sendCode()} placeholder="手機號碼" style={INP}/>
+        </div>
+      ) : (
+        <input aria-label="六位數驗證碼" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otp} onChange={event => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} onKeyDown={event => event.key === "Enter" && verifyCode()} placeholder="000000" className="nyx-otp-input"/>
+      )}
+      {err && <div className="nyx-auth-error" role="alert">{err}</div>}
+      <button type="button" className="nyx-auth-primary nyx-phone-submit" disabled={busy} onClick={sent ? verifyCode : sendCode}>{busy ? "處理中…" : sent ? "驗證並登入" : "取得驗證碼"}</button>
+      {sent && <button type="button" className="nyx-phone-resend" disabled={busy || cooldown > 0} onClick={sendCode}>{cooldown > 0 ? `${cooldown} 秒後可重新發送` : "重新發送驗證碼"}</button>}
+    </div>
+  );
+}
+
+function SocialAuthOptions({ onAuthenticated, onPhoneModeChange }: { onAuthenticated?: () => void; onPhoneModeChange?: (open: boolean) => void }) {
+  const [busy, setBusy] = useState<NyxSocialProvider | null>(null);
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const [availability, setAvailability] = useState<AuthProviderAvailability | null>(null);
+  const [err, setErr] = useState(() => {
+    try {
+      const callbackError = getAuthCallbackParams(window.location.href).error;
+      return callbackError ? authErrorMessage(decodeURIComponent(callbackError.replace(/\+/g, " ")), "登入失敗，請重新嘗試") : "";
+    } catch {
+      return "";
+    }
+  });
+
+  useEffect(() => {
+    const onAuthError = (event: Event) => {
+      const message = (event as CustomEvent<string>).detail;
+      setErr(authErrorMessage(message, "登入失敗，請重新嘗試"));
+    };
+    window.addEventListener("nyx:auth-error", onAuthError);
+    if (window.location.pathname === "/auth/callback" && getAuthCallbackParams(window.location.href).error) {
+      window.history.replaceState({}, "", "/");
+    }
+    return () => window.removeEventListener("nyx:auth-error", onAuthError);
+  }, []);
+
+  useEffect(() => {
+    let current = true;
+    void getAuthProviderAvailability()
+      .then(result => { if (current) setAvailability(result); })
+      .catch(() => { if (current) setAvailability({ google:false, apple:false, phone:false }); });
+    return () => { current = false; };
+  }, []);
+
+  async function startProvider(provider: NyxSocialProvider) {
+    setBusy(provider); setErr("");
+    try {
+      await signInWithSocialProvider(provider);
+    } catch (error) {
+      setErr(authErrorMessage(error, "登入失敗，請重新嘗試"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (phoneOpen) return <PhoneOtpForm onBack={() => { setPhoneOpen(false); setErr(""); onPhoneModeChange?.(false); }} onAuthenticated={onAuthenticated}/>;
+
+  return (
+    <div className="nyx-social-auth">
+      <button type="button" className="nyx-social-button nyx-google-button" disabled={busy !== null || availability?.google !== true} onClick={() => startProvider("google")}><GoogleMark/><span>{busy === "google" ? "正在開啟 Google…" : availability?.google === false ? "Google 登入 · 設定中" : "使用 Google 繼續"}</span></button>
+      <button type="button" className="nyx-social-button nyx-apple-button" disabled={busy !== null || availability?.apple !== true} onClick={() => startProvider("apple")}><AppleMark/><span>{busy === "apple" ? "正在開啟 Apple…" : availability?.apple === false ? "Apple 登入 · 設定中" : "使用 Apple 繼續"}</span></button>
+      <button type="button" className="nyx-social-button nyx-phone-button" disabled={busy !== null || availability?.phone !== true} onClick={() => { setPhoneOpen(true); onPhoneModeChange?.(true); }}><PhoneMark/><span>{availability?.phone === false ? "手機登入 · 設定中" : "使用手機號碼繼續"}</span></button>
+      {err && <div className="nyx-auth-error" role="alert">{err}</div>}
+    </div>
+  );
+}
+
 /* ═══ REGISTRATION — Multi-step ══════════════════════ */
 
 // Step 1: Email + Password
-function Step1({ onNext }: { onNext: (email: string, pass: string) => void }) {
+function Step1({ onNext, onAuthenticated }: { onNext: (email: string, pass: string) => void; onAuthenticated: () => void }) {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [pass2, setPass2] = useState("");
   const [err, setErr] = useState("");
+  const [phoneMode, setPhoneMode] = useState(false);
 
   function next() {
     setErr("");
@@ -95,7 +245,10 @@ function Step1({ onNext }: { onNext: (email: string, pass: string) => void }) {
 
   return <>
     <div style={{ fontSize: 24, fontWeight: 800, color: C.text, marginBottom: 6 }}>建立帳號</div>
-    <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 24 }}>請輸入你的電子郵件和密碼</div>
+    <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 20 }}>選擇最方便的方式開始</div>
+    <SocialAuthOptions onAuthenticated={onAuthenticated} onPhoneModeChange={setPhoneMode}/>
+    {!phoneMode && <>
+    <div className="nyx-auth-divider"><span>或使用電郵註冊</span></div>
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <input value={email} onChange={e => setEmail(e.target.value)} placeholder="電子郵件" type="email" style={INP} onFocus={e => (e.target.style.borderColor = C.borderFocus)} onBlur={e => (e.target.style.borderColor = C.border)} />
       <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="密碼（至少6位）" style={INP} onFocus={e => (e.target.style.borderColor = C.borderFocus)} onBlur={e => (e.target.style.borderColor = C.border)} />
@@ -103,6 +256,7 @@ function Step1({ onNext }: { onNext: (email: string, pass: string) => void }) {
       {err && <div style={{ fontSize: 13, color: C.rose, textAlign: "center" }}>{err}</div>}
       <button onClick={next} style={{ width: "100%", padding: "15px", borderRadius: 50, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>繼續 →</button>
     </div>
+    </>}
   </>;
 }
 
@@ -114,17 +268,22 @@ function Step2({ onNext }: { onNext: (name: string, username: string, birthday: 
   const [err, setErr] = useState("");
   const [checking, setChecking] = useState(false);
   const [usernameOk, setUsernameOk] = useState<boolean | null>(null);
-  const timer = useRef<any>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function handleUsername(v: string) {
     setUsername(v); setUsernameOk(null);
     if (v.length < 3) return;
     if (!/^[a-zA-Z0-9_]+$/.test(v)) { setUsernameOk(false); return; }
-    clearTimeout(timer.current);
+    if (timer.current) clearTimeout(timer.current);
     setChecking(true);
     timer.current = setTimeout(async () => {
-      const ok = await checkUsernameAvailable(v);
-      setUsernameOk(ok); setChecking(false);
+      try {
+        setUsernameOk(await checkUsernameAvailable(v));
+      } catch {
+        setUsernameOk(null);
+      } finally {
+        setChecking(false);
+      }
     }, 500);
   }
 
@@ -155,7 +314,7 @@ function Step2({ onNext }: { onNext: (name: string, username: string, birthday: 
       {usernameOk === true && <div style={{ fontSize: 12, color: C.mint }}>✓ 用戶名可用</div>}
       <div>
         <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 7 }}>生日（必須年滿18歲）</div>
-        <input value={birthday} onChange={e => setBirthday(e.target.value)} type="date" style={{ ...INP, colorScheme: "dark" } as any} onFocus={e => (e.target.style.borderColor = C.borderFocus)} onBlur={e => (e.target.style.borderColor = C.border)} />
+        <input value={birthday} onChange={e => setBirthday(e.target.value)} type="date" style={{ ...INP, colorScheme: "light" }} onFocus={e => (e.target.style.borderColor = C.borderFocus)} onBlur={e => (e.target.style.borderColor = C.border)} />
       </div>
       {err && <div style={{ fontSize: 13, color: C.rose, textAlign: "center" }}>{err}</div>}
       <button onClick={next} style={{ width: "100%", padding: "15px", borderRadius: 50, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>繼續 →</button>
@@ -214,8 +373,6 @@ function Step4({ onNext }: { onNext: (lookingFor: string) => void }) {
 function Step5({ onNext }: { onNext: (avatarUrl: string, blob: Blob) => void }) {
   const [preview, setPreview] = useState<string | null>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) { setCropFile(file); }
@@ -236,13 +393,11 @@ function Step5({ onNext }: { onNext: (avatarUrl: string, blob: Blob) => void }) 
     <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 32 }}>真實照片讓配對率提升 3 倍 ✦</div>
     <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); e.target.value = ""; }} />
     {/* Upload area */}
-    <div onClick={() => !uploading && fileRef.current?.click()}
+    <div onClick={() => fileRef.current?.click()}
       style={{ width: 180, height: 180, borderRadius: "50%", margin: "0 auto 28px", background: preview ? `url(${preview}) center/cover` : C.surf, border: `2px dashed ${preview ? C.rose : C.border}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, transition: "all .2s", position: "relative" }}
       onMouseEnter={e => !preview && ((e.currentTarget as HTMLElement).style.borderColor = C.rose)}
       onMouseLeave={e => !preview && ((e.currentTarget as HTMLElement).style.borderColor = C.border)}>
-      {uploading ? (
-        <div style={{ width: 32, height: 32, border: `3px solid ${C.borderHigh}`, borderTopColor: C.rose, borderRadius: "50%", animation: "spin .7s linear infinite" }} />
-      ) : preview ? (
+      {preview ? (
         <div style={{ position: "absolute", bottom: 8, right: 8, width: 32, height: 32, borderRadius: "50%", background: C.rose, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>✎</div>
       ) : (
         <>
@@ -251,11 +406,10 @@ function Step5({ onNext }: { onNext: (avatarUrl: string, blob: Blob) => void }) 
         </>
       )}
     </div>
-    {err && <div style={{ fontSize: 13, color: C.rose, textAlign: "center", marginBottom: 12 }}>{err}</div>}
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <button onClick={() => preview && pendingBlob && onNext(preview, pendingBlob)} disabled={!preview || uploading}
+      <button onClick={() => preview && pendingBlob && onNext(preview, pendingBlob)} disabled={!preview}
         style={{ width: "100%", padding: "15px", borderRadius: 50, background: preview ? C.grad : C.surfHigh, border: "none", color: preview ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: preview ? "pointer" : "default", transition: "all .25s" }}>
-        {uploading ? "上傳中..." : "繼續 →"}
+        繼續 →
       </button>
     </div>
   </>;
@@ -321,7 +475,7 @@ function Step6({ onNext }: { onNext: (city: string, lat?: number, lon?: number) 
         </button>)}
       </div>}
       </div>
-      <button type="button" aria-label="使用目前位置" onClick={locate} disabled={locating} style={{ minWidth:48, minHeight:48, padding: "12px", borderRadius: 14, background: C.roseSoft, border: `1px solid rgba(232,54,93,0.25)`, color: C.rose, cursor: "pointer", fontFamily: "inherit", fontSize: 18, flexShrink: 0, opacity: locating ? .6 : 1 }}>{locating ? "⏳" : "📍"}</button>
+      <button type="button" aria-label="使用目前位置" onClick={locate} disabled={locating} style={{ minWidth:48, minHeight:48, padding: "12px", borderRadius: 14, background: C.roseSoft, border: `1px solid rgba(239,95,122,0.25)`, color: C.rose, cursor: "pointer", fontFamily: "inherit", fontSize: 18, flexShrink: 0, opacity: locating ? .6 : 1 }}>{locating ? "⏳" : "📍"}</button>
     </div>
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <button onClick={() => onNext(city, coords?.lat, coords?.lon)}
@@ -380,7 +534,7 @@ function Step8({ onNext }: { onNext: (hobbies: string[]) => void }) {
 }
 
 /* ─── Registration flow controller ───────────────────── */
-function RegisterFlow({ onBack }: { onBack: () => void }) {
+function RegisterFlow({ onBack, onAuthenticated }: { onBack: () => void; onAuthenticated: () => void }) {
   const [step, setStep] = useState(1);
   const [sentEmail, setSentEmail] = useState<string | null>(null);
   // Collected data
@@ -463,7 +617,7 @@ function RegisterFlow({ onBack }: { onBack: () => void }) {
         <button onClick={step === 1 ? onBack : () => setStep(s => s - 1)} aria-label={step === 1 ? "返回登入" : "上一步"} style={{ width:44, height:44, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", fontFamily: "inherit", marginLeft:-10, marginRight:8, lineHeight: 1 }}>‹</button>
         <div style={{ flex: 1 }}><StepBar step={step} total={TOTAL} /></div>
       </div>
-      {step === 1 && <Step1 onNext={(email, pass) => { data.current.email = email; data.current.pass = pass; setStep(2); }} />}
+      {step === 1 && <Step1 onAuthenticated={onAuthenticated} onNext={(email, pass) => { data.current.email = email; data.current.pass = pass; setStep(2); }} />}
       {step === 2 && <Step2 onNext={(name, username, birthday) => { data.current.name = name; data.current.username = username; data.current.birthday = birthday; setStep(3); }} />}
       {step === 3 && <Step3 onNext={g => { data.current.gender = g; setStep(4); }} />}
       {step === 4 && <Step4 onNext={lf => { data.current.lookingFor = lf; setStep(5); }} />}
@@ -477,68 +631,175 @@ function RegisterFlow({ onBack }: { onBack: () => void }) {
 
 /* ─── LoginScreen (main entry) ───────────────────────── */
 export function LoginScreen({ onLogin }: { onLogin: () => void }) {
-  const [mode, setMode] = useState<"landing" | "login" | "register">("landing");
+  const previewMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get("auth-screen") === "login" ? "login" : "landing";
+  const [mode, setMode] = useState<"landing" | "login" | "register">(previewMode);
+  const [phoneMode, setPhoneMode] = useState(false);
 
-  // Landing page — image 1 style
+  // Landing page — porcelain-violet editorial style
   if (mode === "landing") return (
-    <div style={{ position:"fixed", inset:0, display:"flex", justifyContent:"center", background:"#000" }}><div style={{ width:"100%", maxWidth:480, position:"relative", overflow:"hidden", height:"100%", display:"flex", flexDirection:"column", justifyContent:"flex-end" }}>
-      {/* Full-screen background photo */}
-      <div style={{ position:"absolute", inset:0, background:"url(https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=800&q=80) center/cover no-repeat", zIndex:0 }}/>
-      {/* Dark gradient overlay — stronger at bottom */}
-      <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(12,10,8,0.15) 0%, rgba(12,10,8,0.4) 40%, rgba(12,10,8,0.92) 75%, rgba(12,10,8,0.98) 100%)", zIndex:1 }}/>
-      {/* Content */}
-      <div style={{ position:"relative", zIndex:2, padding:"0 28px 52px" }}>
-        {/* Headline */}
-        <div style={{ marginBottom:36 }}>
-          <div style={{ fontSize:38, fontWeight:800, color:"#fff", lineHeight:1.15, marginBottom:12, letterSpacing:"-0.01em" }}>
-            Make<br/>Meaningful<br/>Connections
-          </div>
-          <div style={{ fontSize:14.5, color:"rgba(255,255,255,0.65)", lineHeight:1.6 }}>
-            遇見懂你的人<br/>開啟高質量社交之旅
-          </div>
+    <div className="nyx-auth-shell">
+      <div className="nyx-auth-frame nyx-auth-landing">
+        <header className="nyx-auth-topbar">
+          <div className="nyx-auth-brand"><span className="nyx-auth-brand-mark">✦</span><span>NYX</span></div>
+          <span className="nyx-auth-badge">AI MATCHING</span>
+        </header>
+
+        <div className="nyx-landing-visual" aria-hidden="true">
+          <div className="nyx-orbit-avatar nyx-orbit-avatar-a">N</div>
+          <div className="nyx-match-core"><span>✦</span></div>
+          <div className="nyx-orbit-avatar nyx-orbit-avatar-b">Y</div>
+          <div className="nyx-match-chip nyx-match-chip-score"><strong>92%</strong><span>共鳴度</span></div>
+          <div className="nyx-match-chip nyx-match-chip-interests">音樂 · 旅行 · 電影</div>
         </div>
-        {/* Buttons */}
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <button onClick={() => { sound.tap(); setMode("register"); }}
-            style={{ width:"100%", padding:"16px", borderRadius:50, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:16, fontWeight:800, cursor:"pointer", letterSpacing:"0.01em", boxShadow:`0 8px 28px ${C.goldGlow}` }}>
-            開始探索
-          </button>
-          <button onClick={() => { sound.tap(); setMode("login"); }}
-            style={{ width:"100%", padding:"15px", borderRadius:50, background:"rgba(255,255,255,0.10)", backdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.20)", color:"#fff", fontFamily:"inherit", fontSize:15, fontWeight:600, cursor:"pointer" }}>
-            登入
-          </button>
-        </div>
+
+        <section className="nyx-auth-copy">
+          <div className="nyx-auth-eyebrow">Higher signal · Real connections</div>
+          <h1 className="nyx-auth-title">遇見真正<br/><span>懂你的人。</span></h1>
+          <p className="nyx-auth-description">AI 理解個性、共同興趣與互動節奏，讓每次認識都更有方向。</p>
+          <div className="nyx-auth-actions">
+            <button className="nyx-auth-primary" onClick={() => { sound.tap(); setMode("register"); }}>開始探索</button>
+            <button className="nyx-auth-secondary" onClick={() => { sound.tap(); setMode("login"); }}>登入</button>
+          </div>
+          <div className="nyx-auth-trust"><span>18+ 成人社群</span><span>·</span><span>隱私優先</span><span>·</span><span>可隨時刪除帳號</span></div>
+        </section>
       </div>
-    </div></div>
+    </div>
   );
 
-  // Login / Register flow — same photo bg, glass card
+  // Login / Register flow — light ambient background + focused glass card
   return (
-    <div style={{ position:"fixed", inset:0, display:"flex", justifyContent:"center", background:"#000" }}>
-      <div style={{ width:"100%", maxWidth:480, position:"relative", overflow:"hidden", height:"100%" }}>
-        {/* Same background photo */}
-        <div style={{ position:"absolute", inset:0, background:"url(https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=800&q=80) center/cover no-repeat", zIndex:0 }}/>
-        <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(12,10,8,0.45) 0%, rgba(12,10,8,0.75) 35%, rgba(12,10,8,0.97) 60%)", zIndex:1 }}/>
-        {/* Content */}
-        <div style={{ position:"relative", zIndex:2, height:"100%", display:"flex", flexDirection:"column", justifyContent:"flex-end", padding:"0 24px 40px" }}>
-          {/* Back button */}
-          {mode === "login" && <button onClick={() => setMode("landing")} aria-label="返回首頁" style={{ position:"absolute", top:48, left:16, background:"rgba(12,10,8,0.5)", backdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"50%", width:44, height:44, color:"#fff", fontSize:20, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center" }}>‹</button>}
+    <div className="nyx-auth-shell">
+      <div className={`nyx-auth-frame nyx-auth-form-frame ${mode === "register" ? "nyx-auth-form-register" : ""}`}>
+        <div className="nyx-auth-form-art" aria-hidden="true" />
+        <div className="nyx-auth-form-scroll">
+          <div className="nyx-auth-form-top">
+            {mode === "login"
+              ? <button className="nyx-auth-back" onClick={() => { setPhoneMode(false); setMode("landing"); }} aria-label="返回首頁">‹</button>
+              : <span style={{ width:44 }} />}
+            <div className="nyx-auth-brand"><span className="nyx-auth-brand-mark">✦</span><span>NYX</span></div>
+          </div>
 
-          {/* Glass card */}
-          <div style={{ background:"rgba(255,255,255,0.88)", backdropFilter:"blur(28px) saturate(145%)", borderRadius:24, border:`1px solid ${C.borderHigh}`, padding:"28px 24px 24px", boxShadow:C.shadowStrong, animation:"fadeUp .4s ease" }}>
+          <div className="nyx-auth-form-card">
             {mode === "login" ? (
               <>
                 <div style={{ fontSize:24, fontWeight:800, color:C.text, marginBottom:4 }}>歡迎回來</div>
-                <div style={{ fontSize:13.5, color:C.textMuted, marginBottom:24 }}>用電郵或用戶名登入</div>
-                <LoginForm onSwitch={() => setMode("register")} onLogin={onLogin} />
+                <div style={{ fontSize:13.5, color:C.textMuted, marginBottom:20 }}>選擇最方便的登入方式</div>
+                <SocialAuthOptions onAuthenticated={onLogin} onPhoneModeChange={setPhoneMode}/>
+                {!phoneMode && <>
+                <div className="nyx-auth-divider"><span>或使用電郵／用戶名</span></div>
+                <LoginForm onLogin={onLogin} />
                 <div style={{ textAlign:"center", marginTop:16 }}>
                   <span style={{ fontSize:13.5, color:C.textMuted }}>還沒有帳號？</span>
-                  <button onClick={() => { setMode("register"); sound.tap(); }} style={{ background:"none", border:"none", color:C.gold, fontSize:13.5, fontWeight:600, cursor:"pointer", fontFamily:"inherit", marginLeft:4 }}>立即註冊</button>
+                  <button onClick={() => { setPhoneMode(false); setMode("register"); sound.tap(); }} style={{ background:"none", border:"none", color:C.gold, fontSize:13.5, fontWeight:600, cursor:"pointer", fontFamily:"inherit", marginLeft:4 }}>立即註冊</button>
                 </div>
+                </>}
               </>
             ) : (
-              <RegisterFlow onBack={() => setMode("login")} />
+              <RegisterFlow onBack={() => setMode("login")} onAuthenticated={onLogin}/>
             )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AccountSetupScreen({
+  userId,
+  profile,
+  onComplete,
+  onLogout,
+}: {
+  userId: string;
+  profile: UserProfile;
+  onComplete: (patch: Partial<UserProfile>) => void;
+  onLogout: () => void;
+}) {
+  const generatedName = /^nyx_[a-f0-9]{6,}$/i.test(profile.username || "");
+  const [name, setName] = useState(profile.display_name?.startsWith("NYX ") ? "" : profile.display_name || "");
+  const [username, setUsername] = useState(generatedName ? "" : profile.username || "");
+  const [birthday, setBirthday] = useState(profile.birthday || "");
+  const [gender, setGender] = useState<"male" | "female">(profile.gender || "male");
+  const [usernameOk, setUsernameOk] = useState<boolean | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (checkTimer.current) clearTimeout(checkTimer.current); }, []);
+
+  function changeUsername(value: string) {
+    const clean = value.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 20);
+    setUsername(clean); setUsernameOk(null); setErr("");
+    if (checkTimer.current) clearTimeout(checkTimer.current);
+    if (clean.length < 3) { setChecking(false); return; }
+    setChecking(true);
+    checkTimer.current = setTimeout(async () => {
+      try {
+        setUsernameOk(await checkUsernameAvailable(clean, userId));
+      } catch {
+        setUsernameOk(null);
+        setErr("暫時無法檢查用戶名，請稍後再試");
+      } finally {
+        setChecking(false);
+      }
+    }, 400);
+  }
+
+  async function finishSetup() {
+    setErr("");
+    const cleanName = name.trim();
+    const cleanUsername = username.trim();
+    if (!cleanName) { setErr("請輸入顯示名稱"); return; }
+    if (!/^[a-z0-9_]{3,20}$/.test(cleanUsername)) { setErr("用戶名需為 3–20 位英文、數字或底線"); return; }
+    if (!birthday) { setErr("請填寫生日"); return; }
+    const age = calcAge(birthday);
+    if (!age || age < 18) { setErr("NYX 僅供年滿 18 歲人士使用"); return; }
+
+    setBusy(true);
+    try {
+      const available = await checkUsernameAvailable(cleanUsername, userId);
+      if (!available) { setUsernameOk(false); throw new Error("此用戶名已被使用"); }
+      const patch: Partial<UserProfile> = { display_name: cleanName, username: cleanUsername, birthday, gender };
+      await updateProfile(userId, patch);
+      onComplete(patch);
+    } catch (error) {
+      setErr(authErrorMessage(error, "無法儲存資料，請稍後再試"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="nyx-auth-shell">
+      <div className="nyx-auth-frame nyx-profile-setup-frame">
+        <div className="nyx-auth-form-art" aria-hidden="true"/>
+        <div className="nyx-profile-setup-scroll">
+          <div className="nyx-auth-form-top">
+            <button type="button" className="nyx-auth-back" onClick={onLogout} aria-label="登出">‹</button>
+            <div className="nyx-auth-brand"><span className="nyx-auth-brand-mark">✦</span><span>NYX</span></div>
+          </div>
+          <div className="nyx-auth-form-card nyx-profile-setup-card">
+            <div className="nyx-setup-kicker">最後一步</div>
+            <div className="nyx-setup-heading">完成你的基本資料</div>
+            <div className="nyx-setup-copy">為保障成人社群安全，生日與用戶名必須先完成。生日不會公開顯示。</div>
+            {profile.avatar_url && <img className="nyx-setup-avatar" src={profile.avatar_url} alt="你的個人頭像"/>}
+            <div className="nyx-setup-fields">
+              <label className="nyx-field-label">顯示名稱<input autoComplete="name" value={name} onChange={event => setName(event.target.value)} placeholder="其他人看到的名字" style={INP}/></label>
+              <label className="nyx-field-label">用戶名
+                <div className="nyx-username-field"><input autoCapitalize="none" autoCorrect="off" value={username} onChange={event => changeUsername(event.target.value)} placeholder="英文、數字或底線" style={{ ...INP, paddingRight:44 }}/><span>{checking ? "…" : usernameOk === true ? "✓" : usernameOk === false ? "!" : ""}</span></div>
+              </label>
+              <label className="nyx-field-label">生日（必須年滿 18 歲）<input type="date" value={birthday} onChange={event => setBirthday(event.target.value)} style={{ ...INP, colorScheme:"light" }}/></label>
+              <div className="nyx-field-label">性別
+                <div className="nyx-gender-row">
+                  <button type="button" className={gender === "male" ? "active" : ""} onClick={() => setGender("male")}>男性</button>
+                  <button type="button" className={gender === "female" ? "active" : ""} onClick={() => setGender("female")}>女性</button>
+                </div>
+              </div>
+            </div>
+            {err && <div className="nyx-auth-error" role="alert">{err}</div>}
+            <button type="button" className="nyx-auth-primary nyx-setup-submit" disabled={busy || checking || usernameOk === false} onClick={finishSetup}>{busy ? "儲存中…" : "完成並進入 NYX"}</button>
+            <div className="nyx-setup-privacy">繼續即確認你已年滿 18 歲，並同意服務條款與隱私政策。</div>
           </div>
         </div>
       </div>
@@ -568,7 +829,7 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
         if (p.y < 0 || p.y > c.height) p.vy *= -1;
         ctx.save(); ctx.globalAlpha = p.o; ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(232,54,93,0.8)"; ctx.fill(); ctx.restore();
+        ctx.fillStyle = "rgba(239,95,122,0.78)"; ctx.fill(); ctx.restore();
       });
       raf = requestAnimationFrame(tick);
     };

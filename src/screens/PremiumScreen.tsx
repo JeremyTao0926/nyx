@@ -145,11 +145,11 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "flex-end" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: C.overlay, display: "flex", justifyContent: "center", alignItems: "flex-end", backdropFilter: "blur(10px)" }}>
       <div onTouchStart={onSwipeTouchStart} onTouchMove={onSwipeTouchMove} onTouchEnd={onSwipeTouchEnd}
         style={{ width: "100%", maxWidth: 480, background: C.bg, height: "100%", display: "flex", flexDirection: "column" as const, overflowY: "auto",
           touchAction: "pan-y", transform: `translateX(${swipeDx}px)`, transition: swipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
-          boxShadow: swipeDx > 10 ? "-10px 0 30px rgba(0,0,0,0.6)" : "none" }}>
+          boxShadow: swipeDx > 10 ? "-12px 0 36px rgba(57,42,101,0.22)" : "none" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", padding: "16px 18px 8px", flexShrink: 0 }}>
         <button type="button" aria-label="返回" onClick={onBack} style={{ width:44, height:44, display:"flex", alignItems:"center", justifyContent:"center", background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>‹</button>

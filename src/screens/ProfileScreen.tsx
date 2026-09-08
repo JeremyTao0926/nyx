@@ -428,7 +428,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
               <span style={{ color: "#fff", fontSize: 10, fontWeight: 800 }}>V</span>
             </div>
           ) : (
-            <span style={{ position: "absolute", bottom: 3, right: 3, width: 16, height: 16, borderRadius: "50%", background: "#06d6a0", border: `2.5px solid ${C.bg}`, boxShadow: "0 0 6px rgba(6,214,160,.5)" }} />
+            <span style={{ position: "absolute", bottom: 3, right: 3, width: 16, height: 16, borderRadius: "50%", background: C.mint, border: `2.5px solid ${C.bg}`, boxShadow: `0 0 8px ${C.mint}70` }} />
           )}
           {uploading && <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ width: 16, height: 16, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin .7s linear infinite" }} /></div>}
         </div>
@@ -466,9 +466,9 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         {/* Stats card — clickable, premium-gated */}
         <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, display: "flex", marginBottom: 14, overflow: "hidden" }}>
           {[
-            { ico: "heart", val: stats.likesReceived, label: "喜歡我的", color: "#e8365d", panel: "liked_me" as const },
+            { ico: "heart", val: stats.likesReceived, label: "喜歡我的", color: C.rose, panel: "liked_me" as const },
             { ico: "star", val: stats.likesGiven, label: "我喜歡的", color: C.gold, panel: "i_liked" as const },
-            { ico: "chat", val: stats.matches, label: "配對成功", color: "#6c88f5", panel: "matches" as const },
+            { ico: "chat", val: stats.matches, label: "配對成功", color: C.superlike, panel: "matches" as const },
             { ico: "eye", val: stats.profileViews, label: "誰看過我", color: C.mint, panel: null },
           ].map((s, i) => (
             <div key={s.label} onClick={() => s.panel ? openStatsPanel(s.panel) : (!isPremiumUser && setStatsGate(true))}
@@ -487,7 +487,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         {/* Menu group 1 */}
         <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 14 }}>
           <SettingRow icon="user" label="個人資料" onClick={() => setActiveTab("edit")}
-            right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 13, color: comp >= 80 ? "#00d4aa" : C.gold, fontWeight: 700 }}>{comp}%</span><Si n="chevron" s={16} c={C.textMuted} /></div>} />
+            right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 13, color: comp >= 80 ? C.mint : C.gold, fontWeight: 700 }}>{comp}%</span><Si n="chevron" s={16} c={C.textMuted} /></div>} />
           <SettingRow icon="bookmark" label="我的收藏" right={<span style={{ fontSize: 11.5, color: C.textDim }}>即將推出</span>} />
           <SettingRow icon="gear" label="一般設定" onClick={() => setActiveTab("settings")} right={<Si n="chevron" s={16} c={C.textMuted} />} />
           <SettingRow icon="shield" label="隱私政策" onClick={() => setShowTerms("privacy")} right={<Si n="chevron" s={16} c={C.textMuted} />} />
@@ -504,7 +504,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         </div>
 
         {/* Logout */}
-        <button onClick={onLogout} style={{ width: "100%", padding: "15px", borderRadius: 14, background: "transparent", border: "1px solid rgba(232,54,93,0.35)", color: C.rose, fontFamily: "inherit", fontSize: 15, fontWeight: 600, cursor: "pointer", marginBottom: 8, transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(232,54,93,0.07)"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>登出帳號</button>
+        <button onClick={onLogout} style={{ width: "100%", padding: "15px", borderRadius: 14, background: "transparent", border: `1px solid ${C.rose}59`, color: C.rose, fontFamily: "inherit", fontSize: 15, fontWeight: 600, cursor: "pointer", marginBottom: 8, transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.background = C.roseSoft; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>登出帳號</button>
         <button onClick={() => setShowDelete(true)} style={{ width: "100%", padding: "11px", borderRadius: 14, background: "transparent", border: "none", color: C.textDim, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}>刪除帳號</button>
       </div>
 
@@ -512,7 +512,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
 
       {/* ── Stats Panel ── */}
       {statsPanel && (
-        <div style={{ position:"fixed",inset:0,zIndex:200,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.65)",backdropFilter:"blur(16px)" }} onClick={()=>setStatsPanel(null)}>
+        <div style={{ position:"fixed",inset:0,zIndex:200,display:"flex",justifyContent:"center",background:C.overlay,backdropFilter:"blur(16px)" }} onClick={()=>setStatsPanel(null)}>
           <div onClick={e=>e.stopPropagation()} style={{ width:"100%",maxWidth:480,margin:"0 auto",background:C.bgElevated,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",maxHeight:"82vh",display:"flex",flexDirection:"column" as const,position:"absolute",bottom:0,boxShadow:C.shadowStrong,animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
             {/* Handle */}
             <div style={{ padding:"14px 0 0",display:"flex",justifyContent:"center" }}><div style={{ width:40,height:5,borderRadius:3,background:C.borderHigh }}/></div>
@@ -598,7 +598,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                                 <div style={{ fontSize:12.5,marginTop:2,display:"flex",alignItems:"center",gap:6 }}>
                                   {item.direction==="superlike"
                                     ? <span style={{ color:C.gold,fontWeight:600 }}>✦ 優先認識</span>
-                                    : <span style={{ color:"#e8365d" }}>♥ 喜歡你</span>}
+                                    : <span style={{ color:C.rose }}>♥ 喜歡你</span>}
                                   <span style={{ color:C.textMuted }}>·</span>
                                   <span style={{ color:C.textMuted }}>{item.mbti}</span>
                                 </div>
@@ -635,7 +635,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <div style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.65, marginBottom: 28 }}>所有資料、配對、對話將永久刪除，無法復原。</div>
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={() => setShowDelete(false)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.surf, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: "inherit", fontSize: 14, cursor: "pointer" }}>取消</button>
-            <button disabled={deleting} onClick={confirmDeleteAccount} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.12)", border: "1px solid rgba(255,60,60,0.28)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: deleting ? "wait" : "pointer", opacity: deleting ? .6 : 1 }}>{deleting ? "刪除中…" : "確定刪除"}</button>
+            <button disabled={deleting} onClick={confirmDeleteAccount} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.dangerSoft, border: `1px solid ${C.danger}47`, color: C.danger, fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: deleting ? "wait" : "pointer", opacity: deleting ? .6 : 1 }}>{deleting ? "刪除中…" : "確定刪除"}</button>
           </div>
         </div>
       </BottomSheet>}
@@ -658,7 +658,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
     <div onTouchStart={onEditSwipeTouchStart} onTouchMove={onEditSwipeTouchMove} onTouchEnd={onEditSwipeTouchEnd}
       style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease",
         touchAction: "pan-y", transform: `translateX(${editSwipeDx}px)`, transition: editSwipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
-        boxShadow: editSwipeDx > 10 ? "-10px 0 30px rgba(0,0,0,0.6)" : "none" }}>
+        boxShadow: editSwipeDx > 10 ? "-12px 0 36px rgba(57,42,101,0.22)" : "none" }}>
       {/* Edit header bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 12px", borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: C.bg }}>
         <button onClick={() => setActiveTab("view")} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>‹</button>
@@ -676,10 +676,10 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             </div>
           </div>
           <div style={{ height: 4, background: C.surfHigh, borderRadius: 3, marginBottom: 8 }}>
-            <div style={{ height: "100%", width: `${comp}%`, background: "linear-gradient(90deg,#e8365d,#ff6b8a)", borderRadius: 3 }} />
+          <div style={{ height: "100%", width: `${comp}%`, background: C.gradRose, borderRadius: 3 }} />
           </div>
           <div style={{ fontSize: 12, color: C.textMuted }}>
-            再完成 <span style={{ color: "#00d4aa", fontWeight: 600 }}>{Math.ceil((100 - comp) / 10)}</span> 項可提升曝光率 <span style={{ color: "#00d4aa", fontWeight: 600 }}>25%</span>
+            再完成 <span style={{ color: C.mint, fontWeight: 600 }}>{Math.ceil((100 - comp) / 10)}</span> 項可提升曝光率 <span style={{ color: C.mint, fontWeight: 600 }}>25%</span>
           </div>
         </div>
 
@@ -727,7 +727,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 8 }}>
               {HOBBIES.map(h => {
                 const sel = hobbies.includes(h);
-                return <button key={h} onClick={() => setHobbies(sel ? hobbies.filter(x => x !== h) : [...hobbies, h])} style={{ padding: "7px 14px", borderRadius: 20, background: sel ? "rgba(232,54,93,0.15)" : "transparent", border: `1px solid ${sel ? C.rose : C.border}`, color: sel ? C.rose : C.textSub, fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: sel ? 600 : 400, transition: "all .15s" }}>{h}</button>;
+                return <button key={h} onClick={() => setHobbies(sel ? hobbies.filter(x => x !== h) : [...hobbies, h])} style={{ padding: "7px 14px", borderRadius: 20, background: sel ? C.roseSoft : "transparent", border: `1px solid ${sel ? C.rose : C.border}`, color: sel ? C.rose : C.textSub, fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: sel ? 600 : 400, transition: "all .15s" }}>{h}</button>;
               })}
             </div>
           </div>
@@ -756,13 +756,13 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>我的性別</div>
               <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
-                {(["male", "female"] as const).map(g => <button key={g} onClick={() => setGender(g)} style={{ padding: "10px", borderRadius: 12, background: gender === g ? "rgba(232,54,93,0.1)" : "transparent", border: `1px solid ${gender === g ? C.rose : C.border}`, color: gender === g ? C.rose : C.textSub, fontFamily: "inherit", fontSize: 13, cursor: "pointer", fontWeight: gender === g ? 600 : 400 }}>{g === "male" ? "♂ 男性" : "♀ 女性"}</button>)}
+                {(["male", "female"] as const).map(g => <button key={g} onClick={() => setGender(g)} style={{ padding: "10px", borderRadius: 12, background: gender === g ? C.roseSoft : "transparent", border: `1px solid ${gender === g ? C.rose : C.border}`, color: gender === g ? C.rose : C.textSub, fontFamily: "inherit", fontSize: 13, cursor: "pointer", fontWeight: gender === g ? 600 : 400 }}>{g === "male" ? "♂ 男性" : "♀ 女性"}</button>)}
               </div>
             </div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>尋找對象</div>
               <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
-                {["female", "male", "both"].map(g => <button key={g} onClick={() => setLookingFor(g)} style={{ padding: "10px", borderRadius: 12, background: lookingFor === g ? "rgba(232,54,93,0.1)" : "transparent", border: `1px solid ${lookingFor === g ? C.rose : C.border}`, color: lookingFor === g ? C.rose : C.textSub, fontFamily: "inherit", fontSize: 13, cursor: "pointer", fontWeight: lookingFor === g ? 600 : 400 }}>{g === "female" ? "女性" : g === "male" ? "男性" : "全部"}</button>)}
+                {["female", "male", "both"].map(g => <button key={g} onClick={() => setLookingFor(g)} style={{ padding: "10px", borderRadius: 12, background: lookingFor === g ? C.roseSoft : "transparent", border: `1px solid ${lookingFor === g ? C.rose : C.border}`, color: lookingFor === g ? C.rose : C.textSub, fontFamily: "inherit", fontSize: 13, cursor: "pointer", fontWeight: lookingFor === g ? 600 : 400 }}>{g === "female" ? "女性" : g === "male" ? "男性" : "全部"}</button>)}
               </div>
             </div>
           </div>
@@ -851,7 +851,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
               near={pinLat != null && pinLon != null ? { lat: pinLat, lon: pinLon } : null}
             />
             <div style={{ display: "flex", gap: 10, marginTop: 16, marginBottom: 16 }}>
-              <button onClick={handleLocate} disabled={locating} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(232,54,93,0.08)", border: `1px solid rgba(232,54,93,0.25)`, color: C.rose, fontFamily: "inherit", fontSize: 14, cursor: "pointer", opacity: locating ? .6 : 1 }}>
+              <button onClick={handleLocate} disabled={locating} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.roseSoft, border: `1px solid ${C.rose}40`, color: C.rose, fontFamily: "inherit", fontSize: 14, cursor: "pointer", opacity: locating ? .6 : 1 }}>
                 {locating ? "定位中..." : "📍 GPS 定位"}
               </button>
               <button onClick={() => { setLoc(editText); setEditField(null); }} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>確認</button>
@@ -972,7 +972,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
     <div onTouchStart={onSettingsSwipeTouchStart} onTouchMove={onSettingsSwipeTouchMove} onTouchEnd={onSettingsSwipeTouchEnd}
       style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease",
         touchAction: "pan-y", transform: `translateX(${settingsSwipeDx}px)`, transition: settingsSwipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
-        boxShadow: settingsSwipeDx > 10 ? "-10px 0 30px rgba(0,0,0,0.6)" : "none" }}>
+        boxShadow: settingsSwipeDx > 10 ? "-12px 0 36px rgba(57,42,101,0.22)" : "none" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 18px 12px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <button onClick={() => setActiveTab("view")} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>‹</button>
         <span style={{ fontSize: 16, fontWeight: 700, color: C.text }}>設定</span>
@@ -996,7 +996,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 24 }}>
           <SettingRow icon="box" label="導出我的數據" sub="下載你的所有資料（JSON）" right={<Si n="chevron" s={16} c={C.textMuted} />} onClick={async () => { await exportUserData(userId); }} last />
         </div>
-        <button onClick={onLogout} style={{ width: "100%", padding: "15px", borderRadius: 14, background: "transparent", border: "1px solid rgba(232,54,93,0.35)", color: C.rose, fontFamily: "inherit", fontSize: 15, fontWeight: 600, cursor: "pointer", marginBottom: 8, transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(232,54,93,0.07)"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>登出帳號</button>
+        <button onClick={onLogout} style={{ width: "100%", padding: "15px", borderRadius: 14, background: "transparent", border: `1px solid ${C.rose}59`, color: C.rose, fontFamily: "inherit", fontSize: 15, fontWeight: 600, cursor: "pointer", marginBottom: 8, transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.background = C.roseSoft; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>登出帳號</button>
         <button onClick={() => setShowDelete(true)} style={{ width: "100%", padding: "11px", borderRadius: 14, background: "transparent", border: "none", color: C.textDim, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}>刪除帳號</button>
       </div>
       {statsGate && (
@@ -1015,7 +1015,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <div style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.65, marginBottom: 28 }}>所有資料、配對、對話將永久刪除，無法復原。</div>
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={() => setShowDelete(false)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.surf, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: "inherit", fontSize: 14, cursor: "pointer" }}>取消</button>
-            <button disabled={deleting} onClick={confirmDeleteAccount} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "rgba(255,60,60,0.12)", border: "1px solid rgba(255,60,60,0.28)", color: "#FF6B6B", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: deleting ? "wait" : "pointer", opacity: deleting ? .6 : 1 }}>{deleting ? "刪除中…" : "確定刪除"}</button>
+            <button disabled={deleting} onClick={confirmDeleteAccount} style={{ flex: 1, padding: "13px", borderRadius: 14, background: C.dangerSoft, border: `1px solid ${C.danger}47`, color: C.danger, fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: deleting ? "wait" : "pointer", opacity: deleting ? .6 : 1 }}>{deleting ? "刪除中…" : "確定刪除"}</button>
           </div>
         </div>
       </BottomSheet>}

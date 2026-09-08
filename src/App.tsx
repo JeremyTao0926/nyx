@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { sb, C, WRAP, GLOBAL_CSS, getProfile, getMatches, getUnreadCount, updateProfile, uploadAvatar } from "./utils";
 import type { UserProfile, MatchItem } from "./types";
-import { LoginScreen, SplashScreen } from "./screens/AuthScreens";
+import { AccountSetupScreen, LoginScreen, SplashScreen } from "./screens/AuthScreens";
 import { initPush, removePush } from "./pushNotifications";
 import { ChatListScreen, RealChatScreen } from "./screens/ChatScreens";
 import { NyxChatScreen } from "./screens/NyxChatScreen";
@@ -10,6 +10,7 @@ import { ProfileScreen } from "./screens/ProfileScreen";
 import { OnboardingScreen } from "./screens/OnboardingScreen";
 import { isNativeApp } from "./platform";
 import { clearPendingAvatar, loadPendingAvatar } from "./pendingAvatar";
+import { listenForNativeAuthCallbacks } from "./auth";
 
 type Tab = "explore" | "chat" | "profile";
 
@@ -101,6 +102,10 @@ export default function App() {
   const [loadError, setLoadError] = useState("");
   const finishSplash = useCallback(() => { setSplashSeen(true); setResuming(false); }, []);
 
+  useEffect(() => listenForNativeAuthCallbacks(message => {
+    window.dispatchEvent(new CustomEvent("nyx:auth-error", { detail: message }));
+  }), []);
+
   useEffect(() => {
     sb.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) { setProfileLoading(true); setLoadError(""); setAuthed(true); setUserId(session.user.id); setSplashSeen(true); }
@@ -108,7 +113,7 @@ export default function App() {
     });
     const { data: { subscription } } = sb.auth.onAuthStateChange((_, session) => {
       if (session?.user) { setProfileLoading(true); setLoadError(""); setAuthed(true); setUserId(session.user.id); }
-      else { setAuthed(false); setUserId(null); setProfile(null); setLoadError(""); }
+      else { setAuthed(false); setUserId(null); setProfile(null); setLoadError(""); setShowOnboarding(false); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -179,16 +184,19 @@ export default function App() {
     const meta = au?.user?.user_metadata || {};
     const registrationProfile = meta.registration_profile as (Partial<UserProfile> & { onboarding_done?: boolean }) | undefined;
     if (!p) {
-      const email = au?.user?.email || "";
-      const uname = meta.username || email.split("@")[0] || "user";
+      const email = au?.user?.email || null;
+      const providerName = meta.full_name || meta.name || meta.display_name || "";
+      const fallbackName = au?.user?.phone ? `NYX ${au.user.phone.slice(-4)}` : "NYX Member";
+      const uname = meta.username || `nyx_${userId.replace(/-/g, "").slice(0, 10)}`;
       const { error } = await sb.from("profiles").upsert({
         id: userId,
         username: uname,
-        display_name: registrationProfile?.display_name || meta.display_name || uname,
+        display_name: registrationProfile?.display_name || providerName || (email ? email.split("@")[0] : fallbackName),
         email,
         birthday: registrationProfile?.birthday || meta.birthday || null,
         gender: registrationProfile?.gender || meta.gender || "male",
         mbti: registrationProfile?.mbti || meta.mbti || "INFP",
+        avatar_url: meta.avatar_url || meta.picture || null,
         onboarding_done: registrationProfile?.onboarding_done ?? false,
       }, { onConflict:"id", ignoreDuplicates:true });
       if (error) throw error;
@@ -203,6 +211,18 @@ export default function App() {
       } catch (error) {
         // Keep the metadata so the profile can be completed on the next load.
         console.error("Unable to apply registration profile", error);
+      }
+    }
+    if (p) {
+      const providerPatch: Record<string, unknown> = {};
+      const providerAvatar = meta.avatar_url || meta.picture;
+      const providerName = meta.full_name || meta.name;
+      if (au?.user?.email && !(p as UserProfile & { email?: string | null }).email) providerPatch.email = au.user.email;
+      if (providerAvatar && !p.avatar_url) providerPatch.avatar_url = providerAvatar;
+      if (providerName && (!p.display_name || p.display_name.startsWith("NYX "))) providerPatch.display_name = providerName;
+      if (Object.keys(providerPatch).length) {
+        await updateProfile(userId, providerPatch as Partial<UserProfile>);
+        p = { ...p, ...providerPatch } as UserProfile;
       }
     }
     const accountEmail = au?.user?.email;
@@ -221,7 +241,7 @@ export default function App() {
     }
     if (!p) throw new Error("Profile could not be created");
     setProfile(p);
-    if (!p.onboarding_done) setShowOnboarding(true);
+    setShowOnboarding(!p.onboarding_done);
     setMatches(await getMatches(userId));
     await loadUnread();
   }, [loadUnread, userId]);
@@ -358,7 +378,7 @@ export default function App() {
   async function logout() {
     if (userId) await removePush(userId).catch(() => {});
     await sb.auth.signOut();
-    setSplashSeen(false); setInChat(false); setActiveMatch(null);
+    setSplashSeen(false); setInChat(false); setActiveMatch(null); setShowOnboarding(false);
   }
   function updateLocal(patch: Partial<UserProfile>) { setProfile(p => p ? {...p,...patch} : p); }
 
@@ -390,6 +410,12 @@ export default function App() {
   </>;
   if (profile && ((profile as any).is_banned || (profile as any).is_active === false || (profile as any).deleted_at)) {
     return <><style>{GLOBAL_CSS}</style><BlockedScreen profile={profile} onLogout={logout}/></>;
+  }
+  if (!profile.birthday || !profile.username || !profile.display_name) {
+    return <>
+      <style>{GLOBAL_CSS}</style>
+      <AccountSetupScreen userId={userId!} profile={profile} onLogout={logout} onComplete={patch => updateLocal(patch)}/>
+    </>;
   }
 
 
@@ -507,7 +533,7 @@ function BlockedScreen({ profile, onLogout }: { profile: any; onLogout: () => vo
         </div>
       )}
       {rejected && !showForm && (
-        <div style={{ background:"rgba(232,54,93,0.08)", border:"1px solid rgba(232,54,93,0.3)", borderRadius:12, padding:"12px 18px", fontSize:13, color:C.rose, lineHeight:1.6, maxWidth:320 }}>
+        <div style={{ background:C.dangerSoft, border:`1px solid ${C.danger}4d`, borderRadius:12, padding:"12px 18px", fontSize:13, color:C.danger, lineHeight:1.6, maxWidth:320 }}>
           上次申訴已被駁回{appeal.admin_note ? `：${appeal.admin_note}` : ""}
         </div>
       )}

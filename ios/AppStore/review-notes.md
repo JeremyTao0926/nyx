@@ -23,4 +23,11 @@ NYX is an adults-only dating and social discovery app. The onboarding enforces a
 - nyx_premium_plus_monthly
 - RevenueCat entitlement: premium
 
-No third-party social login is offered. Email/password is the only sign-in method.
+## Sign-in methods
+
+- Email/password
+- Sign in with Google
+- Sign in with Apple
+- Phone number with one-time SMS code
+
+First-time Google, Apple, and phone users must complete a display name, unique username, and an 18+ birth date before the discovery interface is available. OAuth opens in the iOS system browser and returns through the registered `nyx://auth/callback` URL scheme.

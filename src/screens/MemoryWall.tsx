@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { C, getMemories, getBondInfo, fmtDate } from "../utils";
 import type { Memory, BondInfo } from "../utils";
 
-const BOND_COLORS = ["rgba(103,87,217,0.30)","rgba(103,87,217,0.50)","rgba(239,95,122,0.40)","rgba(239,95,122,0.60)","rgba(103,87,217,0.80)"];
 const MEMORY_ICONS: Record<string, string> = { encounter:"✦", spark:"♥", milestone:"★", first_message:"💬" };
 const MEMORY_COLORS: Record<string, string> = { encounter:C.gold, spark:C.rose, milestone:C.mint, first_message:C.textSub };
 
@@ -10,7 +9,7 @@ function BondRing({ level, chemistry }: { level: number; chemistry: number }) {
   const circumference = 2 * Math.PI * 28;
   const dash = (chemistry / 100) * circumference;
   return (
-    <div style={{ position:"relative", width:80, height:80, flexShrink:0 }}>
+    <div aria-label={`關係等級 ${level}，化學值 ${chemistry}`} style={{ position:"relative", width:80, height:80, flexShrink:0 }}>
       <svg width="80" height="80" style={{ transform:"rotate(-90deg)" }}>
         <circle cx="40" cy="40" r="28" fill="none" stroke={C.surfHigh} strokeWidth="4"/>
         <circle cx="40" cy="40" r="28" fill="none" stroke={C.gold} strokeWidth="4"
@@ -19,7 +18,7 @@ function BondRing({ level, chemistry }: { level: number; chemistry: number }) {
       </svg>
       <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
         <div style={{ fontSize:16, fontWeight:800, color:C.gold, lineHeight:1 }}>{chemistry}</div>
-        <div style={{ fontSize:8.5, color:C.textMuted, marginTop:1 }}>化學值</div>
+        <div style={{ fontSize:8.5, color:C.textMuted, marginTop:1 }}>Lv.{level}</div>
       </div>
     </div>
   );
@@ -53,11 +52,11 @@ export function MemoryWall({ matchId, otherName, onClose }: { matchId: string; o
   }
 
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:250, background:"rgba(0,0,0,0.6)", display:"flex", justifyContent:"center", animation:"fadeIn .2s ease" }}>
+    <div style={{ position:"fixed", inset:0, zIndex:250, background:C.overlay, display:"flex", justifyContent:"center", animation:"fadeIn .2s ease", backdropFilter:"blur(10px)" }}>
       <div onTouchStart={onSwipeTouchStart} onTouchMove={onSwipeTouchMove} onTouchEnd={onSwipeTouchEnd}
         style={{ width:"100%", maxWidth:480, background:C.bg, display:"flex", flexDirection:"column", height:"100%", position:"relative",
           touchAction:"pan-y", transform:`translateX(${swipeDx}px)`, transition:swipeDx===0?"transform .3s cubic-bezier(.32,.72,0,1)":"none",
-          boxShadow:swipeDx>10?"-10px 0 30px rgba(0,0,0,0.6)":"none" }}>
+          boxShadow:swipeDx>10?"-12px 0 36px rgba(57,42,101,0.22)":"none" }}>
       {/* Header */}
       <div style={{ padding:"52px 16px 16px", background:C.nav, backdropFilter:"blur(24px) saturate(145%)", borderBottom:`1px solid ${C.border}` }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>

@@ -11,7 +11,14 @@ export const SUPABASE_KEY =
 export const GROQ_URL     = "https://api.groq.com/openai/v1/chat/completions";
 export const TEXT_MODEL   = "llama-3.3-70b-versatile";
 export const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
-export const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+export const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    flowType: "pkce",
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 
 /** Turn provider/network auth failures into short, actionable UI copy. */
 export function authErrorMessage(error: unknown, fallback = "操作失敗，請稍後再試"): string {
@@ -25,6 +32,10 @@ export function authErrorMessage(error: unknown, fallback = "操作失敗，請�
   if (normalized.includes("email not confirmed")) return "請先確認信箱中的驗證郵件";
   if (normalized.includes("invalid login")) return "帳號或密碼錯誤";
   if (normalized.includes("user already registered")) return "這個電子郵件已經註冊";
+  if (normalized.includes("provider is not enabled") || normalized.includes("unsupported provider")) return "這個登入方式尚未在服務端啟用";
+  if (normalized.includes("sms") && (normalized.includes("provider") || normalized.includes("send"))) return "驗證短訊暫時無法送出，請稍後再試";
+  if (normalized.includes("token has expired") || normalized.includes("otp expired")) return "驗證碼已過期，請重新取得";
+  if (normalized.includes("invalid token") || normalized.includes("invalid otp")) return "驗證碼不正確，請重新輸入";
   if (
     normalized.includes("failed to fetch") ||
     normalized.includes("fetch failed") ||
@@ -43,12 +54,12 @@ export function authErrorMessage(error: unknown, fallback = "操作失敗，請�
    coral accent, so every screen can migrate without a risky big-bang rename. */
 export const C = {
   bg:           "#F7F7FC",
-  bgCard:       "rgba(255,255,255,0.92)",
+  bgCard:       "rgba(255,255,255,0.94)",
   bgElevated:   "#FFFFFF",
   bgGold:       "#F0EEFF",
-  surf:         "rgba(92,72,172,0.055)",
-  surfHigh:     "rgba(92,72,172,0.095)",
-  surfGold:     "rgba(103,87,217,0.075)",
+  surf:         "rgba(92,72,172,0.06)",
+  surfHigh:     "rgba(92,72,172,0.105)",
+  surfGold:     "rgba(103,87,217,0.09)",
   gold:         "#6757D9",
   goldLight:    "#8B7FF0",
   goldSoft:     "rgba(103,87,217,0.12)",
@@ -60,6 +71,12 @@ export const C = {
   mintSoft:     "rgba(22,165,137,0.11)",
   superlike:    "#4F7FEA",
   superlikeSoft:"rgba(79,127,234,0.11)",
+  danger:       "#D94B63",
+  dangerSoft:   "rgba(217,75,99,0.10)",
+  warning:      "#E89032",
+  white:        "#FFFFFF",
+  overlay:      "rgba(36,30,53,0.46)",
+  overlayStrong:"rgba(25,18,43,0.92)",
   get pink()      { return this.rose; },
   get violet()    { return this.gold; },
   get pinkSoft()  { return this.roseSoft; },
@@ -70,18 +87,19 @@ export const C = {
   textSub:      "rgba(36,30,53,0.70)",
   textMuted:    "rgba(36,30,53,0.48)",
   textDim:      "rgba(36,30,53,0.30)",
-  border:       "rgba(68,52,112,0.12)",
-  borderHigh:   "rgba(68,52,112,0.22)",
+  border:       "rgba(68,52,112,0.13)",
+  borderHigh:   "rgba(68,52,112,0.23)",
   borderFocus:  "rgba(103,87,217,0.48)",
-  nav:          "rgba(255,255,255,0.88)",
-  glass:        "rgba(255,255,255,0.78)",
-  shadow:       "0 12px 34px rgba(57,42,101,0.10)",
-  shadowStrong: "0 22px 60px rgba(57,42,101,0.16)",
+  nav:          "rgba(255,255,255,0.90)",
+  glass:        "rgba(255,255,255,0.82)",
+  shadow:       "0 14px 38px rgba(57,42,101,0.10)",
+  shadowStrong: "0 24px 70px rgba(57,42,101,0.17)",
   grad:         "linear-gradient(135deg,#6757D9,#8B7FF0)",
   gradRose:     "linear-gradient(135deg,#EF5F7A,#FF8A82)",
   gradMint:     "linear-gradient(135deg,#16A589,#45CBB1)",
   gradGold:     "linear-gradient(135deg,#6757D9,#8B7FF0)",
   gradSuper:    "linear-gradient(135deg,#4F7FEA,#7EA7FF)",
+  gradAmbient:  "radial-gradient(circle at 18% 8%,rgba(103,87,217,.17),transparent 34%),radial-gradient(circle at 90% 24%,rgba(239,95,122,.13),transparent 30%),linear-gradient(180deg,#FCFBFF,#F7F7FC)",
   gradDark:     "linear-gradient(180deg,transparent,rgba(25,18,43,0.92))",
 };
 
@@ -219,11 +237,12 @@ export async function lookupEmailByUsername(username: string): Promise<string | 
   return data?.email || null;
 }
 
-export async function checkUsernameAvailable(username: string): Promise<boolean> {
+export async function checkUsernameAvailable(username: string, currentUserId?: string): Promise<boolean> {
   const clean = username.toLowerCase().trim();
   if (!/^[a-z0-9_]{3,20}$/.test(clean)) return false;
-  const { data } = await sb.from("profiles").select("id").eq("username", clean).maybeSingle();
-  return !data;
+  const { data, error } = await sb.from("profiles").select("id").eq("username", clean).maybeSingle();
+  if (error) throw error;
+  return !data || data.id === currentUserId;
 }
 
 export async function getOrCreateConv(uid: string): Promise<string> {
