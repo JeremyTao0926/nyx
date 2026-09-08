@@ -12,7 +12,7 @@ const PLANS = [
     period: "/月",
     priceId: "price_1TqL4EFGW7LQlHklKIg92RYJ",
     color: C.gold,
-    gradient: "linear-gradient(135deg,#C9A84C,#E2C068)",
+    gradient: C.grad,
     features: [
       "無限喜歡",
       "查看所有喜歡你的人",
@@ -28,14 +28,14 @@ const PLANS = [
     price: "$19.99",
     period: "/月",
     priceId: "price_1TqL4jFGW7LQlHklwP3jaMK9",
-    color: "#A78BFA",
-    gradient: "linear-gradient(135deg,#7C3AED,#A78BFA)",
+    color: C.rose,
+    gradient: "linear-gradient(135deg,#7C67EA,#EF5F7A)",
     badge: "最受歡迎",
     features: [
       "以上 Premium 全部功能",
       "Clone 進階 AI × 50次/天",
       "Boost × 1/週（曝光提升）",
-      "VIP 金色徽章",
+      "VIP 紫晶徽章",
       "優先客服支援",
     ],
   },
@@ -158,7 +158,7 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
       <div style={{ padding: "0 20px 48px" }}>
         {/* Already subscribed banner */}
         {(profile as any)?.is_premium && (
-          <div style={{ background:"rgba(201,168,76,0.08)", border:"1px solid rgba(201,168,76,0.25)", borderRadius:16, padding:"16px 18px", marginBottom:20, display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ background:C.goldSoft, border:`1px solid ${C.borderHigh}`, borderRadius:16, padding:"16px 18px", marginBottom:20, display:"flex", alignItems:"center", gap:12 }}>
             <div style={{ fontSize:24 }}>✦</div>
             <div>
               <div style={{ fontSize:14, fontWeight:700, color:C.gold }}>
@@ -186,7 +186,7 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
 
         {/* Plan cards */}
         {PLANS.map(plan => (
-          <div key={plan.id} style={{ background: C.bgCard, borderRadius: 20, border: `1.5px solid ${plan.id === "premium_plus" ? plan.color + "55" : C.border}`, padding: "22px 20px", marginBottom: 16, position: "relative" as const }}>
+          <div key={plan.id} style={{ background: C.bgCard, borderRadius: 20, border: `1.5px solid ${plan.id === "premium_plus" ? plan.color + "55" : C.border}`, padding: "22px 20px", marginBottom: 16, position: "relative" as const, boxShadow:C.shadow }}>
             {plan.badge && (
               <div style={{ position: "absolute" as const, top: -12, left: "50%", transform: "translateX(-50%)", background: plan.gradient, color: "#fff", fontSize: 11.5, fontWeight: 700, padding: "4px 14px", borderRadius: 20, whiteSpace: "nowrap" as const }}>
                 {plan.badge}
@@ -213,7 +213,7 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
             <button
               onClick={() => handleUpgrade(plan)}
               disabled={loading === plan.id || (profile as any)?.premium_plan === plan.id || (isIOSNative && !iosPrices[plan.id])}
-              style={{ width: "100%", padding: "14px", borderRadius: 50, background: loading === plan.id ? "rgba(255,255,255,0.06)" : plan.gradient, border: "none", color: loading === plan.id ? C.textMuted : (plan.id === "premium" ? "#12100C" : "#fff"), fontFamily: "inherit", fontSize: 15, fontWeight: 800, cursor: loading === plan.id ? "default" : "pointer", marginTop: 16, transition: "all .2s", boxShadow: loading === plan.id ? "none" : `0 4px 20px ${plan.color}44` }}>
+              style={{ width: "100%", padding: "14px", borderRadius: 50, background: loading === plan.id ? C.surfHigh : plan.gradient, border: "none", color: loading === plan.id ? C.textMuted : "#fff", fontFamily: "inherit", fontSize: 15, fontWeight: 800, cursor: loading === plan.id ? "default" : "pointer", marginTop: 16, transition: "all .2s", boxShadow: loading === plan.id ? "none" : `0 6px 20px ${plan.color}44` }}>
               {loading === plan.id ? "處理中..."
                 : isIOSNative && iosPriceError ? "App Store 暫時無法連線"
                 : isIOSNative && !iosPrices[plan.id] ? "載入 App Store 價格…"

@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#C9A84C"/>
-      <stop offset="100%" stop-color="#E2C068"/>
+    <linearGradient id="violet" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6757D9"/>
+      <stop offset="100%" stop-color="#8B7FF0"/>
     </linearGradient>
   </defs>
-  <path fill="url(#gold)" d="M512,192 L589.8,434.2 L832,512 L589.8,589.8 L512,832 L434.2,589.8 L192,512 L434.2,434.2 Z"/>
-  <path fill="url(#gold)" opacity="0.82" d="M756,236 L780,306 L850,330 L780,354 L756,424 L732,354 L662,330 L732,306 Z"/>
+  <path fill="url(#violet)" d="M512,192 L589.8,434.2 L832,512 L589.8,589.8 L512,832 L434.2,589.8 L192,512 L434.2,434.2 Z"/>
+  <path fill="#EF5F7A" opacity="0.88" d="M756,236 L780,306 L850,330 L780,354 L756,424 L732,354 L662,330 L732,306 Z"/>
 </svg>

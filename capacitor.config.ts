@@ -4,11 +4,11 @@ const config: CapacitorConfig = {
   appId: "com.jeremytao.nyx",
   appName: "NYX",
   webDir: "dist",
-  backgroundColor: "#090907",
+  backgroundColor: "#F7F7FC",
   ios: { contentInset: "never", preferredContentMode: "mobile" },
   plugins: {
-    SplashScreen: { launchShowDuration: 1200, backgroundColor: "#090907", showSpinner: false },
-    StatusBar: { style: "LIGHT", backgroundColor: "#090907" },
+    SplashScreen: { launchShowDuration: 1200, backgroundColor: "#F7F7FC", showSpinner: false },
+    StatusBar: { style: "DARK", backgroundColor: "#F7F7FC" },
   },
 };
 

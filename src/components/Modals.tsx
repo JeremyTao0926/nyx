@@ -47,9 +47,9 @@ export function BottomSheet({ children, onClose, title, maxH="86vh" }:
           onTouchMove={onHandleTouchMove}
           onTouchEnd={onHandleTouchEnd}
           style={{ padding:"14px 0 8px",display:"flex",flexDirection:"column" as const,alignItems:"center",cursor:"grab",userSelect:"none" as const,touchAction:"none" }}>
-          <div style={{ width:44,height:5,borderRadius:3,background:"rgba(255,255,255,0.18)",transition:"background .15s" }}
-            onMouseEnter={e=>(e.currentTarget.style.background="rgba(255,255,255,0.32)")}
-            onMouseLeave={e=>(e.currentTarget.style.background="rgba(255,255,255,0.18)")}/>
+          <div style={{ width:44,height:5,borderRadius:3,background:C.borderHigh,transition:"background .15s" }}
+            onMouseEnter={e=>(e.currentTarget.style.background=C.textDim)}
+            onMouseLeave={e=>(e.currentTarget.style.background=C.borderHigh)}/>
         </div>
         {title && <div style={{ padding:"4px 20px 0",fontSize:17,fontWeight:700,color:C.text }}>{title}</div>}
         {children}
@@ -69,7 +69,7 @@ export function Select({ value, options, onChange, label }:{ value:string; optio
       <span>{value||"請選擇"}</span>
       <span style={{ transform:open?"rotate(180deg)":"none",transition:"transform .2s",fontSize:10,opacity:.5 }}>▼</span>
     </button>
-    {open&&<div style={{ position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"rgba(20,20,32,0.99)",backdropFilter:"blur(24px)",border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden",zIndex:200,maxHeight:220,overflowY:"auto",boxShadow:"0 16px 48px rgba(0,0,0,0.5)",animation:"dropDown .18s ease" }}>
+    {open&&<div style={{ position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:C.bgElevated,backdropFilter:"blur(24px)",border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden",zIndex:200,maxHeight:220,overflowY:"auto",boxShadow:C.shadowStrong,animation:"dropDown .18s ease" }}>
       {options.map(o=><button key={o} onClick={()=>{onChange(o);setOpen(false);sound.tap();}} style={{ width:"100%",padding:"11px 16px",background:value===o?C.roseSoft:"transparent",border:"none",color:value===o?C.rose:C.text,fontFamily:"inherit",fontSize:13.5,cursor:"pointer",textAlign:"left" as const,display:"block",fontWeight:value===o?600:400,transition:"background .12s" }} onMouseEnter={e=>(e.currentTarget.style.background=C.surf)} onMouseLeave={e=>(e.currentTarget.style.background=value===o?C.roseSoft:"transparent")}>{o}</button>)}
     </div>}
   </div>;
@@ -86,7 +86,7 @@ export function MultiSelect({ label, options, value, onChange, color=C.rose }:{ 
       <span style={{ overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,flex:1,textAlign:"left" as const }}>{value.length?value.join("、"):"請選擇（可多選）"}</span>
       <span style={{ transform:open?"rotate(180deg)":"none",transition:"transform .2s",fontSize:10,opacity:.5,flexShrink:0 }}>▼</span>
     </button>
-    {open&&<div style={{ position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"rgba(20,20,32,0.99)",backdropFilter:"blur(24px)",border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden",zIndex:200,maxHeight:260,overflowY:"auto",boxShadow:"0 16px 48px rgba(0,0,0,0.5)",animation:"dropDown .18s ease" }}>
+    {open&&<div style={{ position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:C.bgElevated,backdropFilter:"blur(24px)",border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden",zIndex:200,maxHeight:260,overflowY:"auto",boxShadow:C.shadowStrong,animation:"dropDown .18s ease" }}>
       {options.map(o=>{const sel=value.includes(o);return<button key={o} onClick={()=>{onChange(sel?value.filter(x=>x!==o):[...value,o]);sound.tap();}} style={{ width:"100%",padding:"11px 16px",background:sel?"rgba(232,54,93,0.08)":"transparent",border:"none",color:sel?color:C.text,fontFamily:"inherit",fontSize:13.5,cursor:"pointer",textAlign:"left" as const,display:"flex",alignItems:"center",gap:12,fontWeight:sel?600:400,transition:"background .12s" }} onMouseEnter={e=>(e.currentTarget.style.background=C.surf)} onMouseLeave={e=>(e.currentTarget.style.background=sel?"rgba(232,54,93,0.08)":"transparent")}>
         <span style={{ width:18,height:18,borderRadius:5,border:`1.5px solid ${sel?color:C.border}`,background:sel?color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",flexShrink:0,transition:"all .15s" }}>{sel?"✓":""}</span>{o}
       </button>;})}
@@ -107,7 +107,7 @@ export function MbtiSheet({ mbti, onSelect, onClose }:{ mbti:string; onSelect:(m
 
 /* ─── EmojiPanel ─────────────────────────────────────── */
 export function EmojiPanel({ onPick, onClose }:{ onPick:(e:string)=>void; onClose:()=>void }) {
-  return <div style={{ position:"absolute",bottom:"calc(100% + 6px)",left:0,right:0,zIndex:50,background:"rgba(20,20,32,0.99)",backdropFilter:"blur(24px)",border:`1px solid ${C.border}`,borderRadius:18,padding:"14px 12px 10px",animation:"emojiUp .2s ease",boxShadow:"0 -4px 32px rgba(0,0,0,0.45)" }}>
+  return <div style={{ position:"absolute",bottom:"calc(100% + 6px)",left:0,right:0,zIndex:50,background:C.bgElevated,backdropFilter:"blur(24px)",border:`1px solid ${C.border}`,borderRadius:18,padding:"14px 12px 10px",animation:"emojiUp .2s ease",boxShadow:C.shadowStrong }}>
     <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
       <span style={{ fontSize:11,color:C.textMuted,letterSpacing:.5 }}>表情</span>
       <button onClick={onClose} style={{ background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:16,lineHeight:1 }}>✕</button>
@@ -183,7 +183,7 @@ export function SimulateModal({ onEnter, onClose }:{ onEnter:(imgs:ImgItem[],mod
         </div>
         <input ref={fRef} type="file" accept="image/*" multiple style={{ display:"none" }} onChange={e=>{if(e.target.files)addImgs(e.target.files);}}/>
         <div style={{ fontSize:12,color:C.textDim,marginBottom:18 }}>已選 {imgs.length}/10 張</div>
-        <button onClick={()=>imgs.length>0&&setStep("choose")} style={{ width:"100%",padding:"14px",borderRadius:14,background:imgs.length>0?C.grad:"rgba(255,255,255,0.05)",border:`1px solid ${imgs.length>0?"transparent":C.border}`,color:imgs.length>0?"#fff":C.textDim,fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:imgs.length>0?"pointer":"default" }}>{imgs.length===0?"請先上傳截圖":"下一步 →"}</button>
+        <button onClick={()=>imgs.length>0&&setStep("choose")} style={{ width:"100%",padding:"14px",borderRadius:14,background:imgs.length>0?C.grad:C.surf,border:`1px solid ${imgs.length>0?"transparent":C.border}`,color:imgs.length>0?"#fff":C.textDim,fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:imgs.length>0?"pointer":"default" }}>{imgs.length===0?"請先上傳截圖":"下一步 →"}</button>
         <button onClick={onClose} style={{ width:"100%",marginTop:10,padding:"12px",borderRadius:14,background:"transparent",border:`1px solid ${C.border}`,color:C.textMuted,fontFamily:"inherit",fontSize:14,cursor:"pointer" }}>取消</button>
       </>}
       {step==="choose"&&<>

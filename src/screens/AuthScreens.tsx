@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { sb, C, sound, calcAge, MBTI_LIST, HOBBIES, lookupEmailByUsername, checkUsernameAvailable, reverseGeocode, searchCities, formatLocation } from "../utils";
+import { sb, C, sound, calcAge, MBTI_LIST, HOBBIES, lookupEmailByUsername, checkUsernameAvailable, reverseGeocode, searchCities, formatLocation, authErrorMessage } from "../utils";
 import { CherryBlossoms } from "../components/Atoms";
 import { ImageCropper } from "../components/ImageCropper";
 import { clearPendingAvatar, savePendingAvatar } from "../pendingAvatar";
@@ -7,7 +7,7 @@ import { clearPendingAvatar, savePendingAvatar } from "../pendingAvatar";
 /* ─── Shared input style ─────────────────────────────── */
 const INP = {
   width: "100%", padding: "14px 16px",
-  background: "rgba(255,255,255,0.05)",
+  background: C.surf,
   border: `1px solid ${C.border}`,
   borderRadius: 14, color: C.text, fontSize: 15,
   outline: "none", fontFamily: "inherit",
@@ -20,7 +20,7 @@ function StepBar({ step, total }: { step: number; total: number }) {
   return (
     <div style={{ display: "flex", gap: 4, marginBottom: 32 }}>
       {Array.from({ length: total }, (_, i) => (
-        <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i < step ? C.rose : "rgba(255,255,255,0.12)", transition: "background .3s" }} />
+        <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i < step ? C.rose : C.surfHigh, transition: "background .3s" }} />
       ))}
     </div>
   );
@@ -45,13 +45,9 @@ function LoginForm({ onSwitch, onLogin }: { onSwitch: () => void; onLogin: () =>
         email = found;
       }
       const { error } = await sb.auth.signInWithPassword({ email, password: pass });
-      if (error) {
-        if (error.message.includes("Email not confirmed")) throw new Error("請先確認信箱中的驗證郵件");
-        if (error.message.includes("Invalid login")) throw new Error("帳號或密碼錯誤");
-        throw error;
-      }
+      if (error) throw error;
       onLogin();
-    } catch (e: any) { setErr(e.message ?? "登入失敗"); }
+    } catch (error: unknown) { setErr(authErrorMessage(error, "登入失敗，請稍後再試")); }
     setLoading(false);
   }
 
@@ -183,7 +179,7 @@ function Step3({ onNext }: { onNext: (gender: "male" | "female") => void }) {
         </button>
       ))}
       <button onClick={() => selected && onNext(selected)} disabled={!selected}
-        style={{ width: "100%", padding: "15px", borderRadius: 50, background: selected ? C.grad : "rgba(255,255,255,0.07)", border: "none", color: selected ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: selected ? "pointer" : "default", marginTop: 8, transition: "all .25s" }}>
+        style={{ width: "100%", padding: "15px", borderRadius: 50, background: selected ? C.grad : C.surfHigh, border: "none", color: selected ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: selected ? "pointer" : "default", marginTop: 8, transition: "all .25s" }}>
         繼續 →
       </button>
     </div>
@@ -207,7 +203,7 @@ function Step4({ onNext }: { onNext: (lookingFor: string) => void }) {
         </button>
       ))}
       <button onClick={() => selected && onNext(selected)} disabled={!selected}
-        style={{ width: "100%", padding: "15px", borderRadius: 50, background: selected ? C.grad : "rgba(255,255,255,0.07)", border: "none", color: selected ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: selected ? "pointer" : "default", marginTop: 8, transition: "all .25s" }}>
+        style={{ width: "100%", padding: "15px", borderRadius: 50, background: selected ? C.grad : C.surfHigh, border: "none", color: selected ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: selected ? "pointer" : "default", marginTop: 8, transition: "all .25s" }}>
         繼續 →
       </button>
     </div>
@@ -245,7 +241,7 @@ function Step5({ onNext }: { onNext: (avatarUrl: string, blob: Blob) => void }) 
       onMouseEnter={e => !preview && ((e.currentTarget as HTMLElement).style.borderColor = C.rose)}
       onMouseLeave={e => !preview && ((e.currentTarget as HTMLElement).style.borderColor = C.border)}>
       {uploading ? (
-        <div style={{ width: 32, height: 32, border: `3px solid rgba(255,255,255,0.2)`, borderTopColor: C.rose, borderRadius: "50%", animation: "spin .7s linear infinite" }} />
+        <div style={{ width: 32, height: 32, border: `3px solid ${C.borderHigh}`, borderTopColor: C.rose, borderRadius: "50%", animation: "spin .7s linear infinite" }} />
       ) : preview ? (
         <div style={{ position: "absolute", bottom: 8, right: 8, width: 32, height: 32, borderRadius: "50%", background: C.rose, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>✎</div>
       ) : (
@@ -258,7 +254,7 @@ function Step5({ onNext }: { onNext: (avatarUrl: string, blob: Blob) => void }) 
     {err && <div style={{ fontSize: 13, color: C.rose, textAlign: "center", marginBottom: 12 }}>{err}</div>}
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <button onClick={() => preview && pendingBlob && onNext(preview, pendingBlob)} disabled={!preview || uploading}
-        style={{ width: "100%", padding: "15px", borderRadius: 50, background: preview ? C.grad : "rgba(255,255,255,0.07)", border: "none", color: preview ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: preview ? "pointer" : "default", transition: "all .25s" }}>
+        style={{ width: "100%", padding: "15px", borderRadius: 50, background: preview ? C.grad : C.surfHigh, border: "none", color: preview ? "#fff" : C.textDim, fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: preview ? "pointer" : "default", transition: "all .25s" }}>
         {uploading ? "上傳中..." : "繼續 →"}
       </button>
     </div>
@@ -318,7 +314,7 @@ function Step6({ onNext }: { onNext: (city: string, lat?: number, lon?: number) 
     <div style={{ display: "flex", gap: 10, marginBottom: 20, position:"relative" }}>
       <div style={{ flex:1, minWidth:0, position:"relative" }}>
       <input aria-label="城市或國家" aria-expanded={resultsOpen} aria-controls="registration-city-results" autoComplete="address-level2" value={city} onChange={e => handleCityInput(e.target.value)} placeholder="輸入城市或國家" style={{ ...INP, width:"100%" }} onFocus={e => { e.target.style.borderColor = C.borderFocus; if (results.length) setResultsOpen(true); }} onBlur={e => { e.target.style.borderColor = C.border; setTimeout(() => setResultsOpen(false), 180); }} />
-      {resultsOpen && <div id="registration-city-results" style={{ position:"absolute", top:"calc(100% + 5px)", left:0, right:0, zIndex:20, maxHeight:190, overflowY:"auto", background:"rgba(20,18,14,.98)", border:`1px solid ${C.border}`, borderRadius:14, boxShadow:"0 16px 40px rgba(0,0,0,.55)" }}>
+      {resultsOpen && <div id="registration-city-results" style={{ position:"absolute", top:"calc(100% + 5px)", left:0, right:0, zIndex:20, maxHeight:190, overflowY:"auto", background:C.bgElevated, border:`1px solid ${C.border}`, borderRadius:14, boxShadow:C.shadowStrong }}>
         {results.map((result, index) => <button key={`${result.lat}-${result.lon}`} type="button" onClick={() => { const label=formatLocation(result.name,result.state,result.country); setCity(label); setCoords({lat:result.lat,lon:result.lon}); setResultsOpen(false); }} style={{ width:"100%", minHeight:48, padding:"10px 12px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, background:"transparent", border:"none", borderBottom:index<results.length-1?`1px solid ${C.border}`:"none", color:C.text, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
           <span style={{ fontSize:13.5, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>📍 {result.name}</span>
           <span style={{ fontSize:11, color:C.textMuted, textAlign:"right" }}>{[result.state,result.country].filter(Boolean).join(", ")}</span>
@@ -443,9 +439,9 @@ function RegisterFlow({ onBack }: { onBack: () => void }) {
       const uid = authData.user?.id;
       if (!uid) throw new Error("無法取得用戶 ID，請重試");
       setSentEmail(d.email);
-    } catch (error) {
+    } catch (error: unknown) {
       await clearPendingAvatar(d.email).catch(() => undefined);
-      alert(error instanceof Error ? error.message : "註冊失敗，請重試");
+      alert(authErrorMessage(error, "註冊失敗，請重試"));
     }
   }
 
@@ -504,7 +500,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
         {/* Buttons */}
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           <button onClick={() => { sound.tap(); setMode("register"); }}
-            style={{ width:"100%", padding:"16px", borderRadius:50, background:C.grad, border:"none", color:C.bg, fontFamily:"inherit", fontSize:16, fontWeight:800, cursor:"pointer", letterSpacing:"0.01em", boxShadow:`0 4px 24px ${C.goldGlow}` }}>
+            style={{ width:"100%", padding:"16px", borderRadius:50, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:16, fontWeight:800, cursor:"pointer", letterSpacing:"0.01em", boxShadow:`0 8px 28px ${C.goldGlow}` }}>
             開始探索
           </button>
           <button onClick={() => { sound.tap(); setMode("login"); }}
@@ -529,7 +525,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
           {mode === "login" && <button onClick={() => setMode("landing")} aria-label="返回首頁" style={{ position:"absolute", top:48, left:16, background:"rgba(12,10,8,0.5)", backdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"50%", width:44, height:44, color:"#fff", fontSize:20, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center" }}>‹</button>}
 
           {/* Glass card */}
-          <div style={{ background:"rgba(20,18,14,0.82)", backdropFilter:"blur(24px)", borderRadius:24, border:"1px solid rgba(201,168,76,0.15)", padding:"28px 24px 24px", animation:"fadeUp .4s ease" }}>
+          <div style={{ background:"rgba(255,255,255,0.88)", backdropFilter:"blur(28px) saturate(145%)", borderRadius:24, border:`1px solid ${C.borderHigh}`, padding:"28px 24px 24px", boxShadow:C.shadowStrong, animation:"fadeUp .4s ease" }}>
             {mode === "login" ? (
               <>
                 <div style={{ fontSize:24, fontWeight:800, color:C.text, marginBottom:4 }}>歡迎回來</div>

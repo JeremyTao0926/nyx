@@ -1,36 +1,36 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   font-family: Inter, ui-rounded, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Noto Sans TC", sans-serif;
-  color: #f7f1e3;
-  background: #070706;
+  color: #241e35;
+  background: #f7f7fc;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --nyx-bg: #090907;
-  --nyx-surface: rgba(28, 26, 22, 0.76);
-  --nyx-gold: #e0ba5a;
-  --nyx-line: rgba(224, 186, 90, 0.14);
+  --nyx-bg: #f7f7fc;
+  --nyx-surface: rgba(255, 255, 255, 0.88);
+  --nyx-gold: #6757d9;
+  --nyx-line: rgba(68, 52, 112, 0.12);
   --nyx-ease: cubic-bezier(.2, .75, .2, 1);
 }
 
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; height: 100%; }
-html { background: #070706; }
+html { background: #f7f7fc; }
 body {
   margin: 0;
   min-width: 320px;
   height: 100%;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% -12%, rgba(224, 186, 90, .13), transparent 35%),
-    radial-gradient(circle at 8% 88%, rgba(117, 78, 255, .08), transparent 30%),
-    #070706;
+    radial-gradient(circle at 50% -12%, rgba(103, 87, 217, .13), transparent 35%),
+    radial-gradient(circle at 8% 88%, rgba(239, 95, 122, .07), transparent 30%),
+    #f7f7fc;
 }
 button, input, textarea, select { font: inherit; }
 button { min-height: 44px; }
 button, [role="button"] { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible {
-  outline: 2px solid rgba(224, 186, 90, .85);
+  outline: 2px solid rgba(103, 87, 217, .82);
   outline-offset: 2px;
 }
 #root {
@@ -40,7 +40,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   position: relative;
   isolation: isolate;
   background: var(--nyx-bg);
-  box-shadow: 0 0 0 1px rgba(255,255,255,.035), 0 32px 100px rgba(0,0,0,.58);
+  box-shadow: 0 0 0 1px rgba(68,52,112,.06), 0 32px 100px rgba(57,42,101,.18);
 }
 .nyx-app-shell {
   height: 100%;
@@ -53,7 +53,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   padding-right: env(safe-area-inset-right, 0px);
   box-sizing: border-box;
 }
-::selection { background: rgba(224, 186, 90, .28); color: #fffaf0; }
+::selection { background: rgba(103, 87, 217, .22); color: #241e35; }
 
 @media (max-width: 520px) {
   #root { max-width: none; box-shadow: none; }

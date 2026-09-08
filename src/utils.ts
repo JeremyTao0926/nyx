@@ -13,45 +13,76 @@ export const TEXT_MODEL   = "llama-3.3-70b-versatile";
 export const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 export const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/* ═══ DESIGN TOKENS — Premium Dark Gold (v10) ════════════ */
+/** Turn provider/network auth failures into short, actionable UI copy. */
+export function authErrorMessage(error: unknown, fallback = "操作失敗，請稍後再試"): string {
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === "string"
+      ? error
+      : "";
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("email not confirmed")) return "請先確認信箱中的驗證郵件";
+  if (normalized.includes("invalid login")) return "帳號或密碼錯誤";
+  if (normalized.includes("user already registered")) return "這個電子郵件已經註冊";
+  if (
+    normalized.includes("failed to fetch") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("networkerror") ||
+    normalized.includes("network request failed")
+  ) {
+    return "暫時無法連接服務，請檢查網路後再試";
+  }
+
+  return message || fallback;
+}
+
+/* ═══ DESIGN TOKENS — Porcelain Violet (2026) ═════════════
+   Keep the legacy gold/rose property names for compatibility with the
+   existing screens. `gold` is now NYX violet and `rose` is the emotional
+   coral accent, so every screen can migrate without a risky big-bang rename. */
 export const C = {
-  bg:           "#090907",
-  bgCard:       "rgba(24,22,19,0.82)",
-  bgElevated:   "rgba(33,30,25,0.92)",
-  bgGold:       "#201B0E",
-  surf:         "rgba(255,255,255,0.04)",
-  surfHigh:     "rgba(255,255,255,0.07)",
-  surfGold:     "rgba(201,168,76,0.07)",
-  gold:         "#DDB757",
-  goldLight:    "#F0D27C",
-  goldSoft:     "rgba(201,168,76,0.12)",
-  goldGlow:     "rgba(201,168,76,0.25)",
-  rose:         "#E8365D",
-  roseSoft:     "rgba(232,54,93,0.12)",
-  roseGlow:     "rgba(232,54,93,0.25)",
-  mint:         "#00C9A7",
-  mintSoft:     "rgba(0,201,167,0.10)",
-  superlike:    "#4A90D9",
-  superlikeSoft:"rgba(74,144,217,0.10)",
+  bg:           "#F7F7FC",
+  bgCard:       "rgba(255,255,255,0.92)",
+  bgElevated:   "#FFFFFF",
+  bgGold:       "#F0EEFF",
+  surf:         "rgba(92,72,172,0.055)",
+  surfHigh:     "rgba(92,72,172,0.095)",
+  surfGold:     "rgba(103,87,217,0.075)",
+  gold:         "#6757D9",
+  goldLight:    "#8B7FF0",
+  goldSoft:     "rgba(103,87,217,0.12)",
+  goldGlow:     "rgba(103,87,217,0.24)",
+  rose:         "#EF5F7A",
+  roseSoft:     "rgba(239,95,122,0.12)",
+  roseGlow:     "rgba(239,95,122,0.24)",
+  mint:         "#16A589",
+  mintSoft:     "rgba(22,165,137,0.11)",
+  superlike:    "#4F7FEA",
+  superlikeSoft:"rgba(79,127,234,0.11)",
   get pink()      { return this.rose; },
   get violet()    { return this.gold; },
   get pinkSoft()  { return this.roseSoft; },
   get pinkGlow()  { return this.roseGlow; },
   get teal()      { return this.mint; },
   get tealSoft()  { return this.mintSoft; },
-  text:         "#F7F1E3",
-  textSub:      "rgba(247,241,227,0.68)",
-  textMuted:    "rgba(247,241,227,0.42)",
-  textDim:      "rgba(245,237,214,0.18)",
-  border:       "rgba(224,186,90,0.14)",
-  borderHigh:   "rgba(224,186,90,0.26)",
-  borderFocus:  "rgba(201,168,76,0.45)",
-  grad:         "linear-gradient(135deg,#D7AE4D,#F0D27C)",
-  gradRose:     "linear-gradient(135deg,#E8365D,#FF6B6B)",
-  gradMint:     "linear-gradient(135deg,#00C9A7,#00E5C0)",
-  gradGold:     "linear-gradient(135deg,#C9A84C,#E2C068)",
-  gradSuper:    "linear-gradient(135deg,#4A90D9,#7BB8F5)",
-  gradDark:     "linear-gradient(180deg,transparent,rgba(12,10,8,0.96))",
+  text:         "#241E35",
+  textSub:      "rgba(36,30,53,0.70)",
+  textMuted:    "rgba(36,30,53,0.48)",
+  textDim:      "rgba(36,30,53,0.30)",
+  border:       "rgba(68,52,112,0.12)",
+  borderHigh:   "rgba(68,52,112,0.22)",
+  borderFocus:  "rgba(103,87,217,0.48)",
+  nav:          "rgba(255,255,255,0.88)",
+  glass:        "rgba(255,255,255,0.78)",
+  shadow:       "0 12px 34px rgba(57,42,101,0.10)",
+  shadowStrong: "0 22px 60px rgba(57,42,101,0.16)",
+  grad:         "linear-gradient(135deg,#6757D9,#8B7FF0)",
+  gradRose:     "linear-gradient(135deg,#EF5F7A,#FF8A82)",
+  gradMint:     "linear-gradient(135deg,#16A589,#45CBB1)",
+  gradGold:     "linear-gradient(135deg,#6757D9,#8B7FF0)",
+  gradSuper:    "linear-gradient(135deg,#4F7FEA,#7EA7FF)",
+  gradDark:     "linear-gradient(180deg,transparent,rgba(25,18,43,0.92))",
 };
 
 export const WRAP = { maxWidth: 480, margin: "0 auto", width: "100%" };
@@ -984,13 +1015,13 @@ export const GLOBAL_CSS = `
 
   @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-  html,body{height:100%;background:#0C0A08;overscroll-behavior:none;}
+  html,body{height:100%;background:#F7F7FC;overscroll-behavior:none;}
   *{font-family:'Inter','Noto Sans TC',sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
-  ::placeholder{color:rgba(245,237,214,0.20);font-weight:400;}
-  ::-webkit-scrollbar{width:2px;} ::-webkit-scrollbar-thumb{background:rgba(201,168,76,0.18);border-radius:2px;}
-  ::-webkit-calendar-picker-indicator{filter:invert(1) opacity(.35);}
-  input[type=range]{-webkit-appearance:none;appearance:none;height:2px;border-radius:2px;background:rgba(201,168,76,0.12);outline:none;}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#C9A84C;cursor:pointer;box-shadow:0 0 0 3px rgba(201,168,76,0.18);}
+  ::placeholder{color:rgba(36,30,53,0.32);font-weight:400;}
+  ::-webkit-scrollbar{width:2px;} ::-webkit-scrollbar-thumb{background:rgba(103,87,217,0.22);border-radius:2px;}
+  ::-webkit-calendar-picker-indicator{filter:opacity(.52);}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:3px;border-radius:3px;background:rgba(103,87,217,0.14);outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#6757D9;cursor:pointer;box-shadow:0 0 0 4px rgba(103,87,217,0.14);}
 
   @keyframes dot{0%,60%,100%{transform:translateY(0);opacity:.35;}30%{transform:translateY(-5px);opacity:1;}}
   @keyframes slideUp{from{transform:translateY(60px);opacity:0;}to{transform:translateY(0);opacity:1;}}
@@ -1006,14 +1037,14 @@ export const GLOBAL_CSS = `
   @keyframes spin{to{transform:rotate(360deg);}}
   @keyframes tabSwitch{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
   @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
-  @keyframes btnPulse{0%,100%{box-shadow:0 4px 20px rgba(201,168,76,0.22);}50%{box-shadow:0 4px 32px rgba(201,168,76,0.42);}}
+  @keyframes btnPulse{0%,100%{box-shadow:0 6px 20px rgba(103,87,217,0.20);}50%{box-shadow:0 8px 30px rgba(103,87,217,0.34);}}
   @keyframes heartBeat{0%,100%{transform:scale(1);}50%{transform:scale(1.2);}}
   @keyframes heartBurst{0%{opacity:1;transform:translate(-50%,-50%) scale(0);}80%{opacity:.7;}100%{opacity:0;transform:translate(calc(-50% + var(--x,0px)),calc(-50% + var(--y,0px))) scale(1.6);}}
   @keyframes cherryFall{0%{transform:translateY(-20px) rotate(0deg);opacity:.6;}100%{transform:translateY(110vh) rotate(720deg);opacity:0;}}
   @keyframes matchPop{0%{transform:scale(0.75);opacity:0;}60%{transform:scale(1.04);}100%{transform:scale(1);opacity:1;}}
   @keyframes cardReveal{0%{transform:scale(.95) translateY(8px);opacity:0;}100%{transform:scale(1) translateY(0);opacity:1;}}
   @keyframes shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
-  @keyframes glowPulse{0%,100%{box-shadow:0 0 0 0 rgba(201,168,76,0);}50%{box-shadow:0 0 16px 4px rgba(201,168,76,0.2);}}
+  @keyframes glowPulse{0%,100%{box-shadow:0 0 0 0 rgba(103,87,217,0);}50%{box-shadow:0 0 16px 4px rgba(103,87,217,0.18);}}
 `;
 
 /* ─── Data Export ────────────────────────────────────── */

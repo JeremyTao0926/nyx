@@ -15,7 +15,7 @@ type Tab = "explore" | "chat" | "profile";
 
 /* ─── SVG Icons ──────────────────────────────────────── */
 function TabIcon({ tab, active }: { tab: Tab; active: boolean }) {
-  const c = active ? C.gold : "rgba(245,237,214,0.30)";
+  const c = active ? C.gold : C.textDim;
   const w = "1.7";
   if (tab === "explore") return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
   if (tab === "chat")    return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
@@ -29,14 +29,14 @@ const TAB_LABELS: Record<Tab, string> = { explore:"探索", chat:"消息", profi
 function BottomTabBar({ tab, setTab, unread }: { tab: Tab; setTab: (t: Tab) => void; unread: number }) {
   const tabs: Tab[] = ["explore", "chat", "profile"];
   return (
-    <nav aria-label="主要導覽" style={{ display:"flex", margin:0, padding:"5px 10px calc(5px + env(safe-area-inset-bottom,0px))", background:"rgba(18,16,13,0.88)", backdropFilter:"blur(28px) saturate(145%)", WebkitBackdropFilter:"blur(28px) saturate(145%)", borderTop:`1px solid ${C.borderHigh}`, boxShadow:"0 -14px 38px rgba(0,0,0,.32), inset 0 1px rgba(255,255,255,.035)", flexShrink:0 }}>
+    <nav aria-label="主要導覽" style={{ display:"flex", margin:0, padding:"5px 10px calc(5px + env(safe-area-inset-bottom,0px))", background:C.nav, backdropFilter:"blur(28px) saturate(145%)", WebkitBackdropFilter:"blur(28px) saturate(145%)", borderTop:`1px solid ${C.border}`, boxShadow:"0 -12px 34px rgba(57,42,101,.08)", flexShrink:0 }}>
       {tabs.map(id => (
-        <button key={id} type="button" aria-label={TAB_LABELS[id]} aria-current={tab===id ? "page" : undefined} onClick={() => setTab(id)} style={{ flex:1, minHeight:54, padding:"7px 0 5px", background:tab===id?"linear-gradient(180deg,rgba(224,186,90,.16),rgba(224,186,90,.055))":"transparent", border:tab===id?`1px solid ${C.borderHigh}`:"1px solid transparent", borderRadius:19, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, fontFamily:"inherit", position:"relative", transition:"background .22s, border-color .22s, transform .22s" }}>
+        <button key={id} type="button" aria-label={TAB_LABELS[id]} aria-current={tab===id ? "page" : undefined} onClick={() => setTab(id)} style={{ flex:1, minHeight:54, padding:"7px 0 5px", background:tab===id?C.goldSoft:"transparent", border:tab===id?`1px solid ${C.borderHigh}`:"1px solid transparent", borderRadius:19, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, fontFamily:"inherit", position:"relative", transition:"background .22s, border-color .22s, transform .22s" }}>
           <div style={{ position:"relative" }}>
             <TabIcon tab={id} active={tab===id}/>
             {id==="chat" && unread>0 && <div style={{ position:"absolute", top:-4, right:-6, minWidth:16, height:16, borderRadius:8, background:C.gradRose, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#fff", fontWeight:700, border:`2px solid ${C.bg}`, padding:"0 3px" }}>{unread>99?"99+":unread}</div>}
           </div>
-          <span style={{ fontSize:10.5, color:tab===id?C.gold:"rgba(245,237,214,0.28)", fontWeight:tab===id?600:400, transition:"color .2s" }}>{TAB_LABELS[id]}</span>
+          <span style={{ fontSize:10.5, color:tab===id?C.gold:C.textDim, fontWeight:tab===id?700:500, transition:"color .2s" }}>{TAB_LABELS[id]}</span>
         </button>
       ))}
     </nav>
@@ -65,19 +65,19 @@ function InstallBanner() {
 
   return (
     <div style={{ position:"fixed", bottom:72, left:12, right:12, zIndex:999,
-      background:"rgba(20,18,12,0.97)", backdropFilter:"blur(20px)",
-      border:"1px solid rgba(201,168,76,0.3)", borderRadius:16,
+      background:C.glass, backdropFilter:"blur(24px) saturate(150%)",
+      border:`1px solid ${C.borderHigh}`, borderRadius:18,
       padding:"14px 16px", display:"flex", alignItems:"flex-start", gap:12,
-      boxShadow:"0 8px 32px rgba(0,0,0,0.5)", animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
-      <div style={{ width:40,height:40,borderRadius:10,background:"linear-gradient(135deg,#C9A84C,#E2C068)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0 }}>N</div>
+      boxShadow:C.shadowStrong, animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
+      <div style={{ width:40,height:40,borderRadius:12,background:C.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"#fff",flexShrink:0 }}>N</div>
       <div style={{ flex:1,minWidth:0 }}>
-        <div style={{ fontSize:14,fontWeight:700,color:"#F5EDD6",marginBottom:3 }}>加入主畫面以接收通知</div>
+        <div style={{ fontSize:14,fontWeight:700,color:C.text,marginBottom:3 }}>加入主畫面以接收通知</div>
         {isIOS
-          ? <div style={{ fontSize:12,color:"rgba(245,237,214,0.55)",lineHeight:1.5 }}>點底部 <span style={{ fontSize:13 }}>⎙</span> 分享 → 「加入主畫面」</div>
-          : <div style={{ fontSize:12,color:"rgba(245,237,214,0.55)",lineHeight:1.5 }}>瀏覽器右上角 ⋮ → 「加入主畫面」</div>}
+          ? <div style={{ fontSize:12,color:C.textMuted,lineHeight:1.5 }}>點底部 <span style={{ fontSize:13 }}>⎙</span> 分享 → 「加入主畫面」</div>
+          : <div style={{ fontSize:12,color:C.textMuted,lineHeight:1.5 }}>瀏覽器右上角 ⋮ → 「加入主畫面」</div>}
       </div>
       <button type="button" aria-label="關閉安裝提示" onClick={()=>{ setShow(false); localStorage.setItem("nyx-install-dismissed","1"); }}
-        style={{ background:"none",border:"none",color:"rgba(245,237,214,0.35)",fontSize:18,cursor:"pointer",padding:"0 4px",flexShrink:0,lineHeight:1 }}>✕</button>
+        style={{ background:"none",border:"none",color:C.textMuted,fontSize:18,cursor:"pointer",padding:"0 4px",flexShrink:0,lineHeight:1 }}>✕</button>
     </div>
   );
 }
@@ -384,7 +384,7 @@ export default function App() {
         ? <div style={{ width:40, height:40, border:`2px solid ${C.border}`, borderTopColor:C.gold, borderRadius:"50%", animation:"spin .7s linear infinite" }}/>
         : <>
           <div style={{ fontSize:15, lineHeight:1.6, color:C.textSub }}>{loadError || "暫時無法載入帳號資料"}</div>
-          <button type="button" onClick={retryLoadAll} style={{ minHeight:46, padding:"0 24px", borderRadius:24, border:"none", background:C.grad, color:"#12100c", fontFamily:"inherit", fontWeight:800, cursor:"pointer" }}>重新載入</button>
+          <button type="button" onClick={retryLoadAll} style={{ minHeight:46, padding:"0 24px", borderRadius:24, border:"none", background:C.grad, color:"#fff", fontFamily:"inherit", fontWeight:800, cursor:"pointer", boxShadow:`0 8px 24px ${C.goldGlow}` }}>重新載入</button>
         </>}
     </div>
   </>;
@@ -501,7 +501,7 @@ function BlockedScreen({ profile, onLogout }: { profile: any; onLogout: () => vo
       <div style={{ fontSize:14, color:C.textMuted, lineHeight:1.7 }}>{reason}</div>
 
       {pending && (
-        <div style={{ background:"rgba(201,168,76,0.1)", border:"1px solid rgba(201,168,76,0.3)", borderRadius:12, padding:"12px 18px", fontSize:13, color:C.gold, lineHeight:1.6 }}>
+        <div style={{ background:C.goldSoft, border:`1px solid ${C.borderHigh}`, borderRadius:12, padding:"12px 18px", fontSize:13, color:C.gold, lineHeight:1.6 }}>
           申訴已提交，等待審核<br/>
           <span style={{ opacity:.7 }}>{new Date(appeal.created_at).toLocaleString("zh-TW")}</span>
         </div>
@@ -521,7 +521,7 @@ function BlockedScreen({ profile, onLogout }: { profile: any; onLogout: () => vo
       {showForm && (
         <div style={{ width:"100%", maxWidth:340, display:"flex", flexDirection:"column", gap:10 }}>
           <textarea value={text} onChange={e=>setText(e.target.value)} rows={4} placeholder="請說明情況（例如：我認為這是誤判，原因是⋯）"
-            style={{ width:"100%", boxSizing:"border-box", background:"#141210", border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontFamily:"inherit", fontSize:14, resize:"vertical", outline:"none" }}/>
+            style={{ width:"100%", boxSizing:"border-box", background:C.bgCard, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontFamily:"inherit", fontSize:14, resize:"vertical", outline:"none" }}/>
           {err && <div style={{ fontSize:12.5, color:C.rose }}>{err}</div>}
           <div style={{ display:"flex", gap:10 }}>
             <button onClick={()=>{ setShowForm(false); setErr(""); }} style={{ flex:1, padding:"12px", borderRadius:50, background:"transparent", border:`1px solid ${C.border}`, color:C.textMuted, fontFamily:"inherit", fontSize:14, cursor:"pointer" }}>取消</button>

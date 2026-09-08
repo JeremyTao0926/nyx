@@ -55,7 +55,7 @@ function Si({ n, s=18, c="currentColor" }: { n: string; s?: number; c?: string }
 
 /* ── Reusable components ── */
 function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
-  return <div onClick={onChange} style={{ width:46,height:26,borderRadius:13,background:on?"#e8365d":"rgba(255,255,255,0.08)",position:"relative",transition:"background .25s",cursor:"pointer",flexShrink:0 }}>
+  return <div onClick={onChange} style={{ width:46,height:26,borderRadius:13,background:on?C.rose:C.surfHigh,position:"relative",transition:"background .25s",cursor:"pointer",flexShrink:0 }}>
     <div style={{ width:20,height:20,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:on?23:3,transition:"left .25s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)" }}/>
   </div>;
 }
@@ -75,7 +75,7 @@ function EditRow({ icon, label, value, right, onClick, last }: { icon: string; l
 
 function SettingRow({ icon, label, sub, right, onClick, last }: { icon: string; label: string; sub?: string; right?: React.ReactNode; onClick?: () => void; last?: boolean }) {
   return <div onClick={onClick} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"15px 18px",cursor:onClick?"pointer":"default",borderBottom:last?"none":`1px solid ${C.border}`,transition:"background .15s",minHeight:52 }}
-    onMouseEnter={e=>onClick&&(e.currentTarget.style.background="rgba(255,255,255,0.025)")}
+    onMouseEnter={e=>onClick&&(e.currentTarget.style.background=C.surf)}
     onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
     <div style={{ display:"flex",alignItems:"center",gap:13,flex:1,minWidth:0 }}>
       <Si n={icon} s={18} c={C.textMuted}/>
@@ -88,7 +88,7 @@ function SettingRow({ icon, label, sub, right, onClick, last }: { icon: string; 
   </div>;
 }
 
-const INP = { width:"100%",padding:"12px 14px",background:"rgba(255,255,255,0.04)",border:`1px solid ${C.border}`,borderRadius:12,color:C.text,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box" as const,transition:"border-color .2s" };
+const INP = { width:"100%",padding:"12px 14px",background:C.surf,border:`1px solid ${C.border}`,borderRadius:12,color:C.text,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box" as const,transition:"border-color .2s" };
 
 function CityInput({ value, onChange, onSelect, near }: { value: string; onChange: (v: string) => void; onSelect: (city: string, lat: number, lon: number) => void; near?: { lat: number; lon: number } | null }) {
   const [res, setRes] = useState<{ name: string; state: string; country: string; lat: number; lon: number }[]>([]);
@@ -113,7 +113,7 @@ function CityInput({ value, onChange, onSelect, near }: { value: string; onChang
   }
   return <div style={{ position: "relative" }}>
     <input aria-label="城市或國家" aria-expanded={open} aria-controls="profile-city-results" autoComplete="address-level2" value={value} onChange={e => handle(e.target.value)} placeholder="輸入城市或國家..." style={INP} onFocus={e => { e.target.style.borderColor = C.rose; if (res.length) setOpen(true); }} onBlur={e => { e.target.style.borderColor = C.border; setTimeout(() => setOpen(false), 200); }} />
-    {open && <div id="profile-city-results" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "rgba(20,18,14,0.99)", backdropFilter: "blur(24px)", border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", zIndex: 100, boxShadow: "0 16px 48px rgba(0,0,0,0.5)" }}>
+    {open && <div id="profile-city-results" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: C.bgElevated, backdropFilter: "blur(24px)", border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", zIndex: 100, boxShadow: C.shadowStrong }}>
       {res.map((r, i) => <button type="button" key={`${r.lat}-${r.lon}`} onClick={() => { const label = formatLocation(r.name, r.state, r.country); onSelect(label, r.lat, r.lon); setOpen(false); }} style={{ width:"100%", minHeight:48, padding: "12px 16px", cursor: "pointer", border:"none", borderBottom: i < res.length - 1 ? `1px solid ${C.border}` : "none", background:"transparent", fontFamily:"inherit", textAlign:"left", display: "flex", justifyContent: "space-between", alignItems: "center" }} onMouseEnter={e => (e.currentTarget.style.background = C.surf)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
         <span style={{ fontSize: 14, color: C.text }}>📍 {r.name}</span>
         <span style={{ fontSize: 12, color: C.textMuted }}>{[r.state, r.country].filter(Boolean).join(", ")}</span>
@@ -425,7 +425,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           </div>
           {profile.is_verified ? (
             <div style={{ position: "absolute", bottom: 2, right: 2, width: 22, height: 22, borderRadius: "50%", background: C.gold, border: `2.5px solid ${C.bg}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ color: "#12100C", fontSize: 10, fontWeight: 800 }}>V</span>
+              <span style={{ color: "#fff", fontSize: 10, fontWeight: 800 }}>V</span>
             </div>
           ) : (
             <span style={{ position: "absolute", bottom: 3, right: 3, width: 16, height: 16, borderRadius: "50%", background: "#06d6a0", border: `2.5px solid ${C.bg}`, boxShadow: "0 0 6px rgba(6,214,160,.5)" }} />
@@ -440,9 +440,9 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <div style={{ fontSize: 13, color: C.textMuted, marginTop: 2 }}>@{profile.username}</div>
           {bio && <div style={{ fontSize: 13.5, color: C.textSub, marginTop: 8, lineHeight: 1.5 }}>{bio}</div>}
           <div style={{ display: "flex", gap: 7, flexWrap: "wrap" as const, marginTop: 10 }}>
-            {age != null && <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{age}</span>}
-            {loc && <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub, display: "flex", alignItems: "center", gap: 4 }}><Si n="globe" s={12} c={C.textMuted} />{loc}</span>}
-            {zodiac && <span style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{zodiac}</span>}
+            {age != null && <span style={{ padding: "5px 12px", borderRadius: 20, background: C.surfHigh, border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{age}</span>}
+            {loc && <span style={{ padding: "5px 12px", borderRadius: 20, background: C.surfHigh, border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub, display: "flex", alignItems: "center", gap: 4 }}><Si n="globe" s={12} c={C.textMuted} />{loc}</span>}
+            {zodiac && <span style={{ padding: "5px 12px", borderRadius: 20, background: C.surfHigh, border: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{zodiac}</span>}
           </div>
         </div>
       </div>
@@ -451,15 +451,15 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
 
         {/* Premium upsell banner */}
         {!isPremiumUser && (
-          <div onClick={() => setShowPremium(true)} style={{ display: "flex", alignItems: "center", gap: 14, background: "linear-gradient(135deg,rgba(201,168,76,0.14),rgba(201,168,76,0.05))", border: "1px solid rgba(201,168,76,0.3)", borderRadius: 18, padding: "14px 16px", marginBottom: 14, cursor: "pointer" }}>
-            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(201,168,76,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div onClick={() => setShowPremium(true)} style={{ display: "flex", alignItems: "center", gap: 14, background: "linear-gradient(135deg,rgba(103,87,217,0.14),rgba(239,95,122,0.05))", border:`1px solid ${C.borderHigh}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14, cursor: "pointer", boxShadow:C.shadow }}>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: C.goldSoft, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Si n="crown" s={22} c={C.gold} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: C.gold }}>NYX Premium</div>
               <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>解鎖無限喜歡・誰喜歡了你・更多專屬特權</div>
             </div>
-            <div style={{ padding: "9px 18px", borderRadius: 20, background: "linear-gradient(135deg,#C9A84C,#E2C068)", color: "#12100C", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>升級</div>
+            <div style={{ padding: "9px 18px", borderRadius: 20, background: C.grad, color: "#fff", fontSize: 13, fontWeight: 800, flexShrink: 0, boxShadow:`0 6px 18px ${C.goldGlow}` }}>升級</div>
           </div>
         )}
 
@@ -473,7 +473,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           ].map((s, i) => (
             <div key={s.label} onClick={() => s.panel ? openStatsPanel(s.panel) : (!isPremiumUser && setStatsGate(true))}
               style={{ flex: 1, textAlign: "center" as const, padding: "16px 0", borderRight: i < 3 ? `1px solid ${C.border}` : "none", cursor: "pointer", transition: "background .15s" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
+              onMouseEnter={e => (e.currentTarget.style.background = C.surf)}
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 4 }}>
                 <Si n={s.ico} s={17} c={s.color} />
@@ -513,9 +513,9 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
       {/* ── Stats Panel ── */}
       {statsPanel && (
         <div style={{ position:"fixed",inset:0,zIndex:200,display:"flex",justifyContent:"center",background:"rgba(0,0,0,0.65)",backdropFilter:"blur(16px)" }} onClick={()=>setStatsPanel(null)}>
-          <div onClick={e=>e.stopPropagation()} style={{ width:"100%",maxWidth:480,margin:"0 auto",background:"#141210",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",maxHeight:"82vh",display:"flex",flexDirection:"column" as const,position:"absolute",bottom:0,animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%",maxWidth:480,margin:"0 auto",background:C.bgElevated,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",maxHeight:"82vh",display:"flex",flexDirection:"column" as const,position:"absolute",bottom:0,boxShadow:C.shadowStrong,animation:"slideUp .3s cubic-bezier(.32,.72,0,1)" }}>
             {/* Handle */}
-            <div style={{ padding:"14px 0 0",display:"flex",justifyContent:"center" }}><div style={{ width:40,height:5,borderRadius:3,background:"rgba(255,255,255,0.15)" }}/></div>
+            <div style={{ padding:"14px 0 0",display:"flex",justifyContent:"center" }}><div style={{ width:40,height:5,borderRadius:3,background:C.borderHigh }}/></div>
             {/* Header */}
             <div style={{ padding:"12px 20px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
               <div>
@@ -526,7 +526,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                   {statsPanel==="liked_me"?`${stats.likesReceived} 人`:statsPanel==="i_liked"?`${stats.likesGiven} 人`:`${stats.matches} 個配對`}
                 </div>
               </div>
-              <button onClick={()=>{setStatsPanel(null);setShowAllMatches(false);}} style={{ width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"none",color:C.textMuted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16 }}>✕</button>
+              <button onClick={()=>{setStatsPanel(null);setShowAllMatches(false);}} style={{ width:32,height:32,borderRadius:"50%",background:C.surfHigh,border:"none",color:C.textMuted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16 }}>✕</button>
             </div>
             {/* Content */}
             <div style={{ flex:1,overflowY:"auto",padding:"8px 0 32px" }}>
@@ -546,14 +546,14 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                       <div key={m.matchId}
                         onClick={()=>{ setStatsPanel(null); onOpenChat?.(m.matchId, m.userId, m.name, m.avatar); }}
                         style={{ display:"flex",alignItems:"center",gap:14,padding:"12px 20px",cursor:"pointer",transition:"background .15s" }}
-                        onMouseEnter={e=>(e.currentTarget.style.background="rgba(255,255,255,0.025)")}
+                        onMouseEnter={e=>(e.currentTarget.style.background=C.surf)}
                         onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
                         <Av url={m.avatar} name={m.name} size={54}/>
                         <div style={{ flex:1,minWidth:0 }}>
                           <div style={{ fontSize:15,fontWeight:600,color:C.text }}>{m.name}{m.age?`, ${m.age}`:""}</div>
                           <div style={{ fontSize:12.5,color:C.textMuted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const }}>{m.lastMsg}</div>
                         </div>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(245,237,214,0.25)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textDim} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                       </div>
                     ))}
                     {myMatches.length > 8 && !showAllMatches && (
@@ -590,7 +590,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                           <div style={{ fontSize:11.5,fontWeight:700,color:C.textMuted,letterSpacing:".5px",padding:"14px 20px 8px",textTransform:"uppercase" as const }}>{group.label}</div>
                           {group.items.map(item=>(
                             <div key={item.id} style={{ display:"flex",alignItems:"center",gap:14,padding:"12px 20px",transition:"background .15s" }}
-                              onMouseEnter={e=>(e.currentTarget.style.background="rgba(255,255,255,0.02)")}
+                              onMouseEnter={e=>(e.currentTarget.style.background=C.surf)}
                               onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
                               <Av url={item.avatar} name={item.name} size={54}/>
                               <div style={{ flex:1,minWidth:0 }}>
@@ -611,7 +611,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                                     setStats(s=>({...s,likesReceived:s.likesReceived-1}));
                                     sound.match();
                                   }}
-                                  style={{ padding:"8px 16px",borderRadius:20,background:"linear-gradient(135deg,#C9A84C,#E2C068)",border:"none",color:"#12100C",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0 }}>
+                                  style={{ padding:"8px 16px",borderRadius:20,background:C.grad,border:"none",color:"#fff",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0 }}>
                                   喜歡
                                 </button>
                               )}
@@ -675,7 +675,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
               <Si n="question" s={14} c={C.textMuted} />
             </div>
           </div>
-          <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 3, marginBottom: 8 }}>
+          <div style={{ height: 4, background: C.surfHigh, borderRadius: 3, marginBottom: 8 }}>
             <div style={{ height: "100%", width: `${comp}%`, background: "linear-gradient(90deg,#e8365d,#ff6b8a)", borderRadius: 3 }} />
           </div>
           <div style={{ fontSize: 12, color: C.textMuted }}>
@@ -771,7 +771,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>感情目標</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginBottom: 20 }}>
             {[["serious", "認真交往"], ["friends_first", "先朋友再說"], ["casual", "隨緣"], ["open", "開放"]].map(([v, l]) => (
-              <button key={v} onClick={() => setRelGoal(relGoal === v ? "" : v)} style={{ padding: "7px 14px", borderRadius: 20, border: `1px solid ${relGoal === v ? C.gold : C.border}`, background: relGoal === v ? "rgba(201,168,76,0.12)" : "transparent", color: relGoal === v ? C.gold : C.textSub, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>{l}</button>
+              <button key={v} onClick={() => setRelGoal(relGoal === v ? "" : v)} style={{ padding: "7px 14px", borderRadius: 20, border: `1px solid ${relGoal === v ? C.gold : C.border}`, background: relGoal === v ? C.goldSoft : "transparent", color: relGoal === v ? C.gold : C.textSub, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>{l}</button>
             ))}
           </div>
 
@@ -794,7 +794,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
               onChange={e => setEditText(e.target.value)}
               type={editField === "height" ? "number" : "text"}
               placeholder={editField === "height" ? "例：170" : editField === "occupation" ? "設計師、工程師、學生..." : "輸入名稱"}
-              style={{ width: "100%", padding: "14px 16px", background: "rgba(255,255,255,0.05)", border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 16, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 16 }}
+              style={{ width: "100%", padding: "14px 16px", background: C.surf, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 16, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 16 }}
               onFocus={e => e.target.style.borderColor = C.gold}
               onBlur={e => e.target.style.borderColor = C.border}
               onKeyDown={e => { if (e.key === "Enter") { if (editField === "name") setName(editText); else if (editField === "occupation") setOccupation(editText); else if (editField === "height") setHeightCm(editText); setEditField(null); } }}
@@ -818,7 +818,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
               value={editText}
               onChange={e => setEditText(e.target.value)}
               type="date"
-              style={{ width: "100%", padding: "14px 16px", background: "rgba(255,255,255,0.05)", border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 16, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 16, colorScheme: "dark" } as any}
+              style={{ width: "100%", padding: "14px 16px", background: C.surf, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 16, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 16, colorScheme: "light" } as any}
               onFocus={e => e.target.style.borderColor = C.gold}
               onBlur={e => e.target.style.borderColor = C.border}
             />
@@ -885,7 +885,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>學歷</div>
             {[["high_school","高中 / 中專"],["college","大專"],["bachelor","本科"],["master","碩士"],["phd","博士"]].map(([v,l]) => (
               <button key={v} onClick={() => { setEducation(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: education === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${education === v ? C.gold : C.border}`, color: education === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: education === v ? 600 : 400 }}>
+                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: education === v ? C.goldSoft : C.surf, border: `1px solid ${education === v ? C.gold : C.border}`, color: education === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: education === v ? 600 : 400 }}>
                 <span>{l}</span>
                 {education === v && <span style={{ fontSize: 16 }}>✓</span>}
               </button>
@@ -900,7 +900,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>年收入</div>
             {[["","不透露"],["<20","20萬以下"],["20-50","20–50萬"],["50-100","50–100萬"],[">100","100萬以上"]].map(([v,l]) => (
               <button key={v} onClick={() => { setIncome(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: income === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${income === v ? C.gold : C.border}`, color: income === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: income === v ? 600 : 400 }}>
+                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: income === v ? C.goldSoft : C.surf, border: `1px solid ${income === v ? C.gold : C.border}`, color: income === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: income === v ? 600 : 400 }}>
                 <span>{l}</span>
                 {income === v && <span style={{ fontSize: 16 }}>✓</span>}
               </button>
@@ -915,7 +915,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>抽菸習慣</div>
             {[["never","不抽菸"],["sometimes","偶爾抽菸"],["often","常抽菸"]].map(([v,l]) => (
               <button key={v} onClick={() => { setSmoking(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: smoking === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${smoking === v ? C.gold : C.border}`, color: smoking === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: smoking === v ? 600 : 400 }}>
+                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: smoking === v ? C.goldSoft : C.surf, border: `1px solid ${smoking === v ? C.gold : C.border}`, color: smoking === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: smoking === v ? 600 : 400 }}>
                 <span>{l}</span>{smoking === v && <span>✓</span>}
               </button>
             ))}
@@ -929,7 +929,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>飲酒習慣</div>
             {[["never","不喝酒"],["sometimes","偶爾喝酒"],["often","常喝酒"]].map(([v,l]) => (
               <button key={v} onClick={() => { setDrinking(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: drinking === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${drinking === v ? C.gold : C.border}`, color: drinking === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: drinking === v ? 600 : 400 }}>
+                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: drinking === v ? C.goldSoft : C.surf, border: `1px solid ${drinking === v ? C.gold : C.border}`, color: drinking === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: drinking === v ? 600 : 400 }}>
                 <span>{l}</span>{drinking === v && <span>✓</span>}
               </button>
             ))}
@@ -943,7 +943,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>運動習慣</div>
             {[["never","從不運動"],["sometimes","偶爾運動"],["weekly","每週運動"],["daily","每天運動"]].map(([v,l]) => (
               <button key={v} onClick={() => { setExercise(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: exercise === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${exercise === v ? C.gold : C.border}`, color: exercise === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: exercise === v ? 600 : 400 }}>
+                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: exercise === v ? C.goldSoft : C.surf, border: `1px solid ${exercise === v ? C.gold : C.border}`, color: exercise === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: exercise === v ? 600 : 400 }}>
                 <span>{l}</span>{exercise === v && <span>✓</span>}
               </button>
             ))}
@@ -957,7 +957,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>寵物</div>
             {[["none","無寵物"],["cat","有養貓"],["dog","有養狗"],["other","有養其他"]].map(([v,l]) => (
               <button key={v} onClick={() => { setHasPets(v); setEditField(null); }}
-                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: hasPets === v ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${hasPets === v ? C.gold : C.border}`, color: hasPets === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: hasPets === v ? 600 : 400 }}>
+                style={{ width: "100%", padding: "16px 20px", marginBottom: 8, borderRadius: 14, background: hasPets === v ? C.goldSoft : C.surf, border: `1px solid ${hasPets === v ? C.gold : C.border}`, color: hasPets === v ? C.gold : C.text, fontFamily: "inherit", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: hasPets === v ? 600 : 400 }}>
                 <span>{l}</span>{hasPets === v && <span>✓</span>}
               </button>
             ))}

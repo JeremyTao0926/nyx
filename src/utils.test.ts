@@ -6,7 +6,7 @@ vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => ({})),
 }));
 
-import { calcAge, calcCompletion, formatLocation, haversine, mbtiCompatibility, onlineStatus, searchCities, sortExploreCandidates, zodiacSign } from "./utils";
+import { authErrorMessage, calcAge, calcCompletion, formatLocation, haversine, mbtiCompatibility, onlineStatus, searchCities, sortExploreCandidates, zodiacSign } from "./utils";
 import type { UserProfile } from "./types";
 
 describe("matching", () => {
@@ -18,6 +18,17 @@ describe("matching", () => {
   it("adds real shared interests without exceeding 99", () => {
     expect(mbtiCompatibility("INFP", "ENFJ", ["旅行"], ["旅行"]).score).toBe(99);
     expect(mbtiCompatibility("INFP", "ESFP", ["旅行", "音樂"], ["旅行", "音樂"]).score).toBe(61);
+  });
+});
+
+describe("authentication errors", () => {
+  it("localizes credential and confirmation failures", () => {
+    expect(authErrorMessage(new Error("Invalid login credentials"))).toBe("帳號或密碼錯誤");
+    expect(authErrorMessage(new Error("Email not confirmed"))).toBe("請先確認信箱中的驗證郵件");
+  });
+
+  it("replaces low-level network errors with an actionable message", () => {
+    expect(authErrorMessage(new TypeError("Failed to fetch"))).toBe("暫時無法連接服務，請檢查網路後再試");
   });
 });
 

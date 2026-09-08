@@ -188,9 +188,9 @@ function ModeSelect({ cloneName, onSelect }: { cloneName: string; onSelect: (m: 
 
       {/* Fresh mode */}
       <button onClick={() => onSelect("fresh")}
-        style={{ background: C.bgCard, border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 18, padding: "20px 20px", textAlign: "left" as const, cursor: "pointer", fontFamily: "inherit", transition: "all .2s" }}
+        style={{ background: C.bgCard, border: `1px solid ${C.borderHigh}`, borderRadius: 18, padding: "20px 20px", textAlign: "left" as const, cursor: "pointer", fontFamily: "inherit", transition: "all .2s", boxShadow:C.shadow }}
         onMouseEnter={e => (e.currentTarget.style.borderColor = C.gold)}
-        onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(201,168,76,0.25)")}>
+        onMouseLeave={e => (e.currentTarget.style.borderColor = C.borderHigh)}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
           <span style={{ fontSize: 24 }}>✨</span>
           <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>全新開始</div>
@@ -299,7 +299,7 @@ function CloneChat({ session, myProfile, onReset }: {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Context imported notice */}
       {isContinue && session.importedMsgs.length > 0 && (
-        <div style={{ padding: "8px 16px", background: "rgba(201,168,76,0.07)", borderBottom: `1px solid ${C.border}`, textAlign: "center" as const }}>
+        <div style={{ padding: "8px 16px", background: C.goldSoft, borderBottom: `1px solid ${C.border}`, textAlign: "center" as const }}>
           <span style={{ fontSize: 11.5, color: C.textMuted }}>
             ↑ 導入了最近 {session.importedMsgs.length} 條真實對話作為背景
           </span>
@@ -321,9 +321,9 @@ function CloneChat({ session, myProfile, onReset }: {
               <div style={{ maxWidth: "72%", display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
                 <div style={{ padding: "10px 14px",
                   borderRadius: isMe ? "18px 4px 18px 18px" : "4px 18px 18px 18px",
-                  background: isMe ? C.grad : isCtx ? "rgba(255,255,255,0.06)" : "rgba(28,22,14,0.98)",
+                  background: isMe ? C.grad : isCtx ? C.surfHigh : C.bgCard,
                   border: isMe ? undefined : isCtx ? `1px solid ${C.border}` : `1px solid ${C.gold}18`,
-                  color: "#fff", fontSize: 14.5, lineHeight: 1.6,
+                  color: isMe ? "#fff" : C.text, fontSize: 14.5, lineHeight: 1.6,
                   whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                   {m.content}
                 </div>
@@ -340,7 +340,7 @@ function CloneChat({ session, myProfile, onReset }: {
             <div style={{ width: 30, height: 30, borderRadius: "50%", background: session.cloneAvatar ? `url(${session.cloneAvatar}) center/cover` : C.grad, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: C.bg, fontWeight: 700 }}>
               {!session.cloneAvatar && session.cloneName[0]}
             </div>
-            <div style={{ padding: "12px 16px", borderRadius: "4px 18px 18px 18px", background: "rgba(28,22,14,0.98)", border: `1px solid ${C.gold}18` }}>
+            <div style={{ padding: "12px 16px", borderRadius: "4px 18px 18px 18px", background: C.bgCard, border: `1px solid ${C.border}`, boxShadow:C.shadow }}>
               <div style={{ display: "flex", gap: 5 }}>
                 {[0,1,2].map(i => <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: C.gold, display: "inline-block", animation: `dot 1.2s ${i*.2}s ease-in-out infinite` }}/>)}
               </div>
@@ -361,13 +361,13 @@ function CloneChat({ session, myProfile, onReset }: {
       </div>
 
       {/* Input */}
-      <div style={{ padding: "10px 14px 28px", borderTop: `1px solid ${C.border}`, background: "rgba(12,10,8,0.96)", backdropFilter: "blur(20px)" }}>
+      <div style={{ padding: "10px 14px 28px", borderTop: `1px solid ${C.border}`, background: C.nav, backdropFilter: "blur(24px) saturate(145%)" }}>
         {isContinue && msgs.filter(m => !m.isContext).length === 0 && (
           <div style={{ fontSize: 12, color: C.textMuted, textAlign: "center" as const, marginBottom: 8 }}>
             試試你接下來想說的話 ↓
           </div>
         )}
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, background: "rgba(255,255,255,0.05)", border: `1px solid ${C.border}`, borderRadius: 24, padding: "8px 8px 8px 14px" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 24, padding: "8px 8px 8px 14px", boxShadow:"0 5px 18px rgba(57,42,101,0.06)" }}>
           <textarea ref={textRef} value={input}
             onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 100) + "px"; }}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
@@ -375,7 +375,7 @@ function CloneChat({ session, myProfile, onReset }: {
             rows={1}
             style={{ background: "transparent", border: "none", outline: "none", color: C.text, resize: "none", fontSize: 14.5, lineHeight: 1.55, width: "100%", maxHeight: 100, overflowY: "auto", fontFamily: "inherit" }}/>
           <button onClick={send} disabled={!input.trim() || generating}
-            style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0, background: (input.trim() && !generating) ? C.grad : "rgba(255,255,255,0.07)", border: "none", color: "#fff", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}>
+            style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0, background: (input.trim() && !generating) ? C.grad : C.surfHigh, border: "none", color: (input.trim() && !generating) ? "#fff" : C.textDim, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}>
             ➤
           </button>
         </div>
@@ -489,7 +489,7 @@ ${status.plan === "free" ? "升級 Premium 獲得更多次數" : "明天再試"}
           transition: swipeDx === 0 ? "transform .3s cubic-bezier(.32,.72,0,1)" : "none",
           boxShadow: swipeDx > 10 ? "-8px 0 24px rgba(0,0,0,0.5)" : "none" }}>
         {/* Header */}
-        <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, borderBottom: `1px solid ${C.border}`, background: "rgba(12,10,8,0.97)", backdropFilter: "blur(20px)", flexShrink: 0 }}>
+        <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, borderBottom: `1px solid ${C.border}`, background: C.nav, backdropFilter: "blur(24px) saturate(145%)", flexShrink: 0 }}>
           <button onClick={phase === "chat" ? () => setPhase("select") : onClose}
             style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", fontFamily: "inherit" }}>
             {phase === "chat" ? "‹" : "✕"}
@@ -505,7 +505,7 @@ ${status.plan === "free" ? "升級 Premium 獲得更多次數" : "明天再試"}
           </div>
           {phase === "chat" && (
             <button onClick={() => setPhase("select")}
-              style={{ fontSize: 11.5, color: C.textMuted, background: "rgba(255,255,255,0.05)", border: `1px solid ${C.border}`, borderRadius: 14, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" }}>
+              style={{ fontSize: 11.5, color: C.textMuted, background: C.surf, border: `1px solid ${C.border}`, borderRadius: 14, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" }}>
               換模式
             </button>
           )}
@@ -521,7 +521,7 @@ ${status.plan === "free" ? "升級 Premium 獲得更多次數" : "明天再試"}
           {error && (
             <div style={{ padding: 24, textAlign: "center" as const }}>
               <div style={{ color: C.rose, fontSize: 14, marginBottom: 12 }}>{error}</div>
-              <button onClick={() => setPhase("select")} style={{ padding: "10px 24px", borderRadius: 20, background: C.grad, border: "none", color: C.bg, fontFamily: "inherit", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>重試</button>
+              <button onClick={() => setPhase("select")} style={{ padding: "10px 24px", borderRadius: 20, background: C.grad, border: "none", color: "#fff", fontFamily: "inherit", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>重試</button>
             </div>
           )}
         </div>

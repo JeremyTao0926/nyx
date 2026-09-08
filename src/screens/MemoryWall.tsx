@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { C, getMemories, getBondInfo, fmtDate } from "../utils";
 import type { Memory, BondInfo } from "../utils";
 
-const BOND_COLORS = ["rgba(201,168,76,0.3)","rgba(201,168,76,0.5)","rgba(232,54,93,0.4)","rgba(232,54,93,0.6)","rgba(201,168,76,0.8)"];
+const BOND_COLORS = ["rgba(103,87,217,0.30)","rgba(103,87,217,0.50)","rgba(239,95,122,0.40)","rgba(239,95,122,0.60)","rgba(103,87,217,0.80)"];
 const MEMORY_ICONS: Record<string, string> = { encounter:"✦", spark:"♥", milestone:"★", first_message:"💬" };
 const MEMORY_COLORS: Record<string, string> = { encounter:C.gold, spark:C.rose, milestone:C.mint, first_message:C.textSub };
 
@@ -12,7 +12,7 @@ function BondRing({ level, chemistry }: { level: number; chemistry: number }) {
   return (
     <div style={{ position:"relative", width:80, height:80, flexShrink:0 }}>
       <svg width="80" height="80" style={{ transform:"rotate(-90deg)" }}>
-        <circle cx="40" cy="40" r="28" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="4"/>
+        <circle cx="40" cy="40" r="28" fill="none" stroke={C.surfHigh} strokeWidth="4"/>
         <circle cx="40" cy="40" r="28" fill="none" stroke={C.gold} strokeWidth="4"
           strokeDasharray={`${dash} ${circumference}`} strokeLinecap="round"
           style={{ transition:"stroke-dasharray .8s ease" }}/>
@@ -59,7 +59,7 @@ export function MemoryWall({ matchId, otherName, onClose }: { matchId: string; o
           touchAction:"pan-y", transform:`translateX(${swipeDx}px)`, transition:swipeDx===0?"transform .3s cubic-bezier(.32,.72,0,1)":"none",
           boxShadow:swipeDx>10?"-10px 0 30px rgba(0,0,0,0.6)":"none" }}>
       {/* Header */}
-      <div style={{ padding:"52px 16px 16px", background:"rgba(12,10,8,0.97)", backdropFilter:"blur(20px)", borderBottom:`1px solid ${C.border}` }}>
+      <div style={{ padding:"52px 16px 16px", background:C.nav, backdropFilter:"blur(24px) saturate(145%)", borderBottom:`1px solid ${C.border}` }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <button onClick={onClose} style={{ background:"none", border:"none", color:C.textMuted, fontSize:22, cursor:"pointer", fontFamily:"inherit", lineHeight:1 }}>‹</button>
           <div>
