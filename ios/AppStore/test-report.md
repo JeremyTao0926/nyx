@@ -10,14 +10,14 @@ The web application and iOS wrapper pass the automated checks that can run on Wi
 
 | Check | Result | Notes |
 | --- | --- | --- |
-| Unit tests | Pass | 21/21 tests, including OAuth callback parsing, web/native redirect selection, phone normalization, age/date boundaries, city ranking, matching helpers, and RevenueCat user switching. |
+| Unit and release-contract tests | Pass | 63/63 tests across 11 files, including OAuth, phone normalization, age boundaries, city ranking, matching, avatars, simulation batching/prompts, Premium visibility, subscription security, Edge Function syntax, and iOS release configuration. |
 | TypeScript + production web build | Pass | `npm run build`. |
-| Focused lint | Pass | New utility, persistence, purchase, and test files. React hook rules are clean in the modified screens. |
+| Full repository lint | Pass | `npm run lint -- --no-cache` reports 0 errors and 0 warnings. |
 | Production dependency audit | Pass | 0 production vulnerabilities from `npm audit --omit=dev`. |
 | Capacitor iOS sync | Pass | `npm run ios:sync` built the web assets and synced all six native plugins, including the system browser used for OAuth. |
 | Xcode simulator build | Pass | The macOS 15 GitHub Actions run compiled the Debug app for a generic iPhone Simulator with signing disabled. |
 
-The full repository lint is not yet green: it contains 256 project-wide findings, primarily the existing `no-explicit-any` typing debt and unused-code errors in large screens/utilities. This pass did not attempt a risky whole-project typing migration; the focused new modules are clean and no React hook violation remains in the modified screens. The production dependency audit is clean. The development-only audit reports three moderate findings in Capacitor CLI's `xcode` → `uuid` chain; npm's proposed fix force-downgrades Capacitor CLI, so it was not applied without a compatible upstream release.
+The full repository lint is green. The production dependency audit is clean. The development-only audit reports three moderate findings in Capacitor CLI's `xcode` → `uuid` chain; npm's proposed fix force-downgrades Capacitor CLI, so it was not applied without a compatible upstream release.
 
 ## Responsive UI coverage
 
@@ -26,7 +26,6 @@ The signed-out landing, login, registration, privacy, terms, and support interfa
 - 320×568 (small iPhone)
 - 375×667
 - 375×812
-- 390×844
 - 393×852
 - 430×932 (large iPhone)
 - 375×420 (keyboard-reduced viewport stress case)
@@ -57,6 +56,8 @@ Use a dedicated non-production QA account and test on at least one small-screen 
 - [ ] Send text and images, use camera and photo picker, receive messages, check unread counts, typing state, and foreground/background transitions.
 - [ ] Receive APNs notifications in sandbox and production/TestFlight environments and verify notification taps open the intended screen.
 - [ ] Purchase Premium and Premium+, restore purchases after reinstall, switch accounts, test cancellation/grace period/expiration, and verify server entitlements.
+- [ ] Confirm Premium and Premium+ badges appear on the subscriber's own profile and to other users in discovery, profile detail, chat list, and chat header; confirm expired memberships show no badge.
+- [ ] Have both users answer Daily Spark and a shared encounter at nearly the same time; verify exactly one memory and one counter increment are created.
 - [ ] Delete the account, then prove the deleted credentials can no longer sign in and associated user data is removed.
 - [ ] Check VoiceOver labels/focus order, Dynamic Type, Reduce Motion, contrast, and 44-point touch targets.
 - [ ] Test offline launch, slow network, API errors, image upload failures, interrupted purchases, and app termination/relaunch.
@@ -70,3 +71,7 @@ Use a dedicated non-production QA account and test on at least one small-screen 
 - Google OAuth, Apple Developer/Services ID, and SMS-provider credentials plus Supabase provider enablement.
 - Public privacy, terms, and support URLs.
 - Signed archive, TestFlight installation, real-device QA, screenshots, and reviewer demo account.
+
+## Production probe on 2026-09-08
+
+The production project did not yet expose the new database RPCs, and the following new Edge Functions returned 404 when checked: `groq-proxy`, `moderate-content`, `delete-account`, `sync-revenuecat-entitlement`, `revenuecat-webhook`, and `schedule-downgrade`. This is why AI and newly completed paid/security flows cannot be considered live until the backend deployment checklist above is completed.

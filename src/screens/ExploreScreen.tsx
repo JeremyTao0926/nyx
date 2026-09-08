@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { C, sound, sb, getExploreProfiles, recordSwipe, updateProfile, getDailyLikeStatus, getWhoLikedMe, generateIcebreaker, mbtiCompatibility, recordProfileView } from "../utils";
+import { C, sound, sb, getExploreProfiles, recordSwipe, updateProfile, getDailyLikeStatus, getWhoLikedMe, generateIcebreaker, mbtiCompatibility, recordProfileView, getFavoriteIds, toggleFavorite } from "../utils";
 import { Av, MatchAnimation } from "../components/Atoms";
 import { FilterSheet } from "../components/Modals";
 import { NearbyMap } from "../components/LocationMap";
@@ -7,6 +7,8 @@ import type { UserProfile, ExploreProfile, MatchItem, WhoLikedItem, DailyLikeSta
 import { PremiumScreen } from "./PremiumScreen";
 import { PremiumGateSheet } from "../components/PremiumGateSheet";
 import { PremiumBadge } from "../components/PremiumBadge";
+import { resolveAvatar } from "../avatar";
+import { getActivePremiumPlan } from "../subscription";
 
 type ExploreTab = "recommend" | "nearby" | "new";
 
@@ -32,7 +34,7 @@ function WhoLikedPanel({ items, onClose, onLike }: { items: WhoLikedItem[]; onCl
           </div>}
           {items.map(item => (
             <div key={item.id} style={{ display:"flex",alignItems:"center",gap:14,padding:"12px 8px",borderBottom:`1px solid ${C.border}` }}>
-              <Av url={item.avatar} name={item.name} size={52}/>
+              <Av url={item.avatar} name={item.name} gender={item.gender} size={52}/>
               <div style={{ flex:1,minWidth:0 }}>
                 <div style={{ fontSize:15,fontWeight:600,color:C.text }}>{item.name}{item.age?`, ${item.age}`:""}</div>
                 <div style={{ fontSize:12.5,color:item.direction==="superlike"?C.gold:C.textMuted,marginTop:2 }}>{item.direction==="superlike"?"⭐ 超級喜歡":"♥ 喜歡你"} · {item.mbti}</div>
@@ -90,10 +92,14 @@ function IcebreakerSheet({ them, myMbti, myHobbies, onClose, onUse }: { them: Ex
 }
 
 /* ─── Profile Detail Sheet (Image 2 style — full screen) ─ */
-export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlike, onChat, mode }: {
-  p: ExploreProfile; myMbti: string; myProfile: any;
-  onClose: () => void; onLike: () => void; onSuperlike: () => void; onChat: () => void;
-  mode?: "discover" | "matched";
+export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlike, mode, isFavorite, favoriteBusy, onToggleFavorite }: {
+  p: ExploreProfile; myMbti: string;
+  myProfile: Partial<Pick<UserProfile, "hobbies" | "has_pets" | "relationship_goal" | "exercise">> | null;
+  onClose: () => void; onLike?: () => void; onSuperlike?: () => void;
+  mode?: "discover" | "matched" | "favorite";
+  isFavorite?: boolean;
+  favoriteBusy?: boolean;
+  onToggleFavorite?: () => void;
 }) {
   const [photoIdx, setPhotoIdx] = useState(0);
   const [lbIdx, setLbIdx] = useState<number|null>(null);
@@ -160,8 +166,8 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
     </div>
   );
 
-  function handleLike() { setLikeAnim(true); setTimeout(()=>setLikeAnim(false),400); onLike(); }
-  function handlePriority() { setPriorityAnim(true); setTimeout(()=>{ setPriorityAnim(false); onSuperlike(); },480); }
+  function handleLike() { setLikeAnim(true); setTimeout(()=>setLikeAnim(false),400); onLike?.(); }
+  function handlePriority() { setPriorityAnim(true); setTimeout(()=>{ setPriorityAnim(false); onSuperlike?.(); },480); }
 
   const actionBar = (
     <div style={{ position:"absolute",bottom:0,left:0,right:0,zIndex:20 }}>
@@ -221,7 +227,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
 
 
   return (
-    <div style={{ position:"fixed",inset:0,zIndex:1200,display:"flex",justifyContent:"center",background:C.overlay,backdropFilter:"blur(12px)" }}
+    <div style={{ position:"fixed",inset:0,zIndex:1200,display:"flex",justifyContent:"center",background:swipeDx>0?"transparent":C.overlay,backdropFilter:swipeDx>0?"none":"blur(12px)",transition:"background .18s ease" }}
       onTouchStart={e=>e.stopPropagation()}
       onTouchMove={e=>e.stopPropagation()}
       onTouchEnd={e=>e.stopPropagation()}>
@@ -231,7 +237,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
           boxShadow:swipeDx>10?"-10px 0 34px rgba(57,42,101,0.26)":"none",animation:"profileZoomIn .3s cubic-bezier(.32,.72,0,1)" }}>
 
         {/* ONE scrollable area — photo sticky on top, content below */}
-        <div style={{ flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch" as any }}>
+        <div style={{ flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch" }}>
 
           {/* ── PHOTO hero ── */}
           <div style={{ position:"relative",height:"58vh",minHeight:340,flexShrink:0,overflow:"hidden" }}
@@ -259,6 +265,10 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
             </div>
             {/* Back button */}
             <button onClick={onClose} style={{ position:"absolute",top:14,left:14,zIndex:10,width:36,height:36,borderRadius:"50%",background:"rgba(25,18,43,0.54)",backdropFilter:"blur(12px)",border:"1px solid rgba(255,255,255,.18)",color:"#fff",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1 }}>‹</button>
+            {onToggleFavorite&&<button type="button" aria-label={isFavorite?"移除收藏":"加入私人收藏"} aria-pressed={isFavorite} disabled={favoriteBusy} onClick={e=>{e.stopPropagation();onToggleFavorite();}}
+              style={{ position:"absolute",top:56,right:14,zIndex:10,width:42,height:42,borderRadius:"50%",background:isFavorite?"rgba(103,87,217,0.94)":"rgba(25,18,43,0.62)",backdropFilter:"blur(12px)",border:`1px solid ${isFavorite?"rgba(255,255,255,.32)":"rgba(255,255,255,.18)"}`,color:"#fff",cursor:favoriteBusy?"wait":"pointer",display:"flex",alignItems:"center",justifyContent:"center",opacity:favoriteBusy ? 0.62 : 1,boxShadow:isFavorite?`0 8px 24px ${C.goldGlow}`:"none",transition:"all .2s" }}>
+              <svg width="19" height="19" viewBox="0 0 24 24" fill={isFavorite?"currentColor":"none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            </button>}
           {/* dot indicators */}
             {allPhotos.length>1&&<div style={{ position:"absolute",top:14,left:58,right:14,display:"flex",gap:4,zIndex:5 }}>
               {allPhotos.map((_,i)=><div key={i} style={{ flex:1,height:3,borderRadius:2,background:i===photoIdx?"rgba(255,255,255,0.95)":"rgba(255,255,255,0.28)",transition:"all .22s" }}/>)}
@@ -272,7 +282,7 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
               <div style={{ flex:1,minWidth:0 }}>
                 <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:3 }}>
                   <span style={{ fontSize:28,fontWeight:800,color:"#fff",letterSpacing:"-0.02em" }}>{p.name}</span>
-                  <PremiumBadge plan={(p as any).is_premium ? ((p as any).premium_plan || "premium") : null} />
+                  <PremiumBadge plan={p.is_premium ? (p.premium_plan || "premium") : null} />
                   {p.verified&&<svg width="20" height="20" viewBox="0 0 24 24" fill={C.gold}><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 0 1.946-.806 3.42 3.42 0 0 1 4.438 0 3.42 3.42 0 0 0 1.946.806 3.42 3.42 0 0 1 3.138 3.138 3.42 3.42 0 0 0 .806 1.946 3.42 3.42 0 0 1 0 4.438 3.42 3.42 0 0 0-.806 1.946 3.42 3.42 0 0 1-3.138 3.138 3.42 3.42 0 0 0-1.946.806 3.42 3.42 0 0 1-4.438 0 3.42 3.42 0 0 0-1.946-.806 3.42 3.42 0 0 1-3.138-3.138 3.42 3.42 0 0 0-.806-1.946 3.42 3.42 0 0 1 0-4.438 3.42 3.42 0 0 0 .806-1.946 3.42 3.42 0 0 1 3.138-3.138z"/></svg>}
                 </div>
                 <div style={{ fontSize:14.5,color:"rgba(255,255,255,0.68)",marginBottom:2 }}>{[p.age?`${p.age} 歲`:null,p.location||null].filter(Boolean).join(" · ")}</div>
@@ -290,7 +300,12 @@ export function ProfileSheet({ p, myMbti, myProfile, onClose, onLike, onSuperlik
           </div>
 
           {/* ── ALL CONTENT below photo, single scroll ── */}
-          <div style={{ padding:"14px 16px 120px",background:C.bg }}>
+          <div style={{ padding:`14px 16px ${(mode??"discover")==="discover"?"120px":"36px"}`,background:C.bg }}>
+
+            {mode==="favorite"&&<div style={{ display:"flex",gap:10,alignItems:"flex-start",background:C.goldSoft,border:`1px solid ${C.borderHigh}`,borderRadius:14,padding:"12px 14px",marginBottom:16 }}>
+              <span style={{ color:C.gold,fontSize:16,lineHeight:1.45 }}>🔐</span>
+              <div style={{ fontSize:12.5,color:C.textSub,lineHeight:1.55 }}>這是你的私人收藏。對方不會收到通知，收藏也不會解鎖聊天或建立配對。</div>
+            </div>}
 
             {/* Common points */}
             {finalCommon.length>0&&<div style={{ background:C.bgCard,borderRadius:16,border:`1px solid ${C.border}`,padding:"14px 16px",marginBottom:16,boxShadow:C.shadow }}>
@@ -406,10 +421,10 @@ function SwipeCard({ p, isTop, myMbti, myHobbies, onSwipe, onOpenProfile }: { p:
   const passO=Math.min(1,Math.max(0,-pos.x/60));
 
   return (
-    <div onMouseDown={e=>{if(isTop)onS(e.clientX,e.clientY);}} onMouseMove={e=>{if(drag)onM(e.clientX,e.clientY);}} onMouseUp={e=>{if(!drag&&isTop&&Math.abs(pos.x)<5)onOpenProfile();else onE();}} onMouseLeave={onE}
+    <div onMouseDown={e=>{if(isTop)onS(e.clientX,e.clientY);}} onMouseMove={e=>{if(drag)onM(e.clientX,e.clientY);}} onMouseUp={()=>{if(!drag&&isTop&&Math.abs(pos.x)<5)onOpenProfile();else onE();}} onMouseLeave={onE}
       onTouchStart={e=>{onS(e.touches[0].clientX,e.touches[0].clientY);}}
       onTouchMove={e=>onM(e.touches[0].clientX,e.touches[0].clientY)}
-      onTouchEnd={e=>{const moved=Math.abs(pos.x)>8||Math.abs(pos.y)>8;if(!moved&&isTop)onOpenProfile();else onE();}}
+      onTouchEnd={()=>{const moved=Math.abs(pos.x)>8||Math.abs(pos.y)>8;if(!moved&&isTop)onOpenProfile();else onE();}}
       style={{ position:"absolute",width:"100%",transform:`translate(${pos.x}px,${pos.y}px) rotate(${pos.x*.05}deg)`,transition:drag?"none":"transform .4s cubic-bezier(.34,1.56,.64,1)",cursor:isTop?"pointer":"default",userSelect:"none" as const }}>
       <div style={{ borderRadius:20,overflow:"hidden",boxShadow:C.shadowStrong,background:C.bgCard,border:`1px solid ${C.border}` }}>
         {/* Photo */}
@@ -434,7 +449,7 @@ function SwipeCard({ p, isTop, myMbti, myHobbies, onSwipe, onOpenProfile }: { p:
           {/* Info overlay */}
           <div style={{ position:"absolute",bottom:18,left:18,right:18,pointerEvents:"none" }}>
             <div style={{ display:"flex",alignItems:"baseline",gap:8,marginBottom:6 }}>
-              <div style={{ display:"flex",alignItems:"center",gap:8 }}><div style={{ fontSize:25,fontWeight:800,color:"#fff" }}>{p.name}</div><PremiumBadge plan={(p as any).is_premium ? ((p as any).premium_plan || "premium") : null} /></div>
+              <div style={{ display:"flex",alignItems:"center",gap:8 }}><div style={{ fontSize:25,fontWeight:800,color:"#fff" }}>{p.name}</div><PremiumBadge plan={p.is_premium ? (p.premium_plan || "premium") : null} /></div>
               {p.age && <div style={{ fontSize:18,color:"rgba(255,255,255,0.75)" }}>{p.age}</div>}
             </div>
             <div style={{ fontSize:13,color:"rgba(255,255,255,0.65)",marginBottom:6 }}>
@@ -449,7 +464,7 @@ function SwipeCard({ p, isTop, myMbti, myHobbies, onSwipe, onOpenProfile }: { p:
         {/* Bio row — only show on top card */}
         {isTop && (p.bio||p.hobbies.length>0) && (
           <div style={{ padding:"14px 18px 16px",cursor:"pointer" }} onClick={onOpenProfile}>
-            {p.bio && <div style={{ fontSize:13,color:C.textSub,lineHeight:1.55,marginBottom:8,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden" } as any}>{p.bio}</div>}
+            {p.bio && <div style={{ fontSize:13,color:C.textSub,lineHeight:1.55,marginBottom:8,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden" }}>{p.bio}</div>}
             {p.hobbies.length>0 && <div style={{ display:"flex",gap:5,flexWrap:"wrap" as const }}>
               {p.hobbies.slice(0,3).map(h=><span key={h} style={{ background:C.bgGold,border:`1px solid ${C.border}`,borderRadius:20,padding:"3px 10px",fontSize:11,color:C.textMuted }}>{h}</span>)}
               {p.hobbies.length>3 && <span style={{ fontSize:11,color:C.textMuted,padding:"3px 4px" }}>+{p.hobbies.length-3}</span>}
@@ -487,16 +502,18 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
   const [mapView,setMapView] = useState(false);
   const viewMode: "swipe"|"grid" = exploreTab === "recommend" ? "swipe" : "grid";
   const FREE_GRID_LIMIT = 6;
-  const isPremiumMe = (profile as any)?.is_premium === true;
+  const isPremiumMe = getActivePremiumPlan(profile) !== null;
   const [showFilter,setShowFilter] = useState(false);
   const [showWhoLiked,setShowWhoLiked] = useState(false);
   const [whoLiked,setWhoLiked]   = useState<WhoLikedItem[]>([]);
   const [dailyStatus,setDailyStatus] = useState<DailyLikeStatus|null>(null);
-  const [showPremiumGate, setShowPremiumGate] = useState<"likes"|"superlike"|"wholiked"|"grid"|null>(null);
+  const [showPremiumGate, setShowPremiumGate] = useState<"likes"|"superlike"|"wholiked"|"grid"|"favorite"|null>(null);
   const [showPremium, setShowPremium] = useState(false);
   const [matchInfo,setMatchInfo] = useState<{avatar:string;name:string;id:string;matchId?:string;profile?:ExploreProfile;advanceDeck:boolean}|null>(null);
   const [showIcebreaker,setShowIcebreaker] = useState(false);
   const [showProfile,setShowProfile] = useState<ExploreProfile|null>(null);
+  const [favoriteIds,setFavoriteIds] = useState<Set<string>>(()=>new Set());
+  const [favoriteBusyId,setFavoriteBusyId] = useState<string|null>(null);
   const [filters,setFilters]     = useState<Partial<UserProfile>>({ looking_for_gender:profile.looking_for_gender||"female", filter_min_age:profile.filter_min_age||18, filter_max_age:profile.filter_max_age||35, filter_max_distance:profile.filter_max_distance||100 });
   const loadRequest = useRef(0);
 
@@ -538,6 +555,15 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
     return () => { active = false; };
   }, [userId]);
 
+  useEffect(() => {
+    let active = true;
+    if (!isPremiumMe) return () => { active = false; };
+    getFavoriteIds(userId)
+      .then(ids => { if (active) setFavoriteIds(ids); })
+      .catch(error => console.error("Unable to load private favorites", error));
+    return () => { active = false; };
+  }, [isPremiumMe, userId]);
+
   const shownProfileId = showProfile?.id;
   useEffect(()=>{ if (shownProfileId) void recordProfileView(userId, shownProfileId); },[shownProfileId, userId]);
 
@@ -550,7 +576,7 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
     if(dir==="superlike"&&dailyStatus&&dailyStatus.superlikeRemaining<=0){
       setShowPremiumGate("superlike"); return;
     }
-    let matched = false;
+    let matched: boolean;
     try {
       matched = await recordSwipe(userId,p.id,dir);
     } catch (error) {
@@ -581,7 +607,31 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
     }
     const{data}=await sb.from("matches").select("id").or(`and(user1_id.eq.${userId},user2_id.eq.${item.id}),and(user1_id.eq.${item.id},user2_id.eq.${userId})`).maybeSingle();
     setWhoLiked(w=>w.filter(x=>x.id!==item.id)); setShowWhoLiked(false);
-    sound.match(); setMatchInfo({avatar:item.avatar,name:item.name,id:item.id,matchId:data?.id,profile:{id:item.id,name:item.name,age:item.age,mbti:item.mbti,bio:"",avatar:item.avatar,photos:[],location:"",country:"",ethnicity:[],hobbies:[],verified:false} as any,advanceDeck:false});
+    sound.match(); setMatchInfo({avatar:item.avatar,name:item.name,id:item.id,matchId:data?.id,profile:{id:item.id,name:item.name,age:item.age,mbti:item.mbti,bio:"",avatar:item.avatar,gender:item.gender,photos:[],location:"",country:"",ethnicity:[],hobbies:[],verified:false},advanceDeck:false});
+  }
+
+  async function toggleProfileFavorite(target: ExploreProfile) {
+    if (!isPremiumMe) { setShowPremiumGate("favorite"); return; }
+    if (favoriteBusyId) return;
+    const nextValue = !favoriteIds.has(target.id);
+    setFavoriteBusyId(target.id);
+    try {
+      const active = await toggleFavorite(target.id, nextValue);
+      setFavoriteIds(current => {
+        const next = new Set(current);
+        if (active) next.add(target.id); else next.delete(target.id);
+        return next;
+      });
+      sound.tap();
+    } catch (error) {
+      const message = errorText(error, "收藏操作失敗，請稍後再試");
+      if (message.includes("PREMIUM_REQUIRED")) setShowPremiumGate("favorite");
+      else if (message.includes("FAVORITE_LIMIT_REACHED")) alert("收藏已達方案上限，請先移除部分收藏");
+      else if (message.includes("FAVORITE_NOT_ALLOWED")) alert("目前無法收藏這位用戶");
+      else { console.error(error); alert(message); }
+    } finally {
+      setFavoriteBusyId(null);
+    }
   }
 
   const remaining = profiles.slice(idx,idx+3).reverse();
@@ -728,26 +778,30 @@ export function ExploreScreen({ userId, profile, onUpdate, onOpenMatch }: { user
       {showProfile && <ProfileSheet p={showProfile} myMbti={myMbti} myProfile={profile} onClose={()=>setShowProfile(null)}
         onLike={()=>{void doSwipe("like",showProfile);setShowProfile(null);}}
         onSuperlike={()=>{void doSwipe("superlike",showProfile);setShowProfile(null);}}
-        onChat={()=>{ setShowProfile(null); }}
+        isFavorite={favoriteIds.has(showProfile.id)}
+        favoriteBusy={favoriteBusyId===showProfile.id}
+        onToggleFavorite={()=>{void toggleProfileFavorite(showProfile);}}
       />}
 
       {/* ── Premium Gate ── */}
       {showPremiumGate && (
         <PremiumGateSheet
-          icon={showPremiumGate==="wholiked"?"♥":showPremiumGate==="superlike"?"★":showPremiumGate==="grid"?"🔒":"∞"}
-          title={showPremiumGate==="likes"?"今日喜歡已用完":showPremiumGate==="superlike"?"今日優先認識已用完":showPremiumGate==="grid"?"解鎖更多附近的人":"查看所有喜歡你的人"}
-          desc={showPremiumGate==="likes"?<span>免費版每天可喜歡 30 人<br/>升級 Premium 享無限喜歡</span>:showPremiumGate==="superlike"?<span>免費版每天 1 次優先認識<br/>Premium 每天 5 次</span>:showPremiumGate==="grid"?<span>免費版可瀏覽 6 位用戶<br/>升級 Premium 無限瀏覽附近與新加入的人</span>:<span>升級 Premium<br/>查看所有喜歡你的人</span>}
+          icon={showPremiumGate==="wholiked"?"♥":showPremiumGate==="superlike"?"★":showPremiumGate==="grid"?"🔒":showPremiumGate==="favorite"?"🔖":"∞"}
+          title={showPremiumGate==="likes"?"今日喜歡已用完":showPremiumGate==="superlike"?"今日優先認識已用完":showPremiumGate==="grid"?"解鎖更多附近的人":showPremiumGate==="favorite"?"建立私人收藏":"查看所有喜歡你的人"}
+          desc={showPremiumGate==="likes"?<span>免費版每天可喜歡 30 人<br/>升級 Premium 享無限喜歡</span>:showPremiumGate==="superlike"?<span>免費版每天 1 次優先認識<br/>Premium 每天 5 次</span>:showPremiumGate==="grid"?<span>免費版可瀏覽 6 位用戶<br/>升級 Premium 無限瀏覽附近與新加入的人</span>:showPremiumGate==="favorite"?<span>收藏完全私密，不會通知對方<br/>Premium 可收藏 100 人，Premium+ 可收藏 250 人</span>:<span>升級 Premium<br/>查看所有喜歡你的人</span>}
           onUpgrade={()=>{ setShowPremiumGate(null); setShowPremium(true); }}
           onClose={()=>setShowPremiumGate(null)}
         />
       )}
-      {showPremium && <PremiumScreen onBack={()=>setShowPremium(false)} profile={profile}/>}
+      {showPremium && (
+        <PremiumScreen onBack={()=>setShowPremium(false)} profile={profile} onProfileUpdate={onUpdate}/>
+      )}
 
-      {matchInfo && <MatchAnimation myAvatar={profile.avatar_url||""} myName={profile.display_name||profile.username} theirAvatar={matchInfo.avatar} theirName={matchInfo.name}
-        onChat={()=>{if(matchInfo.advanceDeck)setIdx(i=>i+1);if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:"",time:"",unread:0} as any);setMatchInfo(null);}}
+      {matchInfo && <MatchAnimation myAvatar={resolveAvatar(profile.avatar_url,profile.gender)} myName={profile.display_name||profile.username} theirAvatar={matchInfo.avatar} theirName={matchInfo.name}
+        onChat={()=>{if(matchInfo.advanceDeck)setIdx(i=>i+1);if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:"",time:"",unread:0});setMatchInfo(null);}}
         onIcebreaker={()=>setShowIcebreaker(true)}
         onContinue={()=>{if(matchInfo.advanceDeck)setIdx(i=>i+1);setMatchInfo(null);}}/>}
-      {showIcebreaker&&matchInfo?.profile&&<IcebreakerSheet them={matchInfo.profile} myMbti={myMbti} myHobbies={profile.hobbies||[]} onClose={()=>setShowIcebreaker(false)} onUse={text=>{if(matchInfo.advanceDeck)setIdx(i=>i+1);if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:text,time:"",unread:0,prefillMsg:text} as any);setShowIcebreaker(false);setMatchInfo(null);}}/>}
+      {showIcebreaker&&matchInfo?.profile&&<IcebreakerSheet them={matchInfo.profile} myMbti={myMbti} myHobbies={profile.hobbies||[]} onClose={()=>setShowIcebreaker(false)} onUse={text=>{if(matchInfo.advanceDeck)setIdx(i=>i+1);if(matchInfo.matchId)onOpenMatch({id:matchInfo.id,matchId:matchInfo.matchId,name:matchInfo.name,avatar:matchInfo.avatar,lastMsg:text,time:"",unread:0,prefillMsg:text});setShowIcebreaker(false);setMatchInfo(null);}}/>}
       {showWhoLiked && <WhoLikedPanel items={whoLiked} onClose={()=>setShowWhoLiked(false)} onLike={likeFromWhoLiked}/>}
       {showFilter && <FilterSheet filters={filters} onSave={async f=>{ setFilters(f); try { await updateProfile(userId,f); onUpdate(f); setShowFilter(false); } catch (error) { console.error(error); alert(error instanceof Error ? error.message : "篩選條件儲存失敗"); } }} onClose={()=>setShowFilter(false)}/>}
     </div>

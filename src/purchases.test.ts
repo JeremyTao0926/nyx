@@ -9,10 +9,14 @@ const revenueCat = vi.hoisted(() => ({
   purchasePackage: vi.fn(),
   restorePurchases: vi.fn(),
 }));
+const invoke = vi.hoisted(() => vi.fn());
 
 vi.mock("@revenuecat/purchases-capacitor", () => ({ Purchases: revenueCat }));
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: vi.fn(() => ({ functions: { invoke } })),
+}));
 
-import { getIOSPlanPrices } from "./purchases";
+import { getIOSPlanPrices, syncIOSSubscriptionProfile } from "./purchases";
 
 describe("RevenueCat identity lifecycle", () => {
   beforeEach(() => {
@@ -41,5 +45,28 @@ describe("RevenueCat identity lifecycle", () => {
     expect(revenueCat.configure).toHaveBeenCalledTimes(1);
     expect(revenueCat.configure).toHaveBeenCalledWith(expect.objectContaining({ appUserID: "user-one" }));
     expect(revenueCat.logIn).toHaveBeenCalledWith({ appUserID: "user-two" });
+  });
+
+  it("applies only a server-verified entitlement payload", async () => {
+    invoke.mockResolvedValueOnce({
+      data: {
+        is_premium: true,
+        premium_plan: "premium_plus",
+        premium_expires_at: "2026-10-08T12:00:00Z",
+      },
+      error: null,
+    });
+
+    await expect(syncIOSSubscriptionProfile()).resolves.toEqual({
+      is_premium: true,
+      premium_plan: "premium_plus",
+      premium_expires_at: "2026-10-08T12:00:00Z",
+    });
+    expect(invoke).toHaveBeenCalledWith("sync-revenuecat-entitlement", { body: {} });
+  });
+
+  it("rejects malformed subscription sync data", async () => {
+    invoke.mockResolvedValueOnce({ data: { premium_plan: "premium_plus" }, error: null });
+    await expect(syncIOSSubscriptionProfile()).rejects.toThrow("訂閱狀態回傳格式不正確");
   });
 });

@@ -9,16 +9,19 @@ const sb = createClient(
 export { sb };
 
 export type AdminRole = "super_admin" | "moderator" | "analyst" | "tester";
+export type AdminTheme = Record<string, string>;
+
+export function errorMessage(error: unknown, fallback = "操作失敗"): string {
+  if (error instanceof Error) return error.message;
+  return typeof error === "string" && error ? error : fallback;
+}
 
 export async function grantPremium(userId: string, plan: "premium" | "premium_plus" | null) {
-  const expiresAt = plan ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null;
-  const { data, error } = await sb.from("profiles").update({
-    is_premium: plan !== null,
-    premium_plan: plan,
-    premium_expires_at: expiresAt,
-  }).eq("id", userId).select("id");
+  const { error } = await sb.rpc("admin_set_premium", {
+    p_user_id: userId,
+    p_plan: plan,
+  });
   if (error) throw error;
-  if (!data || data.length === 0) throw new Error("更新被 RLS 阻擋（0 行受影響）— 請先在 Supabase 執行 admin update policy");
 }
 
 export interface AdminUser {
@@ -72,6 +75,21 @@ export interface UserRow {
   last_active: string;
   created_at: string;
   avatar_url: string | null;
+  is_premium: boolean;
+  premium_plan: "premium" | "premium_plus" | null;
+  premium_expires_at: string | null;
+  is_active: boolean;
+  deleted_at: string | null;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  admin_id: string;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  created_at: string;
+  admin?: { display_name: string | null; username: string | null } | null;
 }
 
 // ─── Admin auth check ─────────────────────────────────
@@ -156,33 +174,43 @@ export async function getReports(pending = true): Promise<Report[]> {
     .order("created_at", { ascending: false })
     .limit(100);
   if (!data) return [];
-  return data.map((r: any) => ({
+  type RawReport = {
+    id: string; reporter_id: string; reported_id: string; reason: string;
+    category: string; created_at: string;
+    reporter?: { display_name: string | null; username: string | null } | null;
+    reported?: { display_name: string | null; username: string | null } | null;
+    review?: { id: string }[] | null;
+  };
+  const rows = data as unknown as RawReport[];
+  return rows.map(r => ({
     id: r.id, reporter_id: r.reporter_id, reported_id: r.reported_id,
     reason: r.reason, category: r.category, created_at: r.created_at,
-    reporter_name: r.reporter?.display_name || r.reporter?.username,
-    reported_name: r.reported?.display_name || r.reported?.username,
+    reporter_name: r.reporter?.display_name || r.reporter?.username || undefined,
+    reported_name: r.reported?.display_name || r.reported?.username || undefined,
     reviewed: (r.review?.length || 0) > 0,
-  })).filter((r: any) => pending ? !r.reviewed : r.reviewed);
+  })).filter(r => pending ? !r.reviewed : r.reviewed);
 }
 
 export async function authorizeReview(reportId: string, notes: string) {
   const { data: { user } } = await sb.auth.getUser();
+  if (!user) throw new Error("管理員登入已過期，請重新登入");
   await sb.from("report_review_log").insert({
-    report_id: reportId, reviewer_id: user!.id, notes, action_taken: "pending"
+    report_id: reportId, reviewer_id: user.id, notes, action_taken: "pending"
   });
 }
 
 export async function resolveReport(reportId: string, action: "warning" | "ban" | "dismissed", notes: string) {
   const { data: { user } } = await sb.auth.getUser();
+  if (!user) throw new Error("管理員登入已過期，請重新登入");
   await sb.from("report_review_log")
     .update({ action_taken: action, notes })
     .eq("report_id", reportId)
-    .eq("reviewer_id", user!.id);
+    .eq("reviewer_id", user.id);
   await logAction("resolve_report", "report", reportId, { action, notes });
 }
 
 // ─── Audit log ────────────────────────────────────────
-export async function logAction(action: string, targetType: string, targetId: string, meta?: any) {
+export async function logAction(action: string, targetType: string, targetId: string, meta?: Record<string, unknown>) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return;
   await sb.from("admin_audit_log").insert({
@@ -190,12 +218,12 @@ export async function logAction(action: string, targetType: string, targetId: st
   });
 }
 
-export async function getAuditLog(limit = 50) {
+export async function getAuditLog(limit = 50): Promise<AuditLogEntry[]> {
   const { data } = await sb.from("admin_audit_log")
     .select("*, admin:profiles!admin_id(display_name,username)")
     .order("created_at", { ascending: false })
     .limit(limit);
-  return data || [];
+  return (data || []) as unknown as AuditLogEntry[];
 }
 
 export async function getUserStats(userId: string): Promise<UserStats> {
@@ -253,17 +281,22 @@ export async function getAppeals(pendingOnly = true): Promise<Appeal[]> {
   if (pendingOnly) q = q.eq("status", "pending");
   const { data, error } = await q;
   if (error) throw error;
-  const list = data || [];
-  const ids = [...new Set(list.map((a: any) => a.user_id))];
-  const profMap: Record<string, any> = {};
+  type AppealRow = Omit<Appeal, "username" | "email" | "blockType">;
+  type AppealProfile = {
+    id: string; username: string | null; email: string | null;
+    is_banned: boolean; is_active: boolean; deleted_at: string | null;
+  };
+  const list = (data || []) as unknown as AppealRow[];
+  const ids = [...new Set(list.map(a => a.user_id))];
+  const profMap: Record<string, AppealProfile> = {};
   if (ids.length) {
     const { data: profs } = await sb.from("profiles").select("id,username,email,is_banned,is_active,deleted_at").in("id", ids);
-    (profs || []).forEach((p: any) => { profMap[p.id] = p; });
+    ((profs || []) as unknown as AppealProfile[]).forEach(p => { profMap[p.id] = p; });
   }
-  return list.map((a: any) => {
+  return list.map(a => {
     const p = profMap[a.user_id];
     const blockType = !p ? "?" : p.is_banned ? "封禁" : p.deleted_at ? "已刪除" : p.is_active === false ? "停用" : "正常";
-    return { ...a, username: p?.username, email: p?.email, blockType };
+    return { ...a, username: p?.username || undefined, email: p?.email || undefined, blockType };
   });
 }
 

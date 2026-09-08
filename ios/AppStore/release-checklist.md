@@ -2,21 +2,21 @@
 
 ## Code and backend
 
-- [ ] Apply src/schema_v3.sql to production Supabase.
-- [ ] Apply supabase/migrations/20260908000000_social_phone_auth_profiles.sql before enabling social/phone auth.
+- [ ] Link the production Supabase project and apply all four files in `supabase/migrations/` in timestamp order. Use `src/schema_v3.sql` only as the consolidated reference, not as a second migration pass.
 - [ ] Configure Supabase redirect URLs, then enable and test Google, Apple, and phone providers using docs/AUTH_PROVIDERS.md.
-- [ ] Deploy delete-account, groq-proxy, moderate-content, revenuecat-webhook, and send-push Edge Functions.
-- [ ] Set GROQ_API_KEY, REVENUECAT_WEBHOOK_SECRET, REVENUECAT_SECRET_API_KEY, IOS_PREMIUM_PRODUCT_ID, IOS_PREMIUM_PLUS_PRODUCT_ID, APNS_KEY_ID, APNS_TEAM_ID, APNS_PRIVATE_KEY, APNS_BUNDLE_ID, APNS_ENV, VAPID_PUBLIC, VAPID_PRIVATE, and VAPID_SUBJECT secrets.
+- [ ] Deploy all ten folders in `supabase/functions/`: create-checkout, delete-account, groq-proxy, moderate-content, revenuecat-webhook, schedule-downgrade, send-push, stripe-webhook, sync-revenuecat-entitlement, and upgrade-subscription.
+- [ ] Set GROQ_API_KEY, REVENUECAT_WEBHOOK_SECRET, REVENUECAT_SECRET_API_KEY, IOS_PREMIUM_PRODUCT_ID, IOS_PREMIUM_PLUS_PRODUCT_ID, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PREMIUM_PRICE_ID, STRIPE_PREMIUM_PLUS_PRICE_ID, APP_URL, APNS_KEY_ID, APNS_TEAM_ID, APNS_PRIVATE_KEY, APNS_BUNDLE_ID, APNS_ENV, VAPID_PUBLIC, VAPID_PRIVATE, and VAPID_SUBJECT secrets.
 - [ ] Set VITE_REVENUECAT_IOS_API_KEY for the production build.
-- [ ] After merging to main, enable GitHub Pages with GitHub Actions as the source and verify privacy.html, terms.html, and support.html publicly.
+- [ ] After the production Vercel deployment, verify `/privacy.html`, `/terms.html`, and `/support.html` are public and use those stable URLs in App Store Connect. GitHub Pages is optional, not required for the iOS app.
 
 ## Apple Developer and RevenueCat
 
 - [ ] Register Bundle ID com.jeremytao.nyx and enable Push Notifications, In-App Purchase, and Sign in with Apple.
 - [ ] Create an APNs .p8 key and use its Key ID and Team ID in Supabase secrets.
-- [ ] Create the app record and subscription group in App Store Connect.
-- [ ] Create nyx_premium_monthly and nyx_premium_plus_monthly, complete pricing/localization/review screenshot, and submit the first subscriptions with version 1.0.
+- [ ] Create the app record and one subscription group in App Store Connect. Put Premium+ at level 1 and Premium at level 2 so upgrades/downgrades behave correctly.
+- [ ] Create `nyx_premium_monthly` and `nyx_premium_plus_monthly`, complete pricing/localization/review screenshots, and submit the first subscriptions with version 1.0.
 - [ ] Connect App Store Connect to RevenueCat; create the premium entitlement and current offering packages premium and premium_plus.
+- [ ] Confirm the native iOS build shows App Store localized prices, purchase sheet, Restore Purchases, and Apple subscription management; Stripe checkout must remain web-only.
 
 ## App Store Connect
 

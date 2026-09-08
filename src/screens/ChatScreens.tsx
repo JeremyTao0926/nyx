@@ -1,25 +1,34 @@
 import React, { useState, useEffect, useRef } from "react";
-import { C, WRAP, sb, sound, calcAge, fmtTime, fmtDate, fmtMsgTime, onlineStatus, blockUser, reportUser, loadChatMsgs, sendChatMsg, markMsgsRead, uploadPhoto, buildSys, groqChat, getTodaySpark, getBondInfo } from "../utils";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { C, sb, sound, calcAge, fmtTime, fmtDate, fmtMsgTime, onlineStatus, blockUser, reportUser, loadChatMsgs, sendChatMsg, markMsgsRead, uploadPhoto, groqChat, getTodaySpark, getBondInfo } from "../utils";
 import type { DailySpark, BondInfo } from "../utils";
 import { SparkCard } from "../components/SparkCard";
-import { REPORT_CATEGORIES } from "../components/Modals";
+import { REPORT_CATEGORIES } from "../reportCategories";
 import { Av, TypingBubble, NyxText, Lightbox } from "../components/Atoms";
 import { EmojiPanel } from "../components/Modals";
 import { MemoryWall } from "./MemoryWall";
 import { CloneScreen } from "./CloneScreen";
-import type { UserProfile, MatchItem, ChatMsg, ImgItem } from "../types";
+import type { UserProfile, ExploreProfile, MatchItem, ChatMsg } from "../types";
 import { ProfileSheet } from './ExploreScreen';
 import { PremiumBadge } from '../components/PremiumBadge';
+import { resolveAvatar } from "../avatar";
+import { getActivePremiumPlan } from "../subscription";
 
 const MAX_W = { maxWidth: 480, margin: "0 auto", width: "100%" };
+type ChatPartnerProfile = ExploreProfile & {
+  cover?: string | null;
+  lastActive?: string | null;
+  hideOnline?: boolean;
+};
 
 // Module-level cache — persists across navigation, never resets
 const _analysisCache = new Map<string, string>();
 
 /* ─── SparkPanel — collapsible daily spark in chat ──── */
-function SparkPanel({ spark, matchId, myUserId, other, onSparkUpdate, onBondUpdate }:
-  { spark: any; matchId: string; myUserId: string; other: any;
-    onSparkUpdate: (s: any) => void; onBondUpdate: () => void }) {
+function SparkPanel({ spark, matchId, myUserId, other, onSparkUpdate, onBondUpdate, onReact }:
+  { spark: DailySpark; matchId: string; myUserId: string; other: MatchItem;
+    onSparkUpdate: (s: DailySpark) => void; onBondUpdate: () => void;
+    onReact: (text: string) => Promise<void> }) {
   // Always start collapsed — user opens when ready
   const [collapsed, setCollapsed] = useState(true);
   const [hiding, setHiding] = useState(false);
@@ -69,7 +78,7 @@ function SparkPanel({ spark, matchId, myUserId, other, onSparkUpdate, onBondUpda
             }
             onBondUpdate();
           }}
-          onReact={text => { sendChatMsg(matchId, myUserId, `[SPARK_REACT]${text}`); }}
+          onReact={onReact}
         />}
       </div>
     </div>
@@ -89,17 +98,16 @@ function useMinuteClock() {
 }
 
 /* ─── Analysis Sheet ─────────────────────────────────── */
-function AnalysisSheet({ msg, isMe, context, gender, mbti, matchDaysSince, otherMsgCount, otherProfile, cache, onCache, onClose }:
-  { msg: ChatMsg; isMe: boolean; context: ChatMsg[]; gender: "male" | "female"; mbti: string;
-    matchDaysSince?: number; otherMsgCount?: number; otherProfile?: any;
+function AnalysisSheet({ msg, isMe, context, mbti, matchDaysSince, otherProfile, cache, onCache, onClose }:
+  { msg: ChatMsg; isMe: boolean; context: ChatMsg[]; mbti: string;
+    matchDaysSince?: number; otherProfile?: ChatPartnerProfile | null;
     cache: Map<string, string>; onCache: (id: string, r: string) => void; onClose: () => void }) {
   const [result, setResult] = useState(cache.get(msg.id) || "");
   const [loading, setLoading] = useState(!cache.has(msg.id));
-  const sys = buildSys(mbti, gender);
 
   async function analyze() {
     // ── Other person profile — declare first (used throughout) ──
-    const op = otherProfile || {};
+    const op: Partial<ChatPartnerProfile> = otherProfile ?? {};
     const otherMbti = (op.mbti || "").toUpperCase();
     const otherGender = op.gender === "male" ? "男" : op.gender === "female" ? "女" : "對方";
     const otherHe = op.gender === "male" ? "他" : op.gender === "female" ? "她" : "對方";
@@ -194,8 +202,8 @@ function AnalysisSheet({ msg, isMe, context, gender, mbti, matchDaysSince, other
     const totalMsgs = context.length;
     const density = Math.round(totalMsgs / days);
     const densityStr = density < 5 ? "對話密度低（每天不到5條，進展緩慢）"
-      : density < 20 ? "對話密度中等（每天約${density}條）"
-      : "對話密度高（每天${density}條以上，進展較快）";
+      : density < 20 ? `對話密度中等（每天約${density}條）`
+      : `對話密度高（每天${density}條以上，進展較快）`;
 
     // ── Cross-session enthusiasm analysis ────────────────
     // Split ALL context into sessions by 3h gaps
@@ -214,7 +222,6 @@ function AnalysisSheet({ msg, isMe, context, gender, mbti, matchDaysSince, other
     // Score each session: other person's enthusiasm (0-100)
     function sessionScore(sess: typeof context) {
       const otherInSess = sess.filter(m => m.senderId === "對方");
-      const myInSess    = sess.filter(m => m.senderId === "我");
       if (otherInSess.length === 0) return 0;
       const avgLen      = otherInSess.reduce((s, m) => s + m.content.length, 0) / otherInSess.length;
       const initRatio   = otherInSess.length / Math.max(sess.length, 1); // higher = they initiate more
@@ -237,16 +244,16 @@ function AnalysisSheet({ msg, isMe, context, gender, mbti, matchDaysSince, other
 
       if (dropping) {
         sessionTrendStr = `跨對話趨勢：熱情明顯下滑（前次${prev}分→本次${latest}分）`;
-        inflectionAdvice = "熱情退潮，建議冷處理：減少主動、縮短回覆、製造距離感，讓對方重新感受到你的稀缺性。";
+        inflectionAdvice = "互動熱度下降，先放慢節奏並尊重對方空間；若持續冷淡，就坦誠確認彼此是否仍想繼續了解。";
       } else if (recovering) {
         sessionTrendStr = `跨對話趨勢：本次明顯回暖（低谷${prev}分→本次${latest}分）`;
-        inflectionAdvice = "對方正在回暖，這是追擊時機：可以主動提線下，或說一句有點進攻性的話趁熱打鐵。";
+        inflectionAdvice = "互動正在回暖，可以自然提出一次低壓力邀約，並給對方明確拒絕或改期的空間。";
       } else if (spiking) {
         sessionTrendStr = `跨對話趨勢：本次熱情明顯升溫（前次${prev}分→本次${latest}分）`;
-        inflectionAdvice = "對方熱情上升，可以適度推進：加快節奏，試探性給訊號，看${otherHe}的反應。";
+        inflectionAdvice = `對方互動增加，可以適度表達好感，再觀察${otherHe}是否也主動回應。`;
       } else if (sessionScores.every((s, i) => i === 0 || s <= sessionScores[i-1] * 1.1)) {
         sessionTrendStr = `跨對話趨勢：持續緩慢降溫（${sessionScores.join("→")}分）`;
-        inflectionAdvice = "長期緩慢降溫，當前最重要的是停止主動追，讓${otherHe}有空間想起你。";
+        inflectionAdvice = `互動長期放緩，先減少訊息壓力並尊重${otherHe}的節奏；不要用忽冷忽熱來操控反應。`;
       } else {
         sessionTrendStr = `跨對話趨勢：較穩定（近期評分：${sessionScores.join("→")}分）`;
         inflectionAdvice = "";
@@ -265,21 +272,11 @@ function AnalysisSheet({ msg, isMe, context, gender, mbti, matchDaysSince, other
       : totalMsgs > days * 30 ? "進展很快（大量互動）"
       : "進展正常";
 
-    // Gender-specific framework
-    const myGender = gender; // "male" | "female"
-    const isManChasing = myGender === "male"; // simplified assumption (heterosexual default)
-
-    const genderFrame = isManChasing
-      ? `用戶是男性，追求對象是女性。框架重點：
-- 不能太殷勤，主動要有節制，稀缺性對男性尤其重要
-- 要製造吸引力而不是安全感
-- Frame 要穩，不能被她的情緒帶著走
-- 偶爾不回應比立刻回應更有效`
-      : `用戶是女性，追求對象是男性。框架重點：
-- 適當展示需要感和脆弱反而加分
-- 讓他有保護欲比展示自己厲害更有效
-- 主動可以，但要給他追回來的空間
-- 讚美他的能力比讚美他的外表更讓男人上癮`;
+    const communicationFrame = `分析原則：
+- 不因性別或 MBTI 下定論；只能把它們當作低權重參考
+- 訊息長度與回覆速度只是線索，不能當成對方感受的證據
+- 優先尊重、真誠、界線與雙方同意，不建議忽冷忽熱、欺騙或施壓
+- 若訊號模糊，要清楚標示不確定性並提供低壓力做法`;
 
     // (otherProfile vars declared at top of function)
 
@@ -292,11 +289,11 @@ function AnalysisSheet({ msg, isMe, context, gender, mbti, matchDaysSince, other
       const isJ = o.endsWith("J");
       const isSF = o.includes("SF");
       return [
-        isIntro ? `${otherHe}是內向型，話少是正常，不要過度解讀沉默。` : `${otherHe}是外向型，話少可能真的是興趣降低。`,
-        isNF ? `NF型重情感連結，直接表白或問喜不喜歡會讓${otherHe}關閉，要側面接近製造共鳴。` : "",
-        isNT ? `NT型理性，不吃甜言蜜語，展示有趣和智識吸引力更有效，太煽情${otherHe}會反感。` : "",
-        isSF ? `SF型重安全感，太神秘讓${otherHe}不安，需要一定穩定感。` : "",
-        isJ ? `J型不耐模糊，曖昧太久${otherHe}會失去興趣，要適時給清晰訊號。` : `P型討厭壓力，太直接${otherHe}會逃，保持輕鬆感。`,
+        isIntro ? `${otherHe}自填為內向型；沉默未必等於冷淡，仍要以實際內容判斷。` : `${otherHe}自填為外向型，但不能只靠回覆多寡推斷興趣。`,
+        isNF ? `若${otherHe}重視情感連結，可以先回應感受，再清楚表達自己。` : "",
+        isNT ? `若${otherHe}偏好理性溝通，可以具體、直接，避免猜測動機。` : "",
+        isSF ? `若${otherHe}重視穩定互動，可以保持真誠一致並尊重回覆節奏。` : "",
+        isJ ? `若${otherHe}偏好明確安排，邀約可提供具體時間並保留改期空間。` : `若${otherHe}偏好彈性，邀約可保持輕鬆且不催促。`,
       ].filter(Boolean).join(" ");
     })();
 
@@ -308,16 +305,14 @@ function AnalysisSheet({ msg, isMe, context, gender, mbti, matchDaysSince, other
       return "";
     })();
 
-    const sysPrompt = `你是一個直接、有效的戀愛顧問，專門分析聊天對話。
+    const sysPrompt = `你是一個直接、務實而尊重界線的戀愛溝通顧問，專門分析聊天對話。
 
-${genderFrame}
+${communicationFrame}
 
-吸引力底層原理（思考框架，不要輸出這些名詞）：
-- 稀缺性：容易得到的不被珍惜
-- 框架控制：誰在追求誰的認可
-- 投入度訊號：長度、速度、主動性是真實興趣指標
-- 神秘感：保留空間比全盤托出更吸引人
-- 間歇性強化：不穩定的吸引力讓人上癮
+判斷框架：
+- 綜合上下文、互相主動程度、內容與明確表達，不把單一訊號過度解讀
+- 不聲稱能讀心；區分「已知內容」「合理推測」「仍不確定」
+- 建議必須能讓對方自在拒絕，不鼓勵騷擾、跟蹤或情緒操控
 
 ${mbtiInsight}
 
@@ -325,7 +320,8 @@ ${mbtiInsight}
 - 不提任何理論名詞
 - 每點不超過2行
 - 給具體可以發的話，不說廢話
-- 直接切入重點`;
+- 直接切入重點
+- 回覆使用與對話相同的主要語言`;
 
     const prompt = isMe
       ? `【對方資料】${otherProfileStr || "未知"}
@@ -335,6 +331,7 @@ ${mbtiInsight}
 - ${velocity}｜${initiativeStr}
 - 對話走勢：${trend}${speedTrend ? "｜"+speedTrend : ""}
 - ${silenceNote || "無明顯沉默期"}
+${burstNote ? "- "+burstNote+"\n" : ""}
 ${sessionTrendStr ? "- "+sessionTrendStr+"\n" : ""}- 關係階段：${stage}${myMbtiNote}
 ${inflectionAdvice ? "【跨對話分析】"+inflectionAdvice : ""}
 
@@ -347,12 +344,12 @@ ${ctxStr}
 分析：
 1. 在這個語境下這句話的問題（直接指出，不要客氣）
 2. ${otherHe}看到這句話真實的感受
-3. 有沒有太殷勤/太主動/框架失誤/說太多
-4. 更好的說法（1-2條，要自然不要像套路，禁止用問句結尾）
+3. 有沒有造成壓力、忽略界線或表達不清
+4. 更好的說法（1-2條，自然、真誠、低壓力）
 
 禁止輸出：「你可以問對方...」「你可以說你喜歡...」這類開放式問題建議。
 給的話要能直接複製發出去，聽起來像正常人說的話。
-如果跨對話分析顯示有轉折點，在結尾單獨一行給出戰略建議（冷處理或追擊）。`
+如果跨對話分析顯示有轉折點，在結尾單獨一行給出節奏建議（暫停、澄清或自然推進）。`
       : `【對方資料】${otherProfileStr || "未知"}
 
 【關係數據】
@@ -360,6 +357,7 @@ ${ctxStr}
 - ${velocity}｜${initiativeStr}
 - 對話走勢：${trend}${speedTrend ? "｜"+speedTrend : ""}
 - ${silenceNote || "無明顯沉默期"}
+${burstNote ? "- "+burstNote+"\n" : ""}
 ${sessionTrendStr ? "- "+sessionTrendStr+"\n" : ""}- ${otherHe}這句話長度：${relativeLen}
 - 關係階段：${stage}${myMbtiNote}
 ${inflectionAdvice ? "【跨對話分析】"+inflectionAdvice : ""}
@@ -374,12 +372,12 @@ ${ctxStr}
 分析：
 1. 在這個語境+${otherHe}的性格下，這句話真正的意思
 2. ${otherHe}的投入度：升溫/降溫/維持（給出判斷依據）
-3. 這是測試你的反應、敷衍、還是真實表達
-4. 最佳回應（給2條：一條穩一條進，要自然，禁止用問句結尾，禁止給套路式的溫柔回應）
+3. 哪些解讀有證據、哪些仍不確定
+4. 最佳回應（給2條：一條穩健、一條自然推進；都要尊重界線並可讓對方自在拒絕）
 
 如果${otherHe}有具體興趣愛好，可以在回應中自然 callback，但不要刻意。
 給的話要能直接發出去，聽起來像正常聊天不像AI寫的。
-如果跨對話分析顯示有轉折點，在結尾單獨一行給出戰略建議（冷處理或追擊），直接說做什麼。`;
+如果跨對話分析顯示有轉折點，在結尾單獨一行給出節奏建議（暫停、澄清或自然推進），直接說做什麼。`;
 
     try {
       const r = await groqChat([{ role: "user", content: prompt }], sysPrompt, undefined, 500);
@@ -454,14 +452,15 @@ function MsgMenu({ msg, isMe, onCopy, onDelete, onHide, onRecall, onReply, onAna
   const canRecall = isMe && msg.timestamp && (menuNow - new Date(msg.timestamp).getTime()) < 2 * 60 * 1000;
   const isRecalled = msg.content === "[已撤回]";
 
-  const actions = [
+  type MessageAction = { icon: string; label: string; fn: () => void; danger?: boolean };
+  const actions: MessageAction[] = [
     { icon: "↩️", label: "回覆", fn: onReply },
     !isRecalled ? { icon: "📋", label: "複製", fn: onCopy } : null,
     onAnalyze && !isRecalled ? { icon: "🔍", label: isMe ? "分析" : "解讀", fn: onAnalyze } : null,
     canRecall && onRecall ? { icon: "↩", label: "撤回", fn: onRecall, danger: false } : null,
     isMe && onDelete && !isRecalled ? { icon: "🗑", label: "刪除", fn: onDelete, danger: true } : null,
     !isMe && onHide ? { icon: "✕", label: "隱藏", fn: onHide } : null,
-  ].filter(Boolean) as any[];
+  ].filter((action): action is MessageAction => action !== null);
 
   // Position: show near where menu was triggered
 
@@ -518,7 +517,7 @@ export function ChatListScreen({ profile, matches, unreadPerMatch, typingMatchId
   const [nyxLastMsg, setNyxLastMsg] = useState("嗨，把聊天貼給我分析 💫");
   const [nyxTime, setNyxTime] = useState(fmtTime(new Date()));
   const statusNow = useMinuteClock();
-  const hideOnline = (profile as any).hide_online_status;
+  const hideOnline = profile.hide_online_status;
 
   // Load last Nyx message
   useEffect(() => {
@@ -547,36 +546,37 @@ export function ChatListScreen({ profile, matches, unreadPerMatch, typingMatchId
   }
 
   const all = [
-    { id: "nyx", isNyx: true, name: "Nyx ✦", lastMsg: nyxLastMsg, time: nyxTime, unread: 0, avatar: "", online: true, lastActive: null },
-    ...sortedMatches.map(m => ({ id: m.id, matchId: m.matchId, isNyx: false, name: m.name, lastMsg: previewMsg(m.lastMsg), time: m.time, unread: unreadPerMatch[m.matchId] || 0, avatar: m.avatar, online: false, lastActive: (m as any).lastActive || null, hideOnline: (m as any).hideOnline || false, isPremium: (m as any).isPremium || false, premiumPlan: (m as any).premiumPlan || null }))
+    { id: "nyx", matchId: "", isNyx: true, name: "Nyx ✦", lastMsg: nyxLastMsg, time: nyxTime, unread: 0, avatar: "", gender: undefined, lastActive: null, hideOnline: false, premiumPlan: null, match: undefined },
+    ...sortedMatches.map(m => ({ id: m.id, matchId: m.matchId, isNyx: false, name: m.name, lastMsg: previewMsg(m.lastMsg), time: m.time, unread: unreadPerMatch[m.matchId] || 0, avatar: m.avatar, gender: m.gender, lastActive: m.lastActive || null, hideOnline: m.hideOnline || false, premiumPlan: m.isPremium ? (m.premiumPlan || "premium") : null, match: m }))
   ].filter(i => !search || i.name.toLowerCase().includes(search.toLowerCase()));
 
   return <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, animation: "tabSwitch .3s ease" }}>
     <div style={{ padding: "52px 20px 14px", background: C.nav, backdropFilter: "blur(24px) saturate(145%)", borderBottom: `1px solid ${C.border}`, boxShadow:"0 10px 30px rgba(57,42,101,0.05)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div style={{ fontFamily: "'Zen Kaku Gothic New',sans-serif", fontSize: 24, fontWeight: 900, letterSpacing: ".1em", background: C.grad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>NYX</div>
-        <Av url={profile.avatar_url} name={profile.display_name || profile.username} size={32} />
+        <Av url={profile.avatar_url} name={profile.display_name || profile.username} gender={profile.gender} size={32} />
       </div>
       <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜尋對話..." style={{ width: "100%", padding: "10px 16px", background: C.surf, border: `1px solid ${C.border}`, borderRadius: 20, color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const }} />
     </div>
     <div style={{ flex: 1, overflowY: "auto" }}>
       {all.map((item, idx) => {
         const hasUnread = item.unread > 0;
-        const status = item.isNyx ? { label: "在線", color: C.teal, dot: true } : onlineStatus(item.lastActive, hideOnline || (item as any).hideOnline, statusNow);
+        const isTyping = !item.isNyx && typingMatchIds?.has(item.matchId) === true;
+        const status = item.isNyx ? { label: "在線", color: C.teal, dot: true } : onlineStatus(item.lastActive, hideOnline || item.hideOnline, statusNow);
         return <div key={item.id} style={{ animation: `nyxIn .3s ${idx * .05}s ease both` }}>
-          <div onClick={() => { sound.tap(); item.isNyx ? onOpenNyx() : onOpenMatch(matches.find(m => m.id === item.id)!); }}
+          <div onClick={() => { sound.tap(); if (item.isNyx) onOpenNyx(); else if (item.match) onOpenMatch(item.match); }}
             style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 20px", cursor: "pointer", transition: "background .15s", background: hasUnread ? C.roseSoft : "transparent" }}
             onMouseEnter={e => (e.currentTarget.style.background = C.roseSoft)}
             onMouseLeave={e => (e.currentTarget.style.background = hasUnread ? C.roseSoft : "transparent")}>
             <div style={{ position: "relative", flexShrink: 0 }}>
-              <Av url={item.avatar} name={item.name} size={52} grad={item.isNyx ? C.grad : C.gradRose} />
+              <Av url={item.avatar} name={item.name} gender={item.gender} size={52} grad={item.isNyx ? C.grad : C.gradRose} brand={item.isNyx} />
               {status.dot && <span style={{ position: "absolute", bottom: 1, right: 1, width: 13, height: 13, borderRadius: "50%", background: status.color, border: `2px solid ${C.bg}`, boxShadow: `0 0 6px ${status.color}` }} />}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <div style={{ fontSize: 15, fontWeight: hasUnread ? 800 : 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{item.name}</div>
-                  {!item.isNyx && <PremiumBadge plan={(item as any).isPremium ? ((item as any).premiumPlan || "premium") : null} mini />}
+                  {!item.isNyx && <PremiumBadge plan={item.premiumPlan} mini />}
                   {!item.isNyx && status.dot && <span style={{ width: 7, height: 7, borderRadius: "50%", background: status.color, flexShrink: 0 }} />}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginLeft: 8 }}>
@@ -585,7 +585,9 @@ export function ChatListScreen({ profile, matches, unreadPerMatch, typingMatchId
                 </div>
               </div>
               <div style={{ fontSize: 13.5, color: hasUnread ? C.text : C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, fontWeight: hasUnread ? 600 : 400 }}>
-                {item.isNyx
+                {isTyping
+                  ? <span style={{ color:C.mint,fontWeight:650 }}>正在輸入…</span>
+                  : item.isNyx
                   ? item.lastMsg
                   : hasUnread
                     ? `${item.unread} 條新訊息`
@@ -605,11 +607,11 @@ export function ChatListScreen({ profile, matches, unreadPerMatch, typingMatchId
 export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
   { matchId: string; myUserId: string; myProfile: UserProfile; other: MatchItem; onBack: () => void }) {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(other.prefillMsg || "");
   const [loaded, setLoaded] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
-  const [otherProfileData, setOtherProfileData] = useState<any>(null);
+  const [otherProfileData, setOtherProfileData] = useState<ChatPartnerProfile | null>(null);
   const [showOtherProfile, setShowOtherProfile] = useState(false);
   const [menuMsg, setMenuMsg] = useState<ChatMsg | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMsg | null>(null);
@@ -631,8 +633,8 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
   const inputRef = useRef<HTMLDivElement>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const typingCh = useRef<any>(null);
-  const hideOnline = (myProfile as any).hide_online_status;
+  const typingCh = useRef<RealtimeChannel | null>(null);
+  const hideOnline = myProfile.hide_online_status;
 
   useEffect(() => {
     loadChatMsgs(matchId).then(m => { setMsgs(m); setLoaded(true); });
@@ -651,8 +653,8 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
     // Realtime: keep the other person's last_active/hide_online_status live while chat stays open
     const otherProfileCh = sb.channel(`profile-status-${other.id}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${other.id}` }, payload => {
-        const p = payload.new as any;
-        setOtherProfileData((prev: any) => prev ? { ...prev, lastActive: p.last_active, hideOnline: p.hide_online_status } : prev);
+        const p = payload.new as Record<string, unknown>;
+        setOtherProfileData(prev => prev ? { ...prev, lastActive: typeof p.last_active === "string" ? p.last_active : null, hideOnline: p.hide_online_status === true } : prev);
       })
       .subscribe();
 
@@ -668,14 +670,17 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       .subscribe();
 
     // Load other user profile
-    sb.from("profiles").select("*,cover_url").eq("id", other.id).maybeSingle().then(({ data }) => {
+    sb.from("profiles").select("id,display_name,username,birthday,avatar_url,gender,cover_url,bio,mbti,location_text,country,hobbies,photos,last_active,hide_online_status,is_premium,premium_plan,premium_expires_at,occupation,education,income,height_cm,drinking,smoking,exercise,has_pets,want_children,relationship_goal,love_language,ethnicity,is_verified,latitude,longitude").eq("id", other.id).maybeSingle().then(({ data }) => {
       if (data) {
+        const premiumPlan = getActivePremiumPlan(data);
         setOtherProfileData({
+          id: data.id,
           name: data.display_name || data.username, age: data.birthday ? calcAge(data.birthday) : null,
-          avatar: data.avatar_url, cover: (data as any).cover_url || null, bio: data.bio, mbti: data.mbti, location: data.location_text,
-          country: data.country, hobbies: data.hobbies || [], photos: data.photos || [],
+          avatar: resolveAvatar(data.avatar_url,data.gender), gender:data.gender, cover: data.cover_url || null, bio: data.bio || "", mbti: data.mbti || "INFP", location: data.location_text || "",
+          country: data.country || "", ethnicity:data.ethnicity || [], hobbies: data.hobbies || [], photos: data.photos || [], verified:data.is_verified || false,
+          latitude:data.latitude, longitude:data.longitude,
           lastActive: data.last_active, hideOnline: data.hide_online_status,
-          is_premium: (data as any).is_premium || false, premium_plan: (data as any).premium_plan || null,
+          is_premium: premiumPlan !== null, premium_plan: premiumPlan, premium_expires_at:data.premium_expires_at,
           occupation: data.occupation || null, education: data.education || null,
           income: data.income || null, height_cm: data.height_cm || null,
           drinking: data.drinking || null, smoking: data.smoking || null,
@@ -689,19 +694,20 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
     // Realtime messages
     const msgCh = sb.channel(`chat-${matchId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `match_id=eq.${matchId}` }, payload => {
-        const m = payload.new as any;
+        const m = payload.new as Record<string, unknown>;
         if (m.sender_id !== myUserId) {
-          const isImg = m.is_image === true || (typeof m.content === "string" && (m.content.startsWith("https://") || m.content.startsWith("http://")) && !m.content.includes(" ") && !m.content.includes("\n"));
-          setMsgs(p => [...p, { id: m.id, senderId: m.sender_id, content: m.content, timestamp: new Date(m.created_at), isImage: isImg }]);
+          const content = typeof m.content === "string" ? m.content : "";
+          const isImg = m.is_image === true || ((content.startsWith("https://") || content.startsWith("http://")) && !content.includes(" ") && !content.includes("\n"));
+          setMsgs(p => [...p, { id: String(m.id), senderId: String(m.sender_id), content, timestamp: new Date(String(m.created_at)), isImage: isImg }]);
           sound.send();
           markMsgsRead(matchId, myUserId);
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages", filter: `match_id=eq.${matchId}` }, payload => {
-        const m = payload.new as any;
+        const m = payload.new as Record<string, unknown>;
         // Handle read receipts
         if (m.read_at && m.sender_id === myUserId) {
-          setMsgs(p => p.map(msg => msg.id === m.id ? { ...msg, readAt: new Date(m.read_at) } : msg));
+          setMsgs(p => p.map(msg => msg.id === m.id ? { ...msg, readAt: new Date(String(m.read_at)) } : msg));
         }
         // Handle recall — update content for both parties
         if (m.is_recalled) {
@@ -748,7 +754,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           const opt: ChatMsg = { id: Date.now() + "i", senderId: myUserId, content: url, timestamp: new Date(), isImage: true };
           optimisticImageId = opt.id;
           setMsgs(p => [...p, opt]); sound.send();
-          await sendChatMsg(matchId, myUserId, url, true);
+          const messageId = await sendChatMsg(matchId, myUserId, url, true);
           // Broadcast for instant update
           sb.channel(`user-inbox:${other.id}`).send({
             type: "broadcast", event: "new_message",
@@ -758,10 +764,8 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           sb.functions.invoke("send-push", {
             body: {
               recipient_id: other.id,
-              title: myProfile?.display_name || myProfile?.username || "NYX",
-              body: "📷 傳送了一張圖片",
-              url: "/?tab=chat",
-              sender_avatar: myProfile?.avatar_url || "",
+              match_id: matchId,
+              message_id: messageId,
             },
           }).catch(() => {});
         } catch (e) {
@@ -776,8 +780,9 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       setReplyTo(null);
       const opt: ChatMsg = { id: Date.now() + "t", senderId: myUserId, content, timestamp: new Date() };
       setMsgs(p => [...p, opt]); sound.send();
+      let messageId: string;
       try {
-        await sendChatMsg(matchId, myUserId, content);
+        messageId = await sendChatMsg(matchId, myUserId, content);
       } catch (error) {
         setMsgs(p => p.filter(message => message.id !== opt.id));
         setInput(txt);
@@ -798,13 +803,31 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       sb.functions.invoke("send-push", {
         body: {
           recipient_id: other.id,
-          title: myProfile?.display_name || myProfile?.username || "NYX",
-          body: content.startsWith("↩️") ? content.split("\n").slice(1).join("\n").slice(0, 60) : content.slice(0, 60),
-          url: "/?tab=chat",
-          sender_avatar: myProfile?.avatar_url || "",
+          match_id: matchId,
+          message_id: messageId,
         },
       }).catch(() => {});
     }
+  }
+
+  async function sendSparkReaction(content: string) {
+    const messageId = await sendChatMsg(matchId, myUserId, content);
+    const sentAt = new Date();
+    setMsgs(current => [...current, {
+      id: messageId,
+      senderId: myUserId,
+      content,
+      timestamp: sentAt,
+    }]);
+    const preview = getSparkReactText(content).slice(0, 60);
+    await sb.channel(`user-inbox:${other.id}`).send({
+      type: "broadcast",
+      event: "new_message",
+      payload: { matchId, senderName: myProfile.display_name || myProfile.username || "", preview, ts: sentAt.getTime() },
+    });
+    void sb.functions.invoke("send-push", {
+      body: { recipient_id: other.id, match_id: matchId, message_id: messageId },
+    }).catch(() => {});
   }
 
   async function deleteMsg(msgId: string) {
@@ -855,7 +878,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
   }
 
   // Online status of other user
-  const otherStatus = otherProfileData ? onlineStatus(otherProfileData.lastActive, otherProfileData.hideOnline || hideOnline, statusNow) : { label: "", color: "transparent", dot: false };
+  const otherStatus = otherProfileData ? onlineStatus(otherProfileData.lastActive ?? null, Boolean(otherProfileData.hideOnline || hideOnline), statusNow) : { label: "", color: "transparent", dot: false };
 
   // Render messages with date groups
   function isSparkReact(content: string) { return typeof content === "string" && content.startsWith("[SPARK_REACT]"); }
@@ -927,13 +950,13 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           <div style={{ maxWidth: "72%", display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
             {msg.content.startsWith("↩️") && <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 2, opacity: .7 }}>{msg.content.split("\n")[0]}</div>}
             <div style={{ padding: isImage ? "4px" : "10px 14px", borderRadius: isMe ? "18px 4px 18px 18px" : "4px 18px 18px 18px",
-              background: (msg as any).isRecalled || msg.content === "[已撤回]" ? "transparent" : isMe ? C.grad : C.bgCard,
-              border: (msg as any).isRecalled || msg.content === "[已撤回]" ? `1px dashed ${C.border}` : isMe ? undefined : `1px solid ${C.border}`,
-              color: (msg as any).isRecalled || msg.content === "[已撤回]" ? C.textMuted : isMe ? "#fff" : C.text,
-              fontSize: (msg as any).isRecalled || msg.content === "[已撤回]" ? 12.5 : 14.5,
-              lineHeight: 1.6, boxShadow: (msg as any).isRecalled ? "none" : isMe ? `0 6px 18px ${C.goldGlow}` : C.shadow,
-              whiteSpace: "pre-wrap", wordBreak: "break-word", fontStyle: (msg as any).isRecalled || msg.content === "[已撤回]" ? "italic" : "normal" }}>
-              {(msg as any).isRecalled || msg.content === "[已撤回]"
+              background: msg.isRecalled || msg.content === "[已撤回]" ? "transparent" : isMe ? C.grad : C.bgCard,
+              border: msg.isRecalled || msg.content === "[已撤回]" ? `1px dashed ${C.border}` : isMe ? undefined : `1px solid ${C.border}`,
+              color: msg.isRecalled || msg.content === "[已撤回]" ? C.textMuted : isMe ? "#fff" : C.text,
+              fontSize: msg.isRecalled || msg.content === "[已撤回]" ? 12.5 : 14.5,
+              lineHeight: 1.6, boxShadow: msg.isRecalled ? "none" : isMe ? `0 6px 18px ${C.goldGlow}` : C.shadow,
+              whiteSpace: "pre-wrap", wordBreak: "break-word", fontStyle: msg.isRecalled || msg.content === "[已撤回]" ? "italic" : "normal" }}>
+              {msg.isRecalled || msg.content === "[已撤回]"
                 ? "↺ 已撤回"
                 : isImage
                   ? <img src={msg.content} alt="📷" style={{ maxWidth: 220, maxHeight: 280, borderRadius: 10, objectFit: "cover" as const, display: "block", cursor: "pointer" }} onClick={() => setLightboxImg(msg.content)} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
@@ -995,7 +1018,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", fontFamily: "inherit", width: 36 }}>‹</button>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer", minWidth: 0 }} onClick={() => setShowOtherProfile(true)}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{other.name}</div><PremiumBadge plan={(other as any).isPremium ? ((other as any).premiumPlan || "premium") : null} mini /></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{other.name}</div><PremiumBadge plan={other.isPremium ? (other.premiumPlan || "premium") : null} mini /></div>
           {otherStatus.dot && <span style={{ width: 8, height: 8, borderRadius: "50%", background: C.teal, boxShadow: `0 0 6px ${C.teal}`, flexShrink: 0 }} />}
         </div>
         <div style={{ fontSize: 11.5, color: otherTyping ? C.teal : (otherStatus.label ? otherStatus.color : C.textMuted) }}>
@@ -1022,6 +1045,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       spark={spark} matchId={matchId} myUserId={myUserId} other={other}
       onSparkUpdate={s => setSpark(s)}
       onBondUpdate={() => getBondInfo(matchId).then(setBond)}
+      onReact={sendSparkReaction}
     />}
 
     {/* Messages */}
@@ -1072,6 +1096,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
           mbti: otherProfileData.mbti||"",
           bio: otherProfileData.bio||"",
           avatar: otherProfileData.avatar||"",
+          gender: otherProfileData.gender,
           photos: otherProfileData.photos||[],
           location: otherProfileData.location||"",
           country: otherProfileData.country||"",
@@ -1096,7 +1121,6 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
         myProfile={null}
         mode="matched"
         onClose={() => setShowOtherProfile(false)}
-        onLike={()=>{}} onSuperlike={()=>{}} onChat={()=>{}}
       />}
     {showMemory && <MemoryWall matchId={matchId} otherName={other.name} onClose={() => setShowMemory(false)} />}
     {showClone && (
@@ -1124,9 +1148,7 @@ export function RealChatScreen({ matchId, myUserId, myProfile, other, onBack }:
       isMe={analysisTarget.senderId === myUserId}
       context={msgs.map(m => ({ ...m, senderId: m.senderId === myUserId ? "我" : "對方" }))}
       matchDaysSince={Math.floor((statusNow - (msgs[0]?.timestamp ? new Date(msgs[0].timestamp).getTime() : statusNow)) / 86400000)}
-      otherMsgCount={(msgs.filter(m => m.senderId !== myUserId)).length}
       otherProfile={otherProfileData || null}
-      gender={myProfile.gender}
       mbti={myProfile.mbti}
       cache={_analysisCache}
       onCache={(id, r) => { _analysisCache.set(id, r); }}

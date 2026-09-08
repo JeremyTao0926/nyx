@@ -1,40 +1,49 @@
-import { useState, useEffect } from "react";
-import { getUsers, banUser, unbanUser, markTestAccount, deleteTestData, canDo, getUserStats, disableUser, restoreUser, softDeleteUser, grantPremium } from "./adminUtils";
-import type { UserRow, AdminRole } from "./adminUtils";
+import { useState, useEffect, useCallback } from "react";
+import { getUsers, banUser, unbanUser, markTestAccount, deleteTestData, canDo, getUserStats, disableUser, restoreUser, softDeleteUser, grantPremium, errorMessage } from "./adminUtils";
+import type { UserRow, AdminRole, UserStats, AdminTheme } from "./adminUtils";
 
-interface Props { tab: "users" | "test_data"; role: AdminRole; C: any; }
+interface Props { tab: "users" | "test_data"; role: AdminRole; C: AdminTheme; }
 
 export function AdminUsers({ tab, role, C }: Props) {
   const [users, setUsers]       = useState<UserRow[]>([]);
   const [search, setSearch]     = useState("");
-  const [loading, setLoading]   = useState(false);
+  const [loading, setLoading]   = useState(true);
   const [selected, setSelected] = useState<UserRow | null>(null);
-  const [userStats, setUserStats] = useState<any>(null);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [banReason, setBanReason] = useState("");
   const [testLabel, setTestLabel] = useState("");
   const [msg, setMsg] = useState("");
 
   const isTestTab = tab === "test_data";
 
-  useEffect(() => { load(); }, [tab, search]);
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     const opts = isTestTab ? { isTest: true, search } : { search, limit: 80 };
     const rows = await getUsers(opts);
     setUsers(rows); setLoading(false);
-  }
+  }, [isTestTab, search]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const opts = isTestTab ? { isTest: true, search } : { search, limit: 80 };
+    getUsers(opts).then(rows => {
+      if (cancelled) return;
+      setUsers(rows);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [isTestTab, search]);
 
   async function handleBan(u: UserRow) {
     if (!banReason.trim()) { setMsg("請填寫封禁原因"); return; }
     try {
       await banUser(u.id, banReason);
       setMsg("✓ 已封禁"); setBanReason(""); setSelected(null); load();
-    } catch (e: any) { setMsg(e.message); }
+    } catch (error: unknown) { setMsg(errorMessage(error)); }
   }
 
   async function handleUnban(u: UserRow) {
-    try { await unbanUser(u.id); setMsg("✓ 已解封"); load(); } catch (e: any) { setMsg(e.message); }
+    try { await unbanUser(u.id); setMsg("✓ 已解封"); void load(); } catch (error: unknown) { setMsg(errorMessage(error)); }
   }
 
   async function handleGrantPremium(u: UserRow, plan: "premium" | "premium_plus" | null) {
@@ -43,8 +52,8 @@ export function AdminUsers({ tab, role, C }: Props) {
       setMsg(plan ? `✓ 已授予 ${plan === "premium_plus" ? "Premium+" : "Premium"}` : "✓ 已移除 Premium");
       await load();
       // Refresh selected user data
-      setSelected(prev => prev ? { ...prev, is_premium: plan !== null, premium_plan: plan } as any : prev);
-    } catch (e: any) { setMsg(e.message); }
+      setSelected(prev => prev ? { ...prev, is_premium: plan !== null, premium_plan: plan } : prev);
+    } catch (error: unknown) { setMsg(errorMessage(error)); }
   }
 
   async function handleMarkTest(u: UserRow, isTest: boolean) {
@@ -56,7 +65,7 @@ export function AdminUsers({ tab, role, C }: Props) {
   async function handleDeleteTestData(u: UserRow) {
     if (!confirm(`確定清除 ${u.display_name || u.username} 的所有測試數據？此操作不可逆。`)) return;
     try { await deleteTestData(u.id); setMsg("✓ 測試數據已清除"); load(); }
-    catch (e: any) { setMsg(e.message); }
+    catch (error: unknown) { setMsg(errorMessage(error)); }
   }
 
   const INP = { padding:"9px 12px", background:C.surf, border:`1px solid ${C.border}`, borderRadius:8, color:C.text, fontSize:13, outline:"none", fontFamily:"inherit" };
@@ -74,13 +83,13 @@ export function AdminUsers({ tab, role, C }: Props) {
 
       {/* Search */}
       <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" as const }}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜尋用戶名 / 電郵..."
+        <input value={search} onChange={e=>{ setLoading(true); setSearch(e.target.value); }} placeholder="搜尋用戶名 / 電郵..."
           style={{ ...INP, flex:1 }}/>
         <button onClick={load} style={{ padding:"9px 18px", borderRadius:10, background:C.grad, border:"none", color:"#fff", fontFamily:"inherit", fontSize:13, fontWeight:600, cursor:"pointer", boxShadow:"0 8px 20px rgba(103,87,217,.18)" }}>搜尋</button>
       </div>
 
       {/* Table */}
-      <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" as any }}>
+      <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden", minWidth:520 }}>
         {/* Header — hidden on mobile */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 100px 140px", padding:"10px 16px", background:C.surf, borderBottom:`1px solid ${C.border}` }} className="admin-table-header">
@@ -103,15 +112,15 @@ export function AdminUsers({ tab, role, C }: Props) {
               {u.is_banned
                 ? <span style={{ fontSize:11, background:"rgba(239,95,122,0.13)", color:C.rose, padding:"2px 8px", borderRadius:10 }}>封禁</span>
                 : <span style={{ fontSize:11, background:"rgba(22,165,137,0.12)", color:C.mint, padding:"2px 8px", borderRadius:10 }}>正常</span>}
-              {(u as any).is_active === false && !(u as any).deleted_at && (
+              {u.is_active === false && !u.deleted_at && (
                 <span style={{ fontSize:11, background:C.warningSoft, color:C.warning, padding:"2px 8px", borderRadius:10, marginLeft:4 }}>停用</span>
               )}
-              {(u as any).deleted_at && (
+              {u.deleted_at && (
                 <span style={{ fontSize:11, background:C.surfHigh, color:C.textMuted, padding:"2px 8px", borderRadius:10, marginLeft:4 }}>已刪除</span>
               )}
-              {(u as any).is_premium && (
-                <span style={{ fontSize:11, background:(u as any).premium_plan==="premium_plus"?"rgba(239,95,122,0.12)":"rgba(103,87,217,0.11)", color:(u as any).premium_plan==="premium_plus"?C.rose:C.gold, padding:"2px 8px", borderRadius:10, marginLeft:4, fontWeight:600 }}>
-                  {(u as any).premium_plan==="premium_plus"?"P+":"P"}
+              {u.is_premium && (
+                <span style={{ fontSize:11, background:u.premium_plan==="premium_plus"?"rgba(239,95,122,0.12)":"rgba(103,87,217,0.11)", color:u.premium_plan==="premium_plus"?C.rose:C.gold, padding:"2px 8px", borderRadius:10, marginLeft:4, fontWeight:600 }}>
+                  {u.premium_plan==="premium_plus"?"P+":"P"}
                 </span>
               )}
             </div>
@@ -198,7 +207,7 @@ export function AdminUsers({ tab, role, C }: Props) {
                     <button
                       onClick={async () => {
                         try { await disableUser(selected.id); setMsg("✓ 帳號已停用"); load(); }
-                        catch (e: any) { setMsg("✗ 停用失敗：" + (e?.message || e)); }
+                        catch (error: unknown) { setMsg("✗ 停用失敗：" + errorMessage(error)); }
                       }}
                       style={{ padding:"8px 12px", borderRadius:8, background:C.warningSoft, border:`1px solid ${C.warning}4D`, color:C.warning, cursor:"pointer", fontFamily:"inherit" }}
                     >
@@ -208,7 +217,7 @@ export function AdminUsers({ tab, role, C }: Props) {
                     <button
                       onClick={async () => {
                         try { await restoreUser(selected.id); setMsg("✓ 帳號已恢復"); load(); }
-                        catch (e: any) { setMsg("✗ 恢復失敗：" + (e?.message || e)); }
+                        catch (error: unknown) { setMsg("✗ 恢復失敗：" + errorMessage(error)); }
                       }}
                       style={{ padding:"8px 12px", borderRadius:8, background:"rgba(22,165,137,0.12)", border:"1px solid rgba(22,165,137,0.25)", color:C.mint, cursor:"pointer", fontFamily:"inherit" }}
                     >
@@ -219,7 +228,7 @@ export function AdminUsers({ tab, role, C }: Props) {
                       onClick={async () => {
                         if (!confirm("確定軟刪除此帳號？")) return;
                         try { await softDeleteUser(selected.id); setMsg("✓ 帳號已軟刪除"); setSelected(null); load(); }
-                        catch (e: any) { setMsg("✗ 軟刪除失敗：" + (e?.message || e)); }
+                        catch (error: unknown) { setMsg("✗ 軟刪除失敗：" + errorMessage(error)); }
                       }}
                       style={{ padding:"8px 12px", borderRadius:8, background:"rgba(239,95,122,0.12)", border:"1px solid rgba(239,95,122,0.25)", color:C.rose, cursor:"pointer", fontFamily:"inherit" }}
                     >
@@ -234,14 +243,14 @@ export function AdminUsers({ tab, role, C }: Props) {
                 <div style={{ padding:"14px", background:"rgba(103,87,217,0.055)", borderRadius:12, border:`1px solid rgba(103,87,217,0.15)` }}>
                   <div style={{ fontSize:12, color:C.gold, marginBottom:10, fontWeight:600 }}>Premium 管理</div>
                   <div style={{ fontSize:12, color:C.textMuted, marginBottom:10 }}>
-                    目前：{(selected as any).is_premium
-                      ? <span style={{ color:C.gold }}>✦ {(selected as any).premium_plan === "premium_plus" ? "Premium+" : "Premium"}</span>
+                    目前：{selected.is_premium
+                      ? <span style={{ color:C.gold }}>✦ {selected.premium_plan === "premium_plus" ? "Premium+" : "Premium"}</span>
                       : <span>無訂閱</span>}
                   </div>
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap" as const }}>
                     <button onClick={()=>handleGrantPremium(selected,"premium")} style={{ padding:"7px 13px", borderRadius:8, background:"rgba(103,87,217,0.10)", border:"1px solid rgba(103,87,217,0.3)", color:C.gold, fontFamily:"inherit", fontSize:12, fontWeight:600, cursor:"pointer" }}>授予 Premium</button>
                     <button onClick={()=>handleGrantPremium(selected,"premium_plus")} style={{ padding:"7px 13px", borderRadius:8, background:"rgba(239,95,122,0.10)", border:"1px solid rgba(239,95,122,0.3)", color:C.rose, fontFamily:"inherit", fontSize:12, fontWeight:600, cursor:"pointer" }}>授予 Premium+</button>
-                    {(selected as any).is_premium && <button onClick={()=>handleGrantPremium(selected,null)} style={{ padding:"7px 13px", borderRadius:8, background:C.dangerSoft, border:`1px solid ${C.danger}33`, color:C.danger, fontFamily:"inherit", fontSize:12, cursor:"pointer" }}>移除</button>}
+                    {selected.is_premium && <button onClick={()=>handleGrantPremium(selected,null)} style={{ padding:"7px 13px", borderRadius:8, background:C.dangerSoft, border:`1px solid ${C.danger}33`, color:C.danger, fontFamily:"inherit", fontSize:12, cursor:"pointer" }}>移除</button>}
                   </div>
                 </div>
               )}

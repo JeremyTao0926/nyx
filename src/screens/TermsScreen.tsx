@@ -32,7 +32,7 @@ export function TermsScreen({ onBack, type = "terms" }: { onBack: () => void; ty
       <div style={{ flex:1,overflowY:"auto",padding:"24px 20px max(48px, env(safe-area-inset-bottom))",fontSize:13.5,color:C.textSub,lineHeight:1.75 }}>
         {isTerms ? (
           <>
-            <p style={{ color:C.textMuted,marginBottom:20 }}>最後更新：2025年1月1日</p>
+            <p style={{ color:C.textMuted,marginBottom:20 }}>最後更新：2026年9月8日</p>
             <h3 style={{ color:C.text,marginBottom:8 }}>1. 接受條款</h3>
             <p>使用 NYX 即表示你同意以下服務條款。若不同意，請勿使用本服務。</p>
             <h3 style={{ color:C.text,margin:"16px 0 8px" }}>2. 年齡限制</h3>
@@ -47,14 +47,16 @@ export function TermsScreen({ onBack, type = "terms" }: { onBack: () => void; ty
             <p>Premium 訂閱為自動續費服務。可在訂閱期結束前 24 小時於 App Store / Google Play 設定中取消。退款申請與結果依 Apple 或 Google 的政策及審核為準。</p>
             <h3 style={{ color:C.text,margin:"16px 0 8px" }}>7. 免責聲明</h3>
             <p>NYX 不對用戶之間的互動承擔責任。請謹慎保護個人安全，與陌生人線下見面前請務必告知信任的朋友。</p>
-            <h3 style={{ color:C.text,margin:"16px 0 8px" }}>8. 終止服務</h3>
+            <h3 style={{ color:C.text,margin:"16px 0 8px" }}>8. AI 模擬功能</h3>
+            <p>AI 模擬只提供可能反應的私人練習，不代表對方本人、真實感受或承諾。上傳第三方聊天內容前，你必須確認有權使用；不得以輸出冒充、欺騙、公開或騷擾他人，也不得用作高風險決策的唯一依據。</p>
+            <h3 style={{ color:C.text,margin:"16px 0 8px" }}>9. 終止服務</h3>
             <p>我們保留因違反條款而終止任何帳號的權利，無需事先通知。</p>
-            <h3 style={{ color:C.text,margin:"16px 0 8px" }}>9. 聯絡我們</h3>
+            <h3 style={{ color:C.text,margin:"16px 0 8px" }}>10. 聯絡我們</h3>
             <p>如有疑問，請聯繫：support@nyx.app</p>
           </>
         ) : (
           <>
-            <p style={{ color:C.textMuted,marginBottom:20 }}>最後更新：2025年1月1日</p>
+            <p style={{ color:C.textMuted,marginBottom:20 }}>最後更新：2026年9月8日</p>
             <h3 style={{ color:C.text,marginBottom:8 }}>1. 我們收集的資料</h3>
             <p>我們收集你主動提供的資料（姓名、生日、照片、個人簡介）以及使用資料（登入時間、滑動記錄、訊息互動）。</p>
             <h3 style={{ color:C.text,margin:"16px 0 8px" }}>2. 資料使用方式</h3>
@@ -67,11 +69,13 @@ export function TermsScreen({ onBack, type = "terms" }: { onBack: () => void; ty
             <p>如你允許，我們會使用你的位置資料提供附近用戶推薦。你可隨時在設定中關閉此功能。</p>
             <h3 style={{ color:C.text,margin:"16px 0 8px" }}>6. 推播通知</h3>
             <p>我們發送的推播通知僅與你的配對和訊息相關。你可隨時在手機設定中關閉通知。</p>
-            <h3 style={{ color:C.text,margin:"16px 0 8px" }}>7. 帳號刪除</h3>
+            <h3 style={{ color:C.text,margin:"16px 0 8px" }}>7. AI 模擬素材</h3>
+            <p>只有在你主動使用模擬功能時，聊天截圖或匯入文字的必要內容才會經加密連線傳送給 AI 處理服務供應商。原始匯入檔案不會存成可瀏覽媒體；系統可能在你的私人帳號範圍內保存衍生的人格摘要與模擬訊息。模擬對象不會收到通知，也無權查看你的私人模擬。</p>
+            <h3 style={{ color:C.text,margin:"16px 0 8px" }}>8. 帳號刪除</h3>
             <p>你可在「我的」→「設定」→「刪除帳號」永久刪除帳號。刪除後所有個人資料將在 30 天內清除。</p>
-            <h3 style={{ color:C.text,margin:"16px 0 8px" }}>8. Cookie 與追蹤</h3>
+            <h3 style={{ color:C.text,margin:"16px 0 8px" }}>9. Cookie 與追蹤</h3>
             <p>我們不使用第三方廣告追蹤器。僅使用必要的 session cookie 維持登入狀態。</p>
-            <h3 style={{ color:C.text,margin:"16px 0 8px" }}>9. 聯絡我們</h3>
+            <h3 style={{ color:C.text,margin:"16px 0 8px" }}>10. 聯絡我們</h3>
             <p>隱私相關問題請聯繫：privacy@nyx.app</p>
           </>
         )}

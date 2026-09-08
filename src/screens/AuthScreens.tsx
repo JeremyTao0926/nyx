@@ -5,6 +5,7 @@ import { ImageCropper } from "../components/ImageCropper";
 import { clearPendingAvatar, savePendingAvatar } from "../pendingAvatar";
 import { getAuthCallbackParams, normalizePhoneNumber } from "../authHelpers";
 import { getAuthProviderAvailability, signInWithSocialProvider, type AuthProviderAvailability, type NyxSocialProvider } from "../auth";
+import { resolveAvatar } from "../avatar";
 
 /* ─── Shared input style ─────────────────────────────── */
 const INP = {
@@ -214,11 +215,17 @@ function SocialAuthOptions({ onAuthenticated, onPhoneModeChange }: { onAuthentic
 
   if (phoneOpen) return <PhoneOtpForm onBack={() => { setPhoneOpen(false); setErr(""); onPhoneModeChange?.(false); }} onAuthenticated={onAuthenticated}/>;
 
+  // Do not ship visibly disabled "coming soon" login methods. The buttons
+  // appear automatically as soon as their Supabase providers are enabled.
+  if (!availability) return null;
+  const hasAvailableProvider = availability.google || availability.apple || availability.phone;
+  if (!hasAvailableProvider) return err ? <div className="nyx-auth-error" role="alert">{err}</div> : null;
+
   return (
     <div className="nyx-social-auth">
-      <button type="button" className="nyx-social-button nyx-google-button" disabled={busy !== null || availability?.google !== true} onClick={() => startProvider("google")}><GoogleMark/><span>{busy === "google" ? "正在開啟 Google…" : availability?.google === false ? "Google 登入 · 設定中" : "使用 Google 繼續"}</span></button>
-      <button type="button" className="nyx-social-button nyx-apple-button" disabled={busy !== null || availability?.apple !== true} onClick={() => startProvider("apple")}><AppleMark/><span>{busy === "apple" ? "正在開啟 Apple…" : availability?.apple === false ? "Apple 登入 · 設定中" : "使用 Apple 繼續"}</span></button>
-      <button type="button" className="nyx-social-button nyx-phone-button" disabled={busy !== null || availability?.phone !== true} onClick={() => { setPhoneOpen(true); onPhoneModeChange?.(true); }}><PhoneMark/><span>{availability?.phone === false ? "手機登入 · 設定中" : "使用手機號碼繼續"}</span></button>
+      {availability.google&&<button type="button" className="nyx-social-button nyx-google-button" disabled={busy !== null} onClick={() => startProvider("google")}><GoogleMark/><span>{busy === "google" ? "正在開啟 Google…" : "使用 Google 繼續"}</span></button>}
+      {availability.apple&&<button type="button" className="nyx-social-button nyx-apple-button" disabled={busy !== null} onClick={() => startProvider("apple")}><AppleMark/><span>{busy === "apple" ? "正在開啟 Apple…" : "使用 Apple 繼續"}</span></button>}
+      {availability.phone&&<button type="button" className="nyx-social-button nyx-phone-button" disabled={busy !== null} onClick={() => { setPhoneOpen(true); onPhoneModeChange?.(true); }}><PhoneMark/><span>使用手機號碼繼續</span></button>}
       {err && <div className="nyx-auth-error" role="alert">{err}</div>}
     </div>
   );
@@ -248,7 +255,7 @@ function Step1({ onNext, onAuthenticated }: { onNext: (email: string, pass: stri
     <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 20 }}>選擇最方便的方式開始</div>
     <SocialAuthOptions onAuthenticated={onAuthenticated} onPhoneModeChange={setPhoneMode}/>
     {!phoneMode && <>
-    <div className="nyx-auth-divider"><span>或使用電郵註冊</span></div>
+    <div className="nyx-auth-divider"><span>使用電郵註冊</span></div>
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <input value={email} onChange={e => setEmail(e.target.value)} placeholder="電子郵件" type="email" style={INP} onFocus={e => (e.target.style.borderColor = C.borderFocus)} onBlur={e => (e.target.style.borderColor = C.border)} />
       <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="密碼（至少6位）" style={INP} onFocus={e => (e.target.style.borderColor = C.borderFocus)} onBlur={e => (e.target.style.borderColor = C.border)} />
@@ -686,7 +693,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
                 <div style={{ fontSize:13.5, color:C.textMuted, marginBottom:20 }}>選擇最方便的登入方式</div>
                 <SocialAuthOptions onAuthenticated={onLogin} onPhoneModeChange={setPhoneMode}/>
                 {!phoneMode && <>
-                <div className="nyx-auth-divider"><span>或使用電郵／用戶名</span></div>
+                <div className="nyx-auth-divider"><span>電郵／用戶名登入</span></div>
                 <LoginForm onLogin={onLogin} />
                 <div style={{ textAlign:"center", marginTop:16 }}>
                   <span style={{ fontSize:13.5, color:C.textMuted }}>還沒有帳號？</span>
@@ -783,7 +790,7 @@ export function AccountSetupScreen({
             <div className="nyx-setup-kicker">最後一步</div>
             <div className="nyx-setup-heading">完成你的基本資料</div>
             <div className="nyx-setup-copy">為保障成人社群安全，生日與用戶名必須先完成。生日不會公開顯示。</div>
-            {profile.avatar_url && <img className="nyx-setup-avatar" src={profile.avatar_url} alt="你的個人頭像"/>}
+            <img className="nyx-setup-avatar" src={resolveAvatar(profile.avatar_url,gender)} alt="你的個人頭像"/>
             <div className="nyx-setup-fields">
               <label className="nyx-field-label">顯示名稱<input autoComplete="name" value={name} onChange={event => setName(event.target.value)} placeholder="其他人看到的名字" style={INP}/></label>
               <label className="nyx-field-label">用戶名

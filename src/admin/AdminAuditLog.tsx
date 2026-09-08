@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { getAuditLog } from "./adminUtils";
+import type { AdminTheme, AuditLogEntry } from "./adminUtils";
 
-export function AdminAuditLog({ C }: { C: any }) {
-  const [logs, setLogs] = useState<any[]>([]);
+export function AdminAuditLog({ C }: { C: AdminTheme }) {
+  const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -22,7 +23,7 @@ export function AdminAuditLog({ C }: { C: any }) {
       {loading ? <div style={{ color:C.textMuted }}>載入中...</div>
       : logs.length === 0 ? <div style={{ color:C.textMuted }}>還沒有記錄</div>
       : (
-        <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" as any }}>
+        <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
           <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden", minWidth:480 }}>
             {logs.map((log, i) => (
               <div key={log.id} style={{ display:"grid", gridTemplateColumns:"160px 1fr 1fr 120px", gap:16, padding:"12px 18px", borderBottom:i<logs.length-1?`1px solid ${C.border}`:"none", alignItems:"center" }}>

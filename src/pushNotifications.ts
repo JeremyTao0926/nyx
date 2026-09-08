@@ -2,6 +2,7 @@
 
 import { isNativeApp } from './platform';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { sb } from './utils';
 
 const VAPID_PUBLIC = 'BF2EDLbL292Wn-EuER8fWLbBFCjnoEOlqqP9d9jNNEjREmTYduDh4XtziaX3b9uvEpNMcnaDQbYTXVhe6woPxQM';
 
@@ -59,7 +60,6 @@ export async function initPush(userId: string, requestPermission = true): Promis
 }
 
 async function initNativePush(userId: string, requestPermission: boolean) {
-  const { sb } = await import('./utils');
   await PushNotifications.removeAllListeners();
   await PushNotifications.addListener('registration', async ({ value: deviceToken }) => {
     await sb.from('push_subscriptions').upsert({
@@ -91,7 +91,6 @@ export async function getPushEnabled() {
 
 async function savePushSubscription(userId: string, sub: PushSubscription) {
   try {
-    const { sb } = await import('./utils');
     const payload = sub.toJSON();
     await sb.from('push_subscriptions').upsert({
       user_id: userId,
@@ -110,7 +109,6 @@ async function savePushSubscription(userId: string, sub: PushSubscription) {
 export async function removePush(userId: string) {
   if (isNativeApp) {
     await PushNotifications.removeAllListeners();
-    const { sb } = await import('./utils');
     await sb.from('push_subscriptions').delete().eq('user_id', userId).eq('platform', 'ios');
     return;
   }
@@ -119,7 +117,6 @@ export async function removePush(userId: string) {
     const reg = await navigator.serviceWorker.getRegistration('/sw.js');
     const sub = await reg?.pushManager.getSubscription();
     if (sub) await sub.unsubscribe();
-    const { sb } = await import('./utils');
     await sb.from('push_subscriptions').delete().eq('user_id', userId);
   } catch {
     // The subscription may already be gone; keep notification opt-out idempotent.

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { C, sound, sb } from "../utils";
+import { C, sound, sb, submitSparkAnswer } from "../utils";
 import type { DailySpark } from "../utils";
 
 interface Props {
@@ -8,7 +8,7 @@ interface Props {
   matchId: string;
   otherName: string;
   onAnswered?: (updated: DailySpark) => void;
-  onReact?: (reaction: string) => void;
+  onReact?: (reaction: string) => Promise<void>;
 }
 
 export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAnswered, onReact }: Props) {
@@ -18,6 +18,7 @@ export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAn
   const [showReact, setShowReact] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [reacted, setReacted] = useState(false);
+  const [reactionSending, setReactionSending] = useState(false);
 
   const isUser1 = myUserId === spark.user1Id;
   const myAnswer   = isUser1 ? spark.answerUser1 : spark.answerUser2;
@@ -45,50 +46,47 @@ export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAn
     if (!input.trim() || myAnswer || submitting) return;
     setSubmitting(true); sound.pop();
     const ans = input.trim();
-
-    // Use the DailySpark column names
-    const col = isUser1 ? "answer_user1" : "answer_user2";
-    await sb.from("daily_sparks").update({ [col]: ans }).eq("id", spark.id);
-
-    // Re-fetch to get definitive state
-    const { data } = await sb.from("daily_sparks").select("*").eq("id", spark.id).single();
-    if (data) {
-      const fresh: DailySpark = {
-        id: data.id, matchId: data.match_id, user1Id: data.user1_id, user2Id: data.user2_id,
-        question: data.question, answerUser1: data.answer_user1, answerUser2: data.answer_user2,
-        sparkDate: data.spark_date, revealedAt: data.revealed_at ? new Date(data.revealed_at) : undefined,
-      };
-      // If both answered, trigger reveal
-      if (fresh.answerUser1 && fresh.answerUser2 && !fresh.revealedAt) {
-        await sb.from("daily_sparks").update({ revealed_at: new Date().toISOString() }).eq("id", spark.id);
-        fresh.revealedAt = new Date();
-        // Save to memory wall
-        sb.from("memories").insert({
-          match_id: fresh.matchId, user1_id: fresh.user1Id, user2_id: fresh.user2Id,
-          type: "spark", title: fresh.question.slice(0, 28) + "...",
-          content: { question: fresh.question, answerA: fresh.answerUser1, answerB: fresh.answerUser2 },
-        }).then(() => {}, () => {});
-        sound.match();
-      }
+    try {
+      // The database function owns authorization, reveal, memory creation and
+      // counters in one transaction, so two simultaneous answers cannot create
+      // duplicate memories or increment the bond twice.
+      const { spark: fresh, revealed: isRevealed } = await submitSparkAnswer(
+        spark.id,
+        myUserId,
+        spark.user1Id,
+        ans,
+      );
+      if (isRevealed) sound.match();
       setSpark(fresh);
       onAnswered?.(fresh);
+
+      // Broadcast only after the transaction succeeds.
+      await sb.channel(`encounter-notify-${matchId}`, { config: { broadcast: { self: false } } })
+        .send({ type: "broadcast", event: "spark_answered", payload: { userId: myUserId } });
+    } catch (error) {
+      console.error("Unable to submit Daily Spark answer", error);
+      alert(error instanceof Error ? error.message : "提交失敗，請稍後再試");
+    } finally {
+      setSubmitting(false);
     }
-
-    // Broadcast to other person
-    sb.channel(`encounter-notify-${matchId}`, { config: { broadcast: { self: false } } })
-      .send({ type: "broadcast", event: "spark_answered", payload: { userId: myUserId } });
-
-    setSubmitting(false);
   }
 
-  function sendReaction() {
-    if (!reactInput.trim() || reacted) return;
+  async function sendReaction() {
+    if (!reactInput.trim() || reacted || reactionSending || !onReact) return;
     // Format: [SPARK_REACT] + question snippet + reaction
     const msg = `[SPARK_REACT]${spark.question.slice(0,20)}...的回應：${reactInput.trim()}`;
-    onReact?.(msg);
-    setReacted(true);
-    setShowReact(false);
-    sound.pop();
+    setReactionSending(true);
+    try {
+      await onReact(msg);
+      setReacted(true);
+      setShowReact(false);
+      sound.pop();
+    } catch (error) {
+      console.error("Unable to send Spark reaction", error);
+      alert(error instanceof Error ? error.message : "回應傳送失敗，請稍後再試");
+    } finally {
+      setReactionSending(false);
+    }
   }
 
   return (
@@ -159,9 +157,9 @@ export function SparkCard({ spark: initSpark, myUserId, matchId, otherName, onAn
                     <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                       <button onClick={() => setShowReact(false)}
                         style={{ flex: 1, padding: "10px", borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}>取消</button>
-                      <button onClick={sendReaction} disabled={!reactInput.trim()}
+                      <button onClick={() => { void sendReaction(); }} disabled={!reactInput.trim() || reactionSending}
                         style={{ flex: 2, padding: "10px", borderRadius: 12, background: reactInput.trim() ? C.gradRose : C.surfHigh, border: "none", color: reactInput.trim() ? C.white : C.textDim, fontFamily: "inherit", fontSize: 13, fontWeight: 700, cursor: reactInput.trim() ? "pointer" : "default" }}>
-                        發送（不可撤回）
+                        {reactionSending ? "傳送中…" : "發送（不可撤回）"}
                       </button>
                     </div>
                   </div>

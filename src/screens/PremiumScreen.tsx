@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { C, sb } from "../utils";
 import type { UserProfile } from "../types";
 import { isIOSNative } from "../platform";
-import { getIOSPlanPrices, purchaseIOSPlan, restoreIOSPurchases } from "../purchases";
+import { getIOSPlanPrices, purchaseIOSPlan, restoreIOSPurchases, syncIOSSubscriptionProfile } from "../purchases";
+import { getActivePremiumPlan, isPurchaseCancellation } from "../subscription";
 
 const PLANS = [
   {
@@ -10,16 +11,15 @@ const PLANS = [
     name: "NYX Premium",
     price: "$9.99",
     period: "/月",
-    priceId: "price_1TqL4EFGW7LQlHklKIg92RYJ",
     color: C.gold,
     gradient: C.grad,
     features: [
       "無限喜歡",
       "查看所有喜歡你的人",
+      "私人收藏（最多 100 人）",
       "優先認識 × 5/天",
-      "Clone 模擬 × 20次/天",
-      "進階篩選條件",
-      "已讀回執",
+      "高擬真模擬 × 20次/天（素材不限）",
+      "完整互動與配對統計",
     ],
   },
   {
@@ -27,24 +27,23 @@ const PLANS = [
     name: "NYX Premium+",
     price: "$19.99",
     period: "/月",
-    priceId: "price_1TqL4jFGW7LQlHklwP3jaMK9",
     color: C.rose,
     gradient: "linear-gradient(135deg,#7C67EA,#EF5F7A)",
     badge: "最受歡迎",
     features: [
       "以上 Premium 全部功能",
-      "Clone 進階 AI × 50次/天",
-      "Boost × 1/週（曝光提升）",
+      "私人收藏升級至 250 人",
+      "高擬真模擬 × 50次/天（素材不限）",
       "VIP 紫晶徽章",
-      "優先客服支援",
     ],
   },
 ];
 
-export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile?: UserProfile }) {
+export function PremiumScreen({ onBack, profile, onProfileUpdate }: { onBack: () => void; profile?: UserProfile; onProfileUpdate?: (patch: Partial<UserProfile>) => void }) {
   const [loading, setLoading] = useState<string | null>(null);
   const [iosPrices, setIOSPrices] = useState<Record<string, string>>({});
   const [iosPriceError, setIOSPriceError] = useState(false);
+  const activePlan = getActivePremiumPlan(profile);
 
   useEffect(() => {
     if (!isIOSNative) return;
@@ -94,52 +93,89 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
     setLoading(plan.id);
     try {
       const { data: { user } } = await sb.auth.getUser();
-      if (!user) { alert("請先登入"); setLoading(null); return; }
+      if (!user) { alert("請先登入"); return; }
 
       if (isIOSNative) {
         const active = await purchaseIOSPlan(user.id, plan.id);
-        if (!active) throw new Error("購買完成，但 Premium 權限尚未同步");
+        if (!active) throw new Error("App Store 尚未啟用這項訂閱");
+        const patch = await syncIOSSubscriptionProfile();
+        if (!patch.is_premium) throw new Error("購買完成，會員權限仍在同步，請稍後再試");
+        onProfileUpdate?.(patch);
         alert("訂閱已啟用 ✓");
-        setLoading(null);
         return;
       }
 
       // Downgrade: Premium+ → Premium (schedule for next billing cycle)
-      const currentPlan = (profile as any)?.premium_plan;
-      if (currentPlan === "premium_plus" && plan.id === "premium") {
-        const { error: downgradeErr } = await sb.functions.invoke("schedule-downgrade", {
-          body: { userId: user.id, newPriceId: plan.priceId, newPlan: plan.id },
+      if (activePlan === "premium_plus" && plan.id === "premium") {
+        const { data: downgrade, error: downgradeErr } = await sb.functions.invoke("schedule-downgrade", {
+          body: { plan: plan.id },
         });
         if (!downgradeErr) {
-          alert("✓ 已安排降級至 Premium，將於本期到期後生效。");
+          const date = downgrade?.effectiveAt ? new Date(downgrade.effectiveAt).toLocaleDateString("zh-TW") : "本期結束後";
+          alert(`✓ 已安排降級至 Premium，將於 ${date} 生效。`);
         } else {
           alert("操作失敗，請稍後再試");
         }
-        setLoading(null);
+        return;
+      }
+
+      // Change the existing Stripe item instead of opening a second Checkout
+      // subscription and accidentally charging the member twice.
+      if (activePlan === "premium" && plan.id === "premium_plus") {
+        const { data: upgrade, error: upgradeError } = await sb.functions.invoke("upgrade-subscription", {
+          body: { plan: plan.id },
+        });
+        if (upgradeError || upgrade?.profile?.premium_plan !== "premium_plus") {
+          console.error("Subscription upgrade error", upgradeError);
+          alert("升級失敗，請稍後再試");
+          return;
+        }
+        const patch: Partial<UserProfile> = {
+          is_premium: true,
+          premium_plan: "premium_plus",
+          premium_expires_at: typeof upgrade.profile.premium_expires_at === "string"
+            ? upgrade.profile.premium_expires_at
+            : profile?.premium_expires_at ?? null,
+        };
+        onProfileUpdate?.(patch);
+        alert("已升級 Premium+，新價格將於下次續訂生效 ✓");
         return;
       }
 
       const { data, error } = await sb.functions.invoke("create-checkout", {
-        body: {
-          priceId: plan.priceId,
-          userId: user.id,
-          userEmail: user.email,
-          plan: plan.id,
-        },
+        body: { plan: plan.id },
       });
 
       if (error || !data?.url) {
         console.error("Checkout error:", error);
         alert("付款系統錯誤，請稍後再試");
-        setLoading(null);
         return;
       }
 
       // Redirect to Stripe Checkout
       window.location.assign(data.url);
     } catch (e) {
+      if (isPurchaseCancellation(e)) return;
       console.error(e);
       alert(e instanceof Error ? e.message : "發生錯誤，請稍後再試");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function handleRestore() {
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return;
+    setLoading("restore");
+    try {
+      const storeHasSubscription = await restoreIOSPurchases(user.id);
+      const patch = await syncIOSSubscriptionProfile();
+      onProfileUpdate?.(patch);
+      alert(storeHasSubscription && patch.is_premium ? "已恢復購買 ✓" : "找不到可恢復的訂閱");
+    } catch (error) {
+      console.error("Restore purchase failed", error);
+      alert("恢復購買失敗，請稍後再試");
+    } finally {
       setLoading(null);
     }
   }
@@ -157,16 +193,16 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
 
       <div style={{ padding: "0 20px 48px" }}>
         {/* Already subscribed banner */}
-        {(profile as any)?.is_premium && (
+        {activePlan && (
           <div style={{ background:C.goldSoft, border:`1px solid ${C.borderHigh}`, borderRadius:16, padding:"16px 18px", marginBottom:20, display:"flex", alignItems:"center", gap:12 }}>
             <div style={{ fontSize:24 }}>✦</div>
             <div>
               <div style={{ fontSize:14, fontWeight:700, color:C.gold }}>
-                你已訂閱 {(profile as any)?.premium_plan === "premium_plus" ? "NYX Premium+" : "NYX Premium"}
+                你已訂閱 {activePlan === "premium_plus" ? "NYX Premium+" : "NYX Premium"}
               </div>
               <div style={{ fontSize:12, color:C.textMuted, marginTop:3 }}>
-                {(profile as any)?.premium_expires_at
-                  ? `到期時間：${new Date((profile as any).premium_expires_at).toLocaleDateString("zh-TW")}`
+                {profile?.premium_expires_at
+                  ? `到期時間：${new Date(profile.premium_expires_at).toLocaleDateString("zh-TW")}`
                   : "訂閱中"}
               </div>
             </div>
@@ -177,10 +213,10 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
         <div style={{ textAlign: "center" as const, marginBottom: 32 }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>✦</div>
           <div style={{ fontSize: 26, fontWeight: 800, color: C.text, marginBottom: 8 }}>
-            {(profile as any)?.is_premium ? "管理訂閱" : "升級 NYX Premium"}
+            {activePlan ? "管理訂閱" : "升級 NYX Premium"}
           </div>
           <div style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.6 }}>
-            {(profile as any)?.is_premium ? "升級方案或管理你的訂閱" : "解鎖全部功能，找到真正的緣分"}
+            {activePlan ? "升級方案或管理你的訂閱" : "解鎖全部功能，找到真正的緣分"}
           </div>
         </div>
 
@@ -212,14 +248,14 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
 
             <button
               onClick={() => handleUpgrade(plan)}
-              disabled={loading === plan.id || (profile as any)?.premium_plan === plan.id || (isIOSNative && !iosPrices[plan.id])}
+              disabled={loading !== null || activePlan === plan.id || (isIOSNative && !iosPrices[plan.id])}
               style={{ width: "100%", padding: "14px", borderRadius: 50, background: loading === plan.id ? C.surfHigh : plan.gradient, border: "none", color: loading === plan.id ? C.textMuted : "#fff", fontFamily: "inherit", fontSize: 15, fontWeight: 800, cursor: loading === plan.id ? "default" : "pointer", marginTop: 16, transition: "all .2s", boxShadow: loading === plan.id ? "none" : `0 6px 20px ${plan.color}44` }}>
               {loading === plan.id ? "處理中..."
                 : isIOSNative && iosPriceError ? "App Store 暫時無法連線"
                 : isIOSNative && !iosPrices[plan.id] ? "載入 App Store 價格…"
-                : (profile as any)?.premium_plan === plan.id ? "目前方案 ✓"
-                : (profile as any)?.premium_plan === "premium_plus" && plan.id === "premium" ? "降級至 Premium（下期生效）"
-                : (profile as any)?.is_premium ? `升級至 ${plan.name}`
+                : activePlan === plan.id ? "目前方案 ✓"
+                : activePlan === "premium_plus" && plan.id === "premium" ? "降級至 Premium（下期生效）"
+                : activePlan ? `升級至 ${plan.name}`
                 : `升級 ${plan.name}`}
             </button>
           </div>
@@ -232,21 +268,12 @@ export function PremiumScreen({ onBack, profile }: { onBack: () => void; profile
         )}
 
         {isIOSNative && (
-          <button type="button" disabled={loading !== null} onClick={async () => {
-            const { data: { user } } = await sb.auth.getUser();
-            if (!user) return;
-            setLoading("restore");
-            try {
-              const active = await restoreIOSPurchases(user.id);
-              alert(active ? "已恢復購買 ✓" : "找不到可恢復的訂閱");
-            } catch { alert("恢復購買失敗，請稍後再試"); }
-            finally { setLoading(null); }
-          }} style={{ width:"100%", minHeight:46, border:"none", background:"transparent", color:C.gold, fontWeight:700, cursor:loading ? "default" : "pointer", opacity:loading && loading !== "restore" ? .5 : 1 }}>
+          <button type="button" disabled={loading !== null} onClick={() => { void handleRestore(); }} style={{ width:"100%", minHeight:46, border:"none", background:"transparent", color:C.gold, fontWeight:700, cursor:loading ? "default" : "pointer", opacity:loading && loading !== "restore" ? .5 : 1 }}>
             {loading === "restore" ? "恢復中…" : "恢復購買"}
           </button>
         )}
 
-        {isIOSNative && (profile as any)?.is_premium && (
+        {isIOSNative && activePlan && (
           <a href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noreferrer" style={{ minHeight:44, display:"flex", alignItems:"center", justifyContent:"center", color:C.textMuted, fontSize:13, textDecoration:"none" }}>
             管理 Apple 訂閱
           </a>

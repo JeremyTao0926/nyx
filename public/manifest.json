@@ -8,12 +8,6 @@
   "theme_color": "#F7F7FC",
   "orientation": "portrait",
   "icons": [
-    {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
     { "src": "/appicon/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "/appicon/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
     { "src": "/appicon/icon-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }

@@ -5,6 +5,7 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+const GROQ_MODEL = "qwen/qwen3.6-27b";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -18,7 +19,12 @@ serve(async (req) => {
     if (error || !user) return new Response("Unauthorized", { status: 401, headers: CORS });
 
     const { text, image } = await req.json();
-    if ((!text && !image) || String(text ?? "").length > 4000 || String(image ?? "").length > 8_000_000) {
+    if (
+      (!text && !image) ||
+      String(text ?? "").length > 4000 ||
+      String(image ?? "").length > 8_000_000 ||
+      (image && !String(image).startsWith("data:image/"))
+    ) {
       return new Response("Invalid content", { status: 400, headers: CORS });
     }
     const content = image
@@ -27,14 +33,19 @@ serve(async (req) => {
           { type: "image_url", image_url: { url: image } },
         ]
       : String(text);
-    const model = image ? "meta-llama/llama-4-scout-17b-16e-instruct" : "llama-3.3-70b-versatile";
+    const groqApiKey = Deno.env.get("GROQ_API_KEY");
+    if (!groqApiKey) {
+      console.error("moderate-content configuration error: GROQ_API_KEY is missing");
+      return new Response("Moderation unavailable", { status: 503, headers: CORS });
+    }
     const upstream = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${Deno.env.get("GROQ_API_KEY")}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqApiKey}` },
       body: JSON.stringify({
-        model,
+        model: GROQ_MODEL,
         temperature: 0,
         max_tokens: 120,
+        reasoning_effort: "none",
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: "You are a strict safety classifier. Reject sexual or nude content, sexual solicitation, minors, violence, threats, hate, harassment, scams, illegal goods, personal data doxxing, and graphic content. Return only JSON: {\"allowed\":boolean,\"reason\":\"short Traditional Chinese reason\"}. Normal consensual dating conversation is allowed." },

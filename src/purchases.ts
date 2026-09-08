@@ -1,4 +1,6 @@
 import { Purchases } from "@revenuecat/purchases-capacitor";
+import type { UserProfile } from "./types";
+import { sb } from "./utils";
 
 const ENTITLEMENT = "premium";
 let configuredUser: string | null = null;
@@ -59,4 +61,29 @@ export async function restoreIOSPurchases(userId: string) {
   await configure(userId);
   const result = await Purchases.restorePurchases();
   return Boolean(result.customerInfo.entitlements.active[ENTITLEMENT]);
+}
+
+export type SubscriptionProfilePatch = Pick<
+  UserProfile,
+  "is_premium" | "premium_plan" | "premium_expires_at"
+>;
+
+/** Immediately mirrors RevenueCat's server-authoritative entitlement to NYX. */
+export async function syncIOSSubscriptionProfile(): Promise<SubscriptionProfilePatch> {
+  const { data, error } = await sb.functions.invoke("sync-revenuecat-entitlement", { body: {} });
+  if (error) throw error;
+  if (!data || typeof data.is_premium !== "boolean") {
+    throw new Error("訂閱狀態回傳格式不正確");
+  }
+  return {
+    is_premium: data.is_premium,
+    premium_plan: data.premium_plan === "premium_plus"
+      ? "premium_plus"
+      : data.premium_plan === "premium"
+        ? "premium"
+        : null,
+    premium_expires_at: typeof data.premium_expires_at === "string"
+      ? data.premium_expires_at
+      : null,
+  };
 }

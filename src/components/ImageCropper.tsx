@@ -10,29 +10,27 @@ interface Props {
 }
 
 export function ImageCropper({ file, aspectRatio, onConfirm, onCancel, shape = "rect" }: Props) {
-  const [imgUrl, setImgUrl] = useState("");
+  const [imgUrl] = useState(() => URL.createObjectURL(file));
   const [scale, setScale] = useState(1);
+  const [minScale, setMinScale] = useState(0.1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
   const imgRef = useRef<HTMLImageElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const FRAME_W = 320;
+  const FRAME_W = Math.min(320, Math.max(240, window.innerWidth - 32));
   const FRAME_H = Math.round(FRAME_W / aspectRatio);
 
   useEffect(() => {
-    const url = URL.createObjectURL(file);
-    setImgUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
+    return () => URL.revokeObjectURL(imgUrl);
+  }, [imgUrl]);
 
-  function clampOffset(ox: number, oy: number, imgW: number, imgH: number) {
-    const scaledW = imgW * scale;
-    const scaledH = imgH * scale;
+  const clampOffset = useCallback((ox: number, oy: number, imgW: number, imgH: number, atScale = scale) => {
+    const scaledW = imgW * atScale;
+    const scaledH = imgH * atScale;
     const maxX = Math.max(0, (scaledW - FRAME_W) / 2);
     const maxY = Math.max(0, (scaledH - FRAME_H) / 2);
     return { x: Math.max(-maxX, Math.min(maxX, ox)), y: Math.max(-maxY, Math.min(maxY, oy)) };
-  }
+  }, [FRAME_H, FRAME_W, scale]);
 
   const onMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
     setDragging(true);
@@ -48,7 +46,7 @@ export function ImageCropper({ file, aspectRatio, onConfirm, onCancel, shape = "
     if (!img) return;
     const clamped = clampOffset(dragStart.current.ox + dx, dragStart.current.oy + dy, img.naturalWidth, img.naturalHeight);
     setOffset(clamped);
-  }, [dragging, scale]);
+  }, [clampOffset, dragging]);
   const onMouseUp = useCallback(() => setDragging(false), []);
 
   useEffect(() => {
@@ -92,13 +90,11 @@ export function ImageCropper({ file, aspectRatio, onConfirm, onCancel, shape = "
     canvas.toBlob(blob => { if (blob) onConfirm(blob); }, "image/jpeg", 0.88);
   }
 
-  if (!imgUrl) return null;
-
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 400, background: C.overlayStrong, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", animation: "fadeIn .2s ease" }}>
       <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 16 }}>拖動調整位置</div>
       {/* Frame */}
-      <div ref={containerRef} style={{ width: FRAME_W, height: FRAME_H, borderRadius: shape === "circle" ? "50%" : 16, overflow: "hidden", border: `2px solid ${C.rose}`, cursor: dragging ? "grabbing" : "grab", position: "relative", flexShrink: 0, boxShadow: `0 0 0 9999px rgba(25,18,43,0.58)` }}
+      <div style={{ width: FRAME_W, height: FRAME_H, borderRadius: shape === "circle" ? "50%" : 16, overflow: "hidden", border: `2px solid ${C.rose}`, cursor: dragging ? "grabbing" : "grab", position: "relative", flexShrink: 0, boxShadow: `0 0 0 9999px rgba(25,18,43,0.58)` }}
         onMouseDown={onMouseDown} onTouchStart={onMouseDown}>
         <img ref={imgRef} src={imgUrl} alt="" draggable={false}
           style={{ position: "absolute", left: "50%", top: "50%", transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${scale})`, transformOrigin: "center", maxWidth: "none", userSelect: "none", pointerEvents: "none" }}
@@ -106,8 +102,12 @@ export function ImageCropper({ file, aspectRatio, onConfirm, onCancel, shape = "
             const img = e.currentTarget;
             const sw = FRAME_W / img.naturalWidth;
             const sh = FRAME_H / img.naturalHeight;
-            // Start at contain (full image visible) — user can zoom in
-            setScale(Math.min(sw, sh));
+            // A crop must always cover the complete frame; otherwise saved
+            // avatars can contain blank bars around the image.
+            const coverScale = Math.max(sw, sh);
+            setMinScale(coverScale);
+            setScale(coverScale);
+            setOffset({ x: 0, y: 0 });
           }}
         />
       </div>
@@ -115,12 +115,12 @@ export function ImageCropper({ file, aspectRatio, onConfirm, onCancel, shape = "
       <div style={{ marginTop: 16, fontSize: 12, color: "rgba(255,255,255,0.35)", textAlign: "center" as const, marginBottom: 4 }}>拖動移動 · 滑動縮放</div>
   <div style={{ marginTop: 4, width: FRAME_W, display: "flex", alignItems: "center", gap: 12 }}>
         <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>縮小</span>
-        <input type="range" min={0.1} max={3} step={0.05} value={scale}
+        <input type="range" min={minScale} max={Math.max(3, minScale)} step={0.05} value={scale}
           onChange={e => {
             const s = parseFloat(e.target.value);
             setScale(s);
             const img = imgRef.current;
-            if (img) setOffset(o => clampOffset(o.x, o.y, img.naturalWidth, img.naturalHeight));
+            if (img) setOffset(o => clampOffset(o.x, o.y, img.naturalWidth, img.naturalHeight, s));
           }}
           style={{ flex: 1 }} />
         <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>放大</span>
