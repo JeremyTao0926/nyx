@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { C, sound, fmtTime, buildSys, groqChat, groqVision, toB64, getOrCreateConv, loadNyxMsgs, saveNyxMsg, loadHistory, saveHistory, updateProfile, splitA, splitC, detMs, casMs, sleep, detectMode } from "../utils";
+import { C, sb, sound, fmtTime, buildSys, groqChat, groqVision, toB64, getOrCreateConv, loadNyxMsgs, saveNyxMsg, loadHistory, saveHistory, updateProfile, splitA, splitC, detMs, casMs, sleep, detectMode } from "../utils";
 import { Av, TypingBubble, NyxText, Lightbox, NyxAnalysisSheet } from "../components/Atoms";
 import { MbtiSheet, EmojiPanel, SimulateModal } from "../components/Modals";
-import type { Msg, GMsg, ImgItem, ExtractedConvo, LB, AppMode, UserProfile } from "../types";
+import type { Msg, GMsg, ImgItem, ExtractedConvo, LB, AppMode, UserProfile, SimulationMessage, SimulationPersona } from "../types";
+import { buildFallbackPersona, buildSimulationSystemPrompt, simulationConfidenceLabel, toGroqHistory } from "../simulation";
 
 /* ─── Nyx Analysis Sheet ─────────────────────────────── */
 export function NyxChatScreen({ userId, profile, onBack }: { userId: string; profile: UserProfile; onBack: () => void }) {
@@ -10,7 +11,9 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
   const [convId, setConvId] = useState<string | null>(null); const [loaded, setLoaded] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>("normal");
   const [simMsgs, setSimMsgs] = useState<Msg[]>([]); const [simHist, setSimHist] = useState<GMsg[]>([]);
-  const [simName, setSimName] = useState(""); const [simStyle, setSimStyle] = useState(""); const simAvatar = "";
+  const [simName, setSimName] = useState(""); const [simPersona, setSimPersona] = useState<SimulationPersona|null>(null);
+  const [simRealContext,setSimRealContext]=useState<SimulationMessage[]>([]); const simAvatar = "";
+  const [simSessionId,setSimSessionId]=useState<string|null>(null);
   const [mbti, setMbti] = useState(profile.mbti || "INFP"); const [gender, setGender] = useState<"male" | "female">(profile.gender || "male");
   const [typing, setTyping] = useState(false); const [pendingImgs, setPendingImgs] = useState<ImgItem[]>([]);
   const [showEmoji, setShowEmoji] = useState(false); const [showMbti, setShowMbti] = useState(false);
@@ -49,7 +52,7 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
   useEffect(() => { if (!showEmoji) return; const h = (e: MouseEvent) => { if (inputRef.current && !inputRef.current.contains(e.target as Node)) setShowEmoji(false); }; document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, [showEmoji]);
 
   function addMsg(m: Omit<Msg, "id" | "timestamp">) { const msg = { ...m, id: Date.now() + Math.random() + "", timestamp: new Date() }; if (isSim) setSimMsgs(p => [...p, msg]); else setMsgs(p => [...p, msg]); }
-  function addImages(files: FileList) { Array.from(files).slice(0, 10 - pendingImgs.length).forEach(file => { const r = new FileReader(); r.onloadend = () => setPendingImgs(p => [...p, { file, preview: r.result as string }]); r.readAsDataURL(file); }); }
+  function addImages(files: FileList) { Array.from(files).slice(0, 5 - pendingImgs.length).forEach(file => { const r = new FileReader(); r.onloadend = () => setPendingImgs(p => [...p, { file, preview: r.result as string }]); r.readAsDataURL(file); }); }
   function insertEmoji(e: string) { const el = textRef.current; if (!el) return; const s = el.selectionStart ?? el.value.length, en = el.selectionEnd ?? el.value.length; el.value = el.value.slice(0, s) + e + el.value.slice(en); el.selectionStart = el.selectionEnd = s + e.length; el.focus(); el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 130) + "px"; }
 
   async function streamChunks(chunks: string[], det: boolean, saver?: (t: string) => void) {
@@ -66,7 +69,7 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
     const cImgs = [...pendingImgs]; addMsg({ from: "user", text: txt || undefined, images: cImgs.map(i => i.preview) });
     if (convId && !isSim) saveNyxMsg(convId, "user", txt || "[圖片]");
     setPendingImgs([]); if (textRef.current) { textRef.current.value = ""; textRef.current.style.height = "auto"; }
-    sound.send(); if (isSim) { await runSim(txt); return; }
+    sound.send(); if (isSim) { await runSim(txt,cImgs); return; }
     const isA = detectMode(txt, cImgs.length > 0) === "analysis";
     const sys = buildSys(mbti, gender);
     const note = isA ? "[分析模式]按格式完整分析每段獨立" : "[聊天模式]真實朋友短句最多2-3句不用格式";
@@ -83,20 +86,44 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
     } catch { setTyping(false); addMsg({ from: "nyx", text: "出了點問題 😔 請再試一次" }); }
   }
 
-  async function runSim(txt: string) {
+  async function runSim(txt: string,images:ImgItem[] = []) {
     setTyping(true);
     try {
-      const full = await groqChat([{ role: "system", content: `你正在扮演一個真實女生。風格：${simStyle || "自然親切"}。直接用她的語氣回應，不要解釋。` }, ...simHist, { role: "user", content: txt || "[圖片]" }]);
-      setSimHist(p => [...p, { role: "user", content: txt }, { role: "assistant", content: full }]);
+      const persona=simPersona||buildFallbackPersona(simRealContext);
+      const targetName=simName||"對方";
+      const myName=profile.display_name||profile.username||"我";
+      const userText=txt||"[圖片]";
+      const sys=buildSimulationSystemPrompt({targetName,myName,persona,userInput:userText,realContext:simRealContext});
+      const history=toGroqHistory(simHist.map(message=>({role:message.role==="assistant"?"clone":"user",content:typeof message.content==="string"?message.content:"[圖片]"})));
+      let full:string;
+      if(images.length){
+        const b64s=await Promise.all(images.map(image=>toB64(image.file)));
+        const recent=history.slice(-12).map(message=>`${message.role==="assistant"?targetName:myName}: ${message.content}`).join("\n");
+        full=await groqVision(b64s,`${recent?`Recent simulated exchange:\n${recent}\n\n`:""}Newest message: ${userText}\nReply only with the next simulated message.`,sys,320,0.65);
+      }else{
+        full=await groqChat([...history,{role:"user",content:userText}],sys,undefined,320,0.72);
+      }
+      setSimHist(previous=>[...previous, { role: "user", content: userText }, { role: "assistant", content: full }]);
+      if(simSessionId){
+        void sb.from("simulation_messages").insert([
+          {session_id:simSessionId,role:"user",content:userText},
+          {session_id:simSessionId,role:"clone",content:full},
+        ]).then(({error})=>{
+          if(error)console.error("Unable to save imported simulation messages",error);
+          return sb.from("simulation_sessions").update({last_active_at:new Date().toISOString()}).eq("id",simSessionId);
+        });
+      }
       await streamChunks(splitC(full), false);
-    } catch { setTyping(false); addMsg({ from: "nyx", text: "模擬失敗 😔" }); }
+    } catch(error) { console.error("Simulation failed",error); setTyping(false); addMsg({ from: "nyx", text: "模擬失敗，請稍後再試。" }); }
   }
 
-  function enterSim(imgs: ImgItem[], mode: "new" | "continue", ex: ExtractedConvo | null) {
-    setSimName(ex?.name ?? ""); setSimStyle(ex?.styleDesc ?? ""); setShowSim(false);
+  function enterSim(mode: "new" | "continue", ex: ExtractedConvo) {
+    const allContext:SimulationMessage[]=ex.messages.map(message=>({from:message.from==="her"?"target":"me",text:message.text}));
+    const persona=ex.persona||buildFallbackPersona(allContext);
+    setSimName(ex.name ?? ""); setSimPersona(persona); setSimSessionId(ex.sessionId||null); setSimRealContext(mode==="continue"?allContext.slice(-24):[]); setShowSim(false);
     const init: Msg[] = [];
-    if (mode === "continue" && ex?.messages.length) ex.messages.forEach((m, i) => init.push({ id: `ex${i}`, from: m.from === "me" ? "user" : "nyx", text: m.text, timestamp: new Date() }));
-    init.push({ id: "ss", from: "nyx", text: mode === "new" ? `💭 模擬開始\n直接輸入你想對${ex?.name || "她"}說的話` : `💭 已載入對話\n接著打下一句吧`, timestamp: new Date() });
+    if (mode === "continue" && ex.messages.length) ex.messages.slice(-24).forEach((m, i) => init.push({ id: `ex${i}`, from: m.from === "me" ? "user" : "nyx", text: m.text, timestamp: new Date() }));
+    init.push({ id: "ss", from: "nyx", text: mode === "new" ? `💭 ${simulationConfidenceLabel(persona)}模型已建立（學習 ${persona.sourceMessageCount} 條對方訊息）\n直接輸入你想對${ex.name || "對方"}說的話` : `💭 已載入最近脈絡；全部 ${persona.sourceMessageCount} 條對方訊息已建立人格模型\n接著打下一句吧`, timestamp: new Date() });
     setSimMsgs(init); setSimHist([]); setAppMode("simulate");
   }
 
@@ -119,7 +146,7 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
         <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{isSim ? (simName || "模擬對話") : "Nyx"}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 1 }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: isSim ? C.warning : C.teal, boxShadow: `0 0 6px ${isSim ? C.warning : C.teal}`, display: "inline-block" }} />
-          <span style={{ fontSize: 11.5, color: isSim ? C.warning : C.teal }}>{isSim ? "模擬中..." : "AI 戀愛分析師"}{typing && " · 輸入中..."}</span>
+          <span style={{ fontSize: 11.5, color: isSim ? C.warning : C.teal }}>{isSim ? `${simPersona?simulationConfidenceLabel(simPersona):"AI"}模擬 · 非本人` : "AI 戀愛分析師"}{typing && " · 輸入中..."}</span>
         </div>
       </div>
       <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
@@ -136,7 +163,7 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
       {curMsgs.map(msg => (
         <div key={msg.id} style={{ display: "flex", flexDirection: msg.from === "user" ? "row-reverse" : "row", alignItems: "flex-end", gap: 8, animation: `${msg.from === "user" ? "userIn" : "nyxIn"} .3s cubic-bezier(.34,1.4,.64,1) both` }}
           onContextMenu={e => { e.preventDefault(); if (msg.text) setMenuMsg(msg); }}>
-          {msg.from === "nyx" && (isSim ? <Av url={simAvatar} name={simName} size={30} grad={C.gradRose} /> : <Av size={30} />)}
+          {msg.from === "nyx" && (isSim ? <Av url={simAvatar} name={simName} size={30} grad={C.gradRose} /> : <Av size={30} brand />)}
           <div style={{ maxWidth: "78%", display: "flex", flexDirection: "column", alignItems: msg.from === "user" ? "flex-end" : "flex-start" }}>
             {msg.images && msg.images.length > 0 && <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 4, marginBottom: msg.text ? 6 : 0, justifyContent: msg.from === "user" ? "flex-end" : "flex-start" }}>{msg.images.map((src, i) => <img key={i} src={src} alt="" onClick={() => setLb({ images: msg.images!, index: i })} style={{ height: 72, width: 72, objectFit: "cover" as const, borderRadius: 12, border: `1px solid ${C.border}`, cursor: "zoom-in" }} />)}</div>}
             {msg.text && <div style={{ padding: msg.from === "nyx" ? "14px 16px" : "11px 16px", borderRadius: msg.from === "user" ? "18px 4px 18px 18px" : "4px 18px 18px 18px", background: msg.from === "user" ? C.grad : isSim ? "rgba(255,247,239,0.98)" : C.bgCard, border: msg.from === "nyx" ? `1px solid ${isSim ? "rgba(217,107,32,0.16)" : C.border}` : undefined, boxShadow: msg.from === "user" ? `0 6px 20px ${C.goldGlow}` : C.shadow, backdropFilter: "blur(8px)" }}>
@@ -169,7 +196,7 @@ export function NyxChatScreen({ userId, profile, onBack }: { userId: string; pro
       </div>
       </div>
     {showMbti && <MbtiSheet mbti={mbti} onSelect={m => { setMbti(m); updateProfile(userId, { mbti: m }); }} onClose={() => setShowMbti(false)} />}
-    {showSim && <SimulateModal onEnter={enterSim} onClose={() => setShowSim(false)} />}
+    {showSim && <SimulateModal userId={userId} onEnter={enterSim} onClose={() => setShowSim(false)} />}
     {lb && <Lightbox lb={lb} onClose={() => setLb(null)} />}
 
     {/* Long press menu */}

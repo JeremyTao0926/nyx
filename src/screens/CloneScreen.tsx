@@ -1,19 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { C, sb, sound, groqChat, getDailyLikeStatus } from "../utils";
-import type { UserProfile, MatchItem } from "../types";
+import type { UserProfile, MatchItem, SimulationMessage, SimulationPersona } from "../types";
+import { resolveAvatar } from "../avatar";
+import { analyzeSimulationPersona, buildSimulationSystemPrompt, simulationConfidenceLabel, toGroqHistory } from "../simulation";
 
 /* ─── Types ──────────────────────────────────────────── */
-interface PersonaProfile {
-  style: string;
-  avgLength: string;
-  emojiFreq: string;
-  humor: string;
-  warmth: string;
-  flirting: string;
-  signature: string[];
-  styleDescription: string;  // plain language description
-}
-
 interface SimMessage {
   id: string;
   role: "user" | "clone";
@@ -26,140 +17,64 @@ interface CloneSession {
   id: string;
   cloneName: string;
   cloneAvatar: string;
-  persona: PersonaProfile;
+  persona: SimulationPersona;
   mode: "continue" | "fresh";
   importedMsgs: SimMessage[];  // real chat context
 }
 
 type CloneMode = "continue" | "fresh";
 
-/* ─── Build persona — style only, NO copy-paste ──────── */
-async function buildPersona(
-  matchId: string, cloneUserId: string, cloneName: string
-): Promise<PersonaProfile> {
-  const { data: msgs } = await sb.from("chat_messages")
-    .select("sender_id, content")
-    .eq("match_id", matchId)
-    .not("content", "like", "[SPARK_REACT]%")
-    .not("content", "like", "https://%")
-    .order("created_at", { ascending: false })
-    .limit(300);
+const CONTINUE_LOADING_STEPS = ["讀取聊天記錄...", "分析說話風格...", "建立人格模型...", "準備就緒"];
+const FRESH_LOADING_STEPS = ["分析說話風格...", "建立人格模型...", "準備就緒"];
 
-  const cloneMsgs = (msgs || [])
-    .filter((m: any) => m.sender_id === cloneUserId)
-    .map((m: any) => m.content)
-    .slice(0, 100);
-
-  if (cloneMsgs.length < 5) {
-    return {
-      style: "casual", avgLength: "short", emojiFreq: "low",
-      humor: "medium", warmth: "neutral", flirting: "none",
-      signature: [], styleDescription: "說話簡短直接"
-    };
+/* ─── Load every usable real message, page by page ───── */
+async function loadAllTrainingMessages(
+  matchId: string,
+  myUserId: string,
+  cloneUserId: string,
+): Promise<SimulationMessage[]> {
+  const pageSize = 500;
+  const result: SimulationMessage[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await sb.from("chat_messages")
+      .select("sender_id,content,created_at")
+      .eq("match_id", matchId)
+      .not("content", "like", "[SPARK_REACT]%")
+      .order("created_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const rows = data || [];
+    for (const row of rows) {
+      const content = typeof row.content === "string" ? row.content.trim() : "";
+      if (!content || (/^https?:\/\/\S+$/.test(content) && !content.includes(" "))) continue;
+      if (row.sender_id !== myUserId && row.sender_id !== cloneUserId) continue;
+      result.push({
+        from: row.sender_id === cloneUserId ? "target" : "me",
+        text: content,
+        createdAt: row.created_at,
+      });
+    }
+    if (rows.length < pageSize) break;
   }
-
-  const sample = cloneMsgs.slice(0, 60).join("\n");
-  const prompt = `分析以下「${cloneName}」的聊天消息風格特徵。
-  
-消息樣本：
-${sample}
-
-只輸出JSON，不加任何解釋：
-{
-  "style": "一個詞描述整體風格，如playful/cool/sweet/cold/energetic",
-  "avgLength": "very_short(1-5字)/short(5-15字)/medium(15-40字)/long(40+字)",
-  "emojiFreq": "none/low/medium/high",
-  "humor": "low/medium/high",
-  "warmth": "cold/neutral/warm/very_warm",
-  "flirting": "none/subtle/moderate/direct",
-  "signature": ["最多4個他/她的口頭禪或常用表達，直接引用原文"],
-  "styleDescription": "用一句話描述這個人的說話風格，例如：說話很短，偶爾用梗，不太主動"
-}`;
-
-  try {
-    const raw = await groqChat(
-      [{ role: "user", content: prompt }],
-      "你是說話風格分析師。只輸出合法JSON。"
-    );
-    return JSON.parse(raw.replace(/```json|```/g, "").trim());
-  } catch {
-    return {
-      style: "casual", avgLength: "short", emojiFreq: "low",
-      humor: "medium", warmth: "neutral", flirting: "none",
-      signature: [], styleDescription: "說話風格隨意自然"
-    };
-  }
+  return result;
 }
 
 /* ─── Load real chat context for Continue mode ────────── */
 async function loadRecentContext(matchId: string, limit = 20): Promise<{
   senderId: string; content: string; createdAt: string;
 }[]> {
-  const { data } = await sb.from("chat_messages")
+  const { data, error } = await sb.from("chat_messages")
     .select("sender_id, content, created_at")
     .eq("match_id", matchId)
     .not("content", "like", "[SPARK_REACT]%")
     .order("created_at", { ascending: false })
     .limit(limit);
-  return ((data || []) as any[]).reverse();
-}
-
-/* ─── System prompts ─────────────────────────────────── */
-function buildFreshPrompt(cloneName: string, p: PersonaProfile, myName: string): string {
-  const lengthGuide: Record<string,string> = {
-    very_short: "回覆極短，1-5個字",
-    short: "回覆短，5-15個字",
-    medium: "回覆中等，15-40個字",
-    long: "回覆較長，可超過40字"
-  };
-  const emojiGuide: Record<string,string> = {
-    none: "從不用表情符號",
-    low: "偶爾用1個表情",
-    medium: "適量用表情",
-    high: "頻繁使用表情"
-  };
-
-  return `你就是「${cloneName}」本人，正在和「${myName}」聊天。
-
-你的真實說話特點：
-- ${p.styleDescription}
-- 回覆長度：${lengthGuide[p.avgLength] || "簡短"}
-- 表情符號：${emojiGuide[p.emojiFreq] || "偶爾用"}
-- 幽默感：${p.humor === "high" ? "很愛開玩笑" : p.humor === "medium" ? "偶爾幽默" : "不太開玩笑"}
-- 調情方式：${p.flirting === "none" ? "完全不調情" : p.flirting === "subtle" ? "非常隱晦" : p.flirting === "moderate" ? "適度" : "比較直接"}
-${p.signature.length > 0 ? `- 你的口頭禪：${p.signature.join("、")}` : ""}
-
-關鍵規則：
-1. 生成符合你風格的【全新回覆】，禁止複製或改寫你過去說過的話
-2. 直接回覆，不要解釋，不要分析
-3. 絕對不說自己是AI、機器人或模擬
-4. 不要一次回答太多問題，保持自然聊天節奏
-5. 回覆長度嚴格按照你的風格`;
-}
-
-function buildContinuePrompt(
-  cloneName: string, p: PersonaProfile, myName: string,
-  contextMsgs: { role: "user"|"clone"; content: string }[]
-): string {
-  const contextStr = contextMsgs.slice(-12).map(m =>
-    `${m.role === "user" ? myName : cloneName}：${m.content}`
-  ).join("\n");
-
-  return `你就是「${cloneName}」本人，以下是你們最近的真實聊天記錄。
-
-真實對話記錄（最近）：
-${contextStr}
-
-你的說話特點：${p.styleDescription}
-${p.signature.length > 0 ? `口頭禪：${p.signature.join("、")}` : ""}
-回覆長度偏好：${p.avgLength === "very_short" || p.avgLength === "short" ? "短" : "中等"}
-
-規則：
-1. 根據對話脈絡，用你的真實說話風格生成【自然的下一句話】
-2. 考慮對方說了什麼，做出符合你性格的真實反應
-3. 禁止複製過去說過的話
-4. 不要解釋自己的行為，直接說話
-5. 絕對不說自己是AI`;
+  if (error) throw error;
+  return (data || []).reverse().map(row => ({
+    senderId: row.sender_id,
+    content: row.content,
+    createdAt: row.created_at,
+  }));
 }
 
 /* ─── Mode select screen ─────────────────────────────── */
@@ -206,16 +121,15 @@ function ModeSelect({ cloneName, onSelect }: { cloneName: string; onSelect: (m: 
 }
 
 /* ─── Loading ─────────────────────────────────────────── */
-function CloneLoading({ name, mode }: { name: string; mode: CloneMode }) {
+function CloneLoading({ name, mode, detail }: { name: string; mode: CloneMode; detail?: string }) {
   const [step, setStep] = useState(0);
-  const steps = mode === "continue"
-    ? ["讀取聊天記錄...", "分析說話風格...", "建立人格模型...", "準備就緒"]
-    : ["分析說話風格...", "建立人格模型...", "準備就緒"];
+  const steps = mode === "continue" ? CONTINUE_LOADING_STEPS : FRESH_LOADING_STEPS;
+  const stepCount = steps.length;
 
   useEffect(() => {
-    const iv = setInterval(() => setStep(s => Math.min(s + 1, steps.length - 1)), 900);
+    const iv = setInterval(() => setStep(s => Math.min(s + 1, stepCount - 1)), 900);
     return () => clearInterval(iv);
-  }, []);
+  }, [stepCount]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 24, padding: 32 }}>
@@ -225,7 +139,7 @@ function CloneLoading({ name, mode }: { name: string; mode: CloneMode }) {
       </div>
       <div style={{ textAlign: "center" as const }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 6 }}>建立 {name} Clone</div>
-        <div style={{ fontSize: 13.5, color: C.gold }}>{steps[step]}</div>
+        <div style={{ fontSize: 13.5, color: C.gold }}>{detail || steps[step]}</div>
       </div>
       <div style={{ display: "flex", gap: 6 }}>
         {steps.map((_, i) => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: i <= step ? C.gold : C.border, transition: "all .3s" }}/>)}
@@ -246,11 +160,12 @@ function CloneChat({ session, myProfile, onReset }: {
   const myName = myProfile.display_name || myProfile.username;
   const isContinue = session.mode === "continue";
 
-  // Build history for Groq (exclude context messages)
+  // Keep the full simulation in the UI/DB, but send only the recent turn
+  // window. Long-term style memory lives in the persona and retrieved examples.
   function getConvoHistory() {
-    return msgs
-      .filter(m => !m.isContext)
-      .map(m => ({ role: m.role === "user" ? "user" as const : "assistant" as const, content: m.content }));
+    return toGroqHistory(msgs
+      .filter(message => !message.isContext)
+      .map(message => ({ role: message.role, content: message.content })));
   }
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
@@ -266,16 +181,27 @@ function CloneChat({ session, myProfile, onReset }: {
 
     try {
       const history = getConvoHistory();
-      // Build context-aware prompt
-      const sysPrompt = isContinue
-        ? buildContinuePrompt(session.cloneName, session.persona, myName,
-            [...msgs.filter(m => !m.isContext).map(m => ({ role: m.role as "user"|"clone", content: m.content })),
-             { role: "user", content: txt }])
-        : buildFreshPrompt(session.cloneName, session.persona, myName);
+      const realContext: SimulationMessage[] = isContinue
+        ? session.importedMsgs.map(message => ({
+            from: message.role === "clone" ? "target" : "me",
+            text: message.content,
+            createdAt: message.createdAt.toISOString(),
+          }))
+        : [];
+      const sysPrompt = buildSimulationSystemPrompt({
+        targetName: session.cloneName,
+        myName,
+        persona: session.persona,
+        userInput: txt,
+        realContext,
+      });
 
       const reply = await groqChat(
         [...history, { role: "user" as const, content: txt }],
-        sysPrompt
+        sysPrompt,
+        undefined,
+        260,
+        0.72,
       );
 
       const cloneMsg: SimMessage = { id: Date.now()+"c", role: "clone", content: reply, createdAt: new Date() };
@@ -283,14 +209,16 @@ function CloneChat({ session, myProfile, onReset }: {
       sound.pop();
 
       // Save to DB
-      sb.from("simulation_messages").insert([
+      void sb.from("simulation_messages").insert([
         { session_id: session.id, role: "user", content: txt },
         { session_id: session.id, role: "clone", content: reply },
-      ]).then(() => {
-        sb.from("simulation_sessions").update({ last_active_at: new Date().toISOString() }).eq("id", session.id);
+      ]).then(({ error }) => {
+        if (error) console.error("Unable to save simulation messages", error);
+        return sb.from("simulation_sessions").update({ last_active_at: new Date().toISOString() }).eq("id", session.id);
       });
-    } catch {
-      setMsgs(p => [...p, { id: Date.now()+"e", role: "clone" as const, content: "...", createdAt: new Date() }]);
+    } catch (error) {
+      console.error("Simulation response failed", error);
+      setMsgs(p => [...p, { id: Date.now()+"e", role: "clone" as const, content: "暫時無法模擬，請再試一次。", createdAt: new Date() }]);
     }
     setGenerating(false);
   }
@@ -301,7 +229,14 @@ function CloneChat({ session, myProfile, onReset }: {
       {isContinue && session.importedMsgs.length > 0 && (
         <div style={{ padding: "8px 16px", background: C.goldSoft, borderBottom: `1px solid ${C.border}`, textAlign: "center" as const }}>
           <span style={{ fontSize: 11.5, color: C.textMuted }}>
-            ↑ 導入了最近 {session.importedMsgs.length} 條真實對話作為背景
+            ↑ 最近 {session.importedMsgs.length} 條作為即時脈絡 · 全部 {session.persona.sourceMessageCount} 條已學習 · {simulationConfidenceLabel(session.persona)} · AI 推測
+          </span>
+        </div>
+      )}
+      {!isContinue && (
+        <div style={{ padding: "8px 16px", background: C.goldSoft, borderBottom: `1px solid ${C.border}`, textAlign: "center" as const }}>
+          <span style={{ fontSize: 11.5, color: C.textMuted }}>
+            {simulationConfidenceLabel(session.persona)} · 已學習 {session.persona.sourceMessageCount} 條對方訊息 · AI 推測，不代表本人
           </span>
         </div>
       )}
@@ -396,12 +331,7 @@ export function CloneScreen({ matchId, myUserId, myProfile, other, onClose }: {
   const [mode, setMode] = useState<CloneMode>("fresh");
   const [session, setSession] = useState<CloneSession|null>(null);
   const [error, setError] = useState("");
-
-  const [cloneStatus, setCloneStatus] = useState<{used:number;limit:number;plan:string}|null>(null);
-
-  useEffect(() => {
-    getDailyLikeStatus(myUserId).then(s => setCloneStatus({used: s.cloneUsed, limit: s.cloneLimit, plan: s.plan}));
-  }, [myUserId]);
+  const [trainingDetail, setTrainingDetail] = useState("");
 
   async function startMode(m: CloneMode) {
     // Check clone limit
@@ -411,48 +341,62 @@ export function CloneScreen({ matchId, myUserId, myProfile, other, onClose }: {
 ${status.plan === "free" ? "升級 Premium 獲得更多次數" : "明天再試"}`);
       return;
     }
-    setMode(m); setPhase("loading"); setError("");
+    setMode(m); setPhase("loading"); setError(""); setTrainingDetail("讀取全部可用聊天記錄…");
     try {
       // Get clone's profile
       const { data: otherProf } = await sb.from("profiles")
-        .select("avatar_url,display_name,username")
+        .select("avatar_url,gender,display_name,username")
         .eq("id", other.id).maybeSingle();
       const cloneName = otherProf?.display_name || otherProf?.username || other.name;
-      const cloneAvatar = otherProf?.avatar_url || other.avatar || "";
+      const cloneAvatar = resolveAvatar(otherProf?.avatar_url || other.avatar,otherProf?.gender);
 
-      // Build persona
-      const persona = await buildPersona(matchId, other.id, cloneName);
+      // Page through all available messages, then compress them into a
+      // hierarchical persona. There is no arbitrary 60/100/300-message cap.
+      const trainingMessages = await loadAllTrainingMessages(matchId, myUserId, other.id);
+      const persona = await analyzeSimulationPersona(cloneName, trainingMessages, progress => {
+        setTrainingDetail(progress.label);
+      });
 
       // Import context for continue mode
       let importedMsgs: SimMessage[] = [];
       if (m === "continue") {
-        const rawMsgs = await loadRecentContext(matchId, 16);
-        importedMsgs = rawMsgs.map((msg: any, i: number) => ({
+        const rawMsgs = await loadRecentContext(matchId, 24);
+        importedMsgs = rawMsgs.map((msg, i) => ({
           id: `ctx-${i}`,
-          role: msg.sender_id === myUserId ? "user" as const : "clone" as const,
+          role: msg.senderId === myUserId ? "user" as const : "clone" as const,
           content: msg.content,
           isContext: true,
           createdAt: new Date(msg.createdAt),
         }));
       }
 
-      // Create session
-      const { data: sess } = await sb.from("simulation_sessions").insert({
-        user_id: myUserId, match_id: matchId, clone_user_id: other.id,
-        clone_name: cloneName, clone_avatar: cloneAvatar,
-        persona_profile: { ...persona, mode: m },
-        messages_used: importedMsgs.length,
-      }).select().single();
-
-      // Increment clone_used_today
-      await sb.from("profiles").update({ clone_used_today: (status.cloneUsed || 0) + 1 }).eq("id", myUserId);
-      setSession({
-        id: sess.id, cloneName, cloneAvatar, persona, mode: m, importedMsgs
+      // The database validates match ownership and records daily usage in one
+      // transaction so concurrent taps cannot bypass limits.
+      const { data: sessionId, error: sessionError } = await sb.rpc("create_private_simulation_session", {
+        p_match_id: matchId,
+        p_clone_user_id: other.id,
+        p_clone_name: cloneName,
+        p_clone_avatar: cloneAvatar || null,
+        p_persona_profile: { ...persona, mode: m },
+        p_messages_used: trainingMessages.length,
+        p_source_batch_count: persona.sourceBatchCount,
+        p_mode: m,
       });
-      setCloneStatus(s => s ? {...s, used: s.used+1} : s);
+      if (sessionError) throw sessionError;
+      if (typeof sessionId !== "string") throw new Error("無法建立模擬工作階段");
+
+      setSession({
+        id: sessionId, cloneName, cloneAvatar, persona, mode: m, importedMsgs
+      });
       setPhase("chat");
-    } catch (e: any) {
-      setError(e.message || "建立失敗"); setPhase("select");
+    } catch (e: unknown) {
+      const rawMessage = e instanceof Error ? e.message : "建立失敗";
+      const message = rawMessage.includes("CLONE_DAILY_LIMIT_REACHED")
+        ? "今日模擬次數已用完，請明天再試或升級方案。"
+        : rawMessage.includes("SIMULATION_NOT_ALLOWED")
+          ? "這段配對目前無法建立模擬。"
+          : rawMessage;
+      setError(message); setPhase("select");
     }
   }
 
@@ -514,7 +458,7 @@ ${status.plan === "free" ? "升級 Premium 獲得更多次數" : "明天再試"}
         {/* Content */}
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           {phase === "select" && <ModeSelect cloneName={other.name} onSelect={startMode}/>}
-          {phase === "loading" && <CloneLoading name={other.name} mode={mode}/>}
+          {phase === "loading" && <CloneLoading name={other.name} mode={mode} detail={trainingDetail}/>}
           {phase === "chat" && session && (
             <CloneChat session={session} myProfile={myProfile} onReset={() => setPhase("select")}/>
           )}

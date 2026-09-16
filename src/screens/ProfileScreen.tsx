@@ -1,15 +1,18 @@
 import { useState, useRef, useEffect } from "react";
-import { C, sound, sb, updateProfile, uploadAvatar, uploadPhoto, deleteAccount, calcAge, calcCompletion, zodiacSign, getProfileViewCount, ETHNICITY, HOBBIES, reverseGeocode, searchCities, formatLocation, exportUserData } from "../utils";
+import { C, sound, sb, updateProfile, uploadAvatar, uploadPhoto, deleteAccount, calcAge, calcCompletion, zodiacSign, getProfileViewCount, getProfileViewers, ETHNICITY, HOBBIES, reverseGeocode, searchCities, formatLocation, exportUserData, getFavoriteProfiles, toggleFavorite } from "../utils";
 import { Av } from "../components/Atoms";
 import { ImageCropper } from "../components/ImageCropper";
 import { MbtiSheet, MultiSelect, BottomSheet } from "../components/Modals";
 import { LocationPickerMap } from "../components/LocationMap";
-import type { UserProfile, Lang, WhoLikedItem } from "../types";
-import { getWhoLikedMe } from "../utils";
+import type { UserProfile, Lang, WhoLikedItem, ProfileViewerItem, FavoriteProfile } from "../types";
 import { PremiumScreen } from "./PremiumScreen";
 import { PremiumGateSheet } from "../components/PremiumGateSheet";
 import { TermsScreen } from "./TermsScreen";
 import { getPushEnabled, initPush, removePush } from "../pushNotifications";
+import { resolveAvatar } from "../avatar";
+import { ProfileSheet } from "./ExploreScreen";
+import { PremiumBadge } from "../components/PremiumBadge";
+import { getActivePremiumPlan, premiumPlanLabel } from "../subscription";
 
 /* ── SVG Icons (Lucide outline, 20×20) ── */
 const IC: Record<string,string> = {
@@ -55,15 +58,15 @@ function Si({ n, s=18, c="currentColor" }: { n: string; s?: number; c?: string }
 
 /* ── Reusable components ── */
 function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
-  return <div onClick={onChange} style={{ width:46,height:26,borderRadius:13,background:on?C.rose:C.surfHigh,position:"relative",transition:"background .25s",cursor:"pointer",flexShrink:0 }}>
+  return <button type="button" role="switch" aria-checked={on} onClick={onChange} style={{ width:46,height:26,borderRadius:13,background:on?C.rose:C.surfHigh,position:"relative",transition:"background .25s",cursor:"pointer",flexShrink:0,border:"none",padding:0 }}>
     <div style={{ width:20,height:20,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:on?23:3,transition:"left .25s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)" }}/>
-  </div>;
+  </button>;
 }
 
 /* Edit page row */
 function EditRow({ icon, label, value, right, onClick, last }: { icon: string; label: string; value?: string; right?: React.ReactNode; onClick?: () => void; last?: boolean }) {
   return (
-    <div onClick={onClick} style={{ display:"flex",alignItems:"center",padding:"14px 0",borderBottom:`1px solid ${C.border}`,cursor:onClick?"pointer":"default" }}>
+    <div onClick={onClick} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onKeyDown={event => { if (onClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }} style={{ display:"flex",alignItems:"center",padding:"14px 16px",borderBottom:last?"none":`1px solid ${C.border}`,cursor:onClick?"pointer":"default" }}>
       <Si n={icon} s={18} c={C.textMuted}/>
       <span style={{ flex:1,fontSize:14,color:C.text,marginLeft:14,fontWeight:500 }}>{label}</span>
       {value && <span style={{ fontSize:14,color:C.textMuted,marginRight:8 }}>{value}</span>}
@@ -74,7 +77,7 @@ function EditRow({ icon, label, value, right, onClick, last }: { icon: string; l
 }
 
 function SettingRow({ icon, label, sub, right, onClick, last }: { icon: string; label: string; sub?: string; right?: React.ReactNode; onClick?: () => void; last?: boolean }) {
-  return <div onClick={onClick} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"15px 18px",cursor:onClick?"pointer":"default",borderBottom:last?"none":`1px solid ${C.border}`,transition:"background .15s",minHeight:52 }}
+  return <div onClick={onClick} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onKeyDown={event => { if (onClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"15px 18px",cursor:onClick?"pointer":"default",borderBottom:last?"none":`1px solid ${C.border}`,transition:"background .15s",minHeight:52 }}
     onMouseEnter={e=>onClick&&(e.currentTarget.style.background=C.surf)}
     onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
     <div style={{ display:"flex",alignItems:"center",gap:13,flex:1,minWidth:0 }}>
@@ -89,6 +92,12 @@ function SettingRow({ icon, label, sub, right, onClick, last }: { icon: string; 
 }
 
 const INP = { width:"100%",padding:"12px 14px",background:C.surf,border:`1px solid ${C.border}`,borderRadius:12,color:C.text,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box" as const,transition:"border-color .2s" };
+
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) return String(error.message);
+  return fallback;
+}
 
 function CityInput({ value, onChange, onSelect, near }: { value: string; onChange: (v: string) => void; onSelect: (city: string, lat: number, lon: number) => void; near?: { lat: number; lon: number } | null }) {
   const [res, setRes] = useState<{ name: string; state: string; country: string; lat: number; lon: number }[]>([]);
@@ -138,10 +147,72 @@ function PhotoGrid({ photos, onAdd, onRemove, uploading }: { photos: string[]; o
   </div>;
 }
 
+function FavoritesPanel({ items, loading, error, limit, removingId, onClose, onRetry, onSelect, onRemove }: {
+  items: FavoriteProfile[];
+  loading: boolean;
+  error: string;
+  limit: number;
+  removingId: string | null;
+  onClose: () => void;
+  onRetry: () => void;
+  onSelect: (profile: FavoriteProfile) => void;
+  onRemove: (profile: FavoriteProfile) => void;
+}) {
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const swiping = useRef(false);
+  const [dx,setDx] = useState(0);
+
+  return (
+    <div style={{ position:"fixed",inset:0,zIndex:260,display:"flex",justifyContent:"center",pointerEvents:"none" }}>
+      <div
+        onTouchStart={event=>{startX.current=event.touches[0].clientX;startY.current=event.touches[0].clientY;swiping.current=false;}}
+        onTouchMove={event=>{const x=event.touches[0].clientX-startX.current;const y=Math.abs(event.touches[0].clientY-startY.current);if(startX.current<40&&x>0&&y<60){swiping.current=true;setDx(Math.min(x,320));}}}
+        onTouchEnd={()=>{if(swiping.current&&dx>100)onClose();setDx(0);swiping.current=false;}}
+        style={{ width:"100%",maxWidth:480,height:"100%",background:C.bg,pointerEvents:"auto",display:"flex",flexDirection:"column",transform:`translateX(${dx}px)`,transition:dx===0?"transform .3s cubic-bezier(.32,.72,0,1)":"none",boxShadow:dx>10?"-12px 0 36px rgba(57,42,101,0.22)":"none",touchAction:"pan-y" }}>
+        <div style={{ display:"flex",alignItems:"center",gap:12,padding:"52px 18px 14px",borderBottom:`1px solid ${C.border}`,background:C.nav,backdropFilter:"blur(24px)",flexShrink:0 }}>
+          <button type="button" onClick={onClose} aria-label="返回我的頁面" style={{ width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",background:"none",border:"none",color:C.textMuted,fontSize:24,cursor:"pointer" }}>‹</button>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:17,fontWeight:800,color:C.text }}>我的收藏</div>
+            <div style={{ fontSize:11.5,color:C.textMuted,marginTop:2 }}>{items.length} / {limit}</div>
+          </div>
+          <div style={{ display:"flex",alignItems:"center",gap:5,padding:"6px 10px",borderRadius:20,background:C.goldSoft,color:C.gold,fontSize:11.5,fontWeight:700 }}><Si n="crown" s={13} c={C.gold}/>VIP</div>
+        </div>
+
+        <div style={{ flex:1,overflowY:"auto",padding:"16px 16px calc(32px + env(safe-area-inset-bottom, 0px))" }}>
+          <div style={{ display:"flex",alignItems:"flex-start",gap:11,padding:"13px 14px",borderRadius:16,background:"linear-gradient(135deg,rgba(103,87,217,.10),rgba(255,255,255,.8))",border:`1px solid ${C.borderHigh}`,marginBottom:14 }}>
+            <div style={{ width:34,height:34,borderRadius:12,background:C.goldSoft,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>🔐</div>
+            <div>
+              <div style={{ fontSize:13.5,fontWeight:700,color:C.text,marginBottom:3 }}>只有你看得到</div>
+              <div style={{ fontSize:12,color:C.textMuted,lineHeight:1.55 }}>對方不會收到通知；收藏不會建立配對、提高曝光或解鎖聊天。封鎖任一方後會自動移除。</div>
+            </div>
+          </div>
+
+          {loading ? <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:12,padding:"64px 0",color:C.textMuted,fontSize:13 }}><div style={{ width:30,height:30,border:`2px solid ${C.border}`,borderTopColor:C.gold,borderRadius:"50%",animation:"spin .7s linear infinite" }}/>載入收藏中…</div>
+          : error ? <div style={{ textAlign:"center",padding:"56px 24px" }}><div style={{ fontSize:14,color:C.textMuted,lineHeight:1.6,marginBottom:18 }}>{error}</div><button type="button" onClick={onRetry} style={{ minHeight:44,padding:"0 22px",borderRadius:24,border:"none",background:C.grad,color:"#fff",fontFamily:"inherit",fontWeight:700,cursor:"pointer" }}>重新載入</button></div>
+          : items.length===0 ? <div style={{ textAlign:"center",padding:"64px 24px" }}><div style={{ width:64,height:64,borderRadius:24,background:C.goldSoft,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",color:C.gold }}><Si n="bookmark" s={28} c={C.gold}/></div><div style={{ fontSize:16,fontWeight:700,color:C.text,marginBottom:7 }}>還沒有私人收藏</div><div style={{ fontSize:13,color:C.textMuted,lineHeight:1.6 }}>瀏覽個人資料時按右上角書籤，就能稍後回來查看。</div></div>
+          : <div style={{ display:"flex",flexDirection:"column",gap:9 }}>
+            {items.map(item=><div role="button" tabIndex={0} key={item.id} onClick={()=>onSelect(item)} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onSelect(item);}}} style={{ width:"100%",display:"flex",alignItems:"center",gap:13,padding:"12px",borderRadius:17,background:C.bgCard,border:`1px solid ${C.border}`,boxShadow:C.shadow,textAlign:"left",fontFamily:"inherit",cursor:"pointer",boxSizing:"border-box" }}>
+              <Av url={item.avatar} name={item.name} gender={item.gender} size={62}/>
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:6 }}><span style={{ fontSize:15.5,fontWeight:750,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{item.name}{item.age?`, ${item.age}`:""}</span>{item.verified&&<span style={{ color:C.gold,fontSize:12 }}>✓</span>}</div>
+                <div style={{ fontSize:12.5,color:C.textMuted,marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{[item.mbti,item.location].filter(Boolean).join(" · ")}</div>
+                <div style={{ fontSize:10.5,color:C.textDim,marginTop:4 }}>收藏於 {item.favoritedAt.toLocaleDateString("zh-TW")}</div>
+              </div>
+              <button type="button" aria-label={`移除 ${item.name} 的收藏`} disabled={removingId===item.id} onClick={event=>{event.stopPropagation();onRemove(item);}} style={{ width:38,height:38,borderRadius:"50%",border:`1px solid ${C.borderHigh}`,background:C.goldSoft,color:C.gold,display:"flex",alignItems:"center",justifyContent:"center",cursor:removingId===item.id?"wait":"pointer",opacity:removingId===item.id ? 0.55 : 1,flexShrink:0 }}><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>
+            </div>)}
+          </div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat }: { profile: UserProfile; userId: string; onLogout: () => void; onUpdate: (p: Partial<UserProfile>) => void; onOpenChat?: (matchId: string, otherId: string, name: string, avatar: string) => void }) {
   const [activeTab, setActiveTab] = useState<"view" | "edit" | "settings">("view");
-  const isPremiumUser = (profile as any)?.is_premium === true;
-  const [statsGate, setStatsGate] = useState(false);
+  const activePremiumPlan = getActivePremiumPlan(profile);
+  const isPremiumUser = activePremiumPlan !== null;
+  const [premiumGate, setPremiumGate] = useState<"stats"|"favorites"|null>(null);
   const [name, setName] = useState(profile.display_name || profile.username);
   const [bio, setBio] = useState(profile.bio || "");
   const [birthday, setBirthday] = useState(profile.birthday || "");
@@ -163,32 +234,39 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   const [deleting, setDeleting] = useState(false);
   const [soundOn, setSoundOn] = useState(sound.enabled);
   const [pushOn, setPushOn] = useState(false);
-  const [lang, setLang] = useState<Lang>((profile as any).language || "zh");
-  const [hideOnline, setHideOnline] = useState((profile as any).hide_online_status || false);
+  const [lang, setLang] = useState<Lang>(profile.language || "zh");
+  const [hideOnline, setHideOnline] = useState(profile.hide_online_status || false);
   useEffect(() => { getPushEnabled().then(setPushOn).catch(() => {}); }, []);
-  const [occupation, setOccupation] = useState((profile as any).occupation || "");
-  const [education, setEducation] = useState((profile as any).education || "");
-  const [income, setIncome] = useState((profile as any).income || "");
-  const [heightCm, setHeightCm] = useState((profile as any).height_cm || "");
-  const [drinking, setDrinking] = useState((profile as any).drinking || "");
-  const [smoking, setSmoking] = useState((profile as any).smoking || "");
-  const [exercise, setExercise] = useState((profile as any).exercise || "");
-  const [hasPets, setHasPets] = useState((profile as any).has_pets || "");
-  const [wantChildren, setWantChildren] = useState((profile as any).want_children || "");
-  const [relGoal, setRelGoal] = useState((profile as any).relationship_goal || "");
-  const [loveLanguage, setLoveLanguage] = useState((profile as any).love_language || "");
+  const [occupation, setOccupation] = useState(profile.occupation || "");
+  const [education, setEducation] = useState(profile.education || "");
+  const [income, setIncome] = useState(profile.income || "");
+  const [heightCm, setHeightCm] = useState(profile.height_cm || "");
+  const [drinking, setDrinking] = useState(profile.drinking || "");
+  const [smoking, setSmoking] = useState(profile.smoking || "");
+  const [exercise, setExercise] = useState(profile.exercise || "");
+  const [hasPets, setHasPets] = useState(profile.has_pets || "");
+  const [wantChildren, setWantChildren] = useState(profile.want_children || "");
+  const [relGoal, setRelGoal] = useState(profile.relationship_goal || "");
+  const [loveLanguage, setLoveLanguage] = useState(profile.love_language || "");
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState({ likesReceived: 0, likesGiven: 0, matches: 0, profileViews: 0 });
-  const [statsPanel, setStatsPanel] = useState<"liked_me"|"i_liked"|"matches"|null>(null);
+  const [statsPanel, setStatsPanel] = useState<"liked_me"|"i_liked"|"matches"|"viewed_me"|null>(null);
   const [whoLikedMe, setWhoLikedMe] = useState<WhoLikedItem[]>([]);
   const [iLiked, setILiked] = useState<WhoLikedItem[]>([]);
-  const [myMatches, setMyMatches] = useState<{matchId:string;userId:string;name:string;avatar:string;mbti:string;age:number|null;lastMsg:string}[]>([]);
+  const [profileViewers, setProfileViewers] = useState<ProfileViewerItem[]>([]);
+  const [myMatches, setMyMatches] = useState<{matchId:string;userId:string;name:string;avatar:string;gender?:"male"|"female";mbti:string;age:number|null;lastMsg:string}[]>([]);
   const [showAllMatches, setShowAllMatches] = useState(false);
   const [loadingPanel, setLoadingPanel] = useState(false);
   const [locating, setLocating] = useState(false);
   const [cropFile, setCropFile] = useState<{ file: File; type: "avatar" | "photo" } | null>(null);
   const [showPremium, setShowPremium] = useState(false);
   const [showTerms, setShowTerms] = useState<"terms" | "privacy" | null>(null);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [favorites, setFavorites] = useState<FavoriteProfile[]>([]);
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
+  const [favoritesError, setFavoritesError] = useState("");
+  const [selectedFavorite, setSelectedFavorite] = useState<FavoriteProfile|null>(null);
+  const [favoriteBusyId, setFavoriteBusyId] = useState<string|null>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
   const [editField, setEditField] = useState<string|null>(null);
 
@@ -254,16 +332,34 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
     ]).then(([r, g, m, v]) => setStats({ likesReceived: r.count || 0, likesGiven: g.count || 0, matches: m.count || 0, profileViews: v }));
   }, [userId]);
 
-  async function openStatsPanel(panel: "liked_me"|"i_liked"|"matches") {
-    if (!isPremiumUser) { setStatsGate(true); return; }
+  async function openStatsPanel(panel: "liked_me"|"i_liked"|"matches"|"viewed_me") {
+    if (!isPremiumUser) { setPremiumGate("stats"); return; }
     setStatsPanel(panel);
     setLoadingPanel(true);
 
+    if (panel === "viewed_me") {
+      try {
+        const viewers = await getProfileViewers();
+        setProfileViewers(viewers);
+        setStats(current => ({ ...current, profileViews: viewers.length }));
+      } catch (error) {
+        console.error("Unable to load profile viewers", error);
+        setProfileViewers([]);
+      } finally {
+        setLoadingPanel(false);
+      }
+      return;
+    }
+
+    try {
     // Get matched user IDs to exclude from both lists
-    const { data: matchedRows } = await sb.from("matches")
+    const { data: matchedRows, error: matchedError } = await sb.from("matches")
       .select("user1_id,user2_id")
       .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
-    const matchedIds = new Set((matchedRows||[]).map((m: any) =>
+    if (matchedError) throw matchedError;
+    type MatchRelationRow = { id: string; user1_id: string; user2_id: string; created_at?: string };
+    type SwipeRelationRow = { swiper_id: string; swiped_id: string; direction: "like" | "superlike"; created_at: string };
+    const matchedIds = new Set(((matchedRows||[]) as unknown as MatchRelationRow[]).map(m =>
       m.user1_id === userId ? m.user2_id : m.user1_id
     ));
 
@@ -275,12 +371,12 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         .in("direction", ["like","superlike"])
         .order("created_at", { ascending: false });
       if (data) {
-        const unmatched = data.filter((s: any) => !matchedIds.has(s.swiper_id));
-        const items = await Promise.all(unmatched.map(async (s: any) => {
+        const unmatched = (data as unknown as SwipeRelationRow[]).filter(s => !matchedIds.has(s.swiper_id));
+        const items = await Promise.all(unmatched.map(async s => {
           const { data: p } = await sb.from("profiles")
-            .select("id,display_name,username,avatar_url,birthday,mbti")
+            .select("id,display_name,username,avatar_url,gender,birthday,mbti")
             .eq("id", s.swiper_id).maybeSingle();
-          return { id: s.swiper_id, name: p?.display_name||p?.username||"?", age: p?.birthday?calcAge(p.birthday):null, avatar: p?.avatar_url||"", mbti: p?.mbti||"INFP", direction: s.direction, timestamp: new Date(s.created_at) } as WhoLikedItem;
+          return { id: s.swiper_id, name: p?.display_name||p?.username||"?", age: p?.birthday?calcAge(p.birthday):null, avatar: resolveAvatar(p?.avatar_url,p?.gender), gender:p?.gender, mbti: p?.mbti||"INFP", direction: s.direction, timestamp: new Date(s.created_at) } as WhoLikedItem;
         }));
         setWhoLikedMe(items);
       }
@@ -292,10 +388,10 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
         .order("created_at", { ascending: false });
       if (matchRows) {
-        const items = await Promise.all(matchRows.map(async (m: any) => {
+        const items = await Promise.all((matchRows as unknown as MatchRelationRow[]).map(async m => {
           const otherId = m.user1_id === userId ? m.user2_id : m.user1_id;
           const { data: p } = await sb.from("profiles")
-            .select("id,display_name,username,avatar_url,birthday,mbti")
+            .select("id,display_name,username,avatar_url,gender,birthday,mbti")
             .eq("id", otherId).maybeSingle();
           // Get last message
           const { data: msgs } = await sb.from("chat_messages")
@@ -304,7 +400,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             .order("created_at", { ascending: false })
             .limit(1);
           const lastMsg = msgs?.[0]?.is_image ? "📷 圖片" : msgs?.[0]?.content?.slice(0,30) || "開始聊天吧";
-          return { matchId: m.id, userId: otherId, name: p?.display_name||p?.username||"?", avatar: p?.avatar_url||"", mbti: p?.mbti||"INFP", age: p?.birthday?calcAge(p.birthday):null, lastMsg };
+          return { matchId: m.id, userId: otherId, name: p?.display_name||p?.username||"?", avatar: resolveAvatar(p?.avatar_url,p?.gender), gender:p?.gender, mbti: p?.mbti||"INFP", age: p?.birthday?calcAge(p.birthday):null, lastMsg };
         }));
         setMyMatches(items);
       }
@@ -318,18 +414,22 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         .in("direction", ["like","superlike"])
         .order("created_at", { ascending: false });
       if (data) {
-        const unmatched = data.filter((s: any) => !matchedIds.has(s.swiped_id));
-        const items = await Promise.all(unmatched.map(async (s: any) => {
+        const unmatched = (data as unknown as SwipeRelationRow[]).filter(s => !matchedIds.has(s.swiped_id));
+        const items = await Promise.all(unmatched.map(async s => {
           const { data: p } = await sb.from("profiles")
-            .select("id,display_name,username,avatar_url,birthday,mbti")
+            .select("id,display_name,username,avatar_url,gender,birthday,mbti")
             .eq("id", s.swiped_id).maybeSingle();
-          return { id: s.swiped_id, name: p?.display_name||p?.username||"?", age: p?.birthday?calcAge(p.birthday):null, avatar: p?.avatar_url||"", mbti: p?.mbti||"INFP", direction: s.direction, timestamp: new Date(s.created_at) } as WhoLikedItem;
+          return { id: s.swiped_id, name: p?.display_name||p?.username||"?", age: p?.birthday?calcAge(p.birthday):null, avatar: resolveAvatar(p?.avatar_url,p?.gender), gender:p?.gender, mbti: p?.mbti||"INFP", direction: s.direction, timestamp: new Date(s.created_at) } as WhoLikedItem;
         }));
         setILiked(items);
       }
     }
 
-    setLoadingPanel(false);
+    } catch (error) {
+      console.error("Unable to load profile statistics", error);
+    } finally {
+      setLoadingPanel(false);
+    }
   }
 
   function handleAvatar(file: File) { setCropFile({ file, type: "avatar" }); }
@@ -364,7 +464,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
   }
   async function save() {
     setSaving(true);
-    const patch: Partial<UserProfile> = { display_name: name, bio: bio || null, birthday: birthday || null, location_text: loc || null, latitude: pinLat, longitude: pinLon, ethnicity, hobbies, mbti, gender, looking_for_gender: lookingFor, avatar_url: avatarUrl || null, photos, ...({ occupation: occupation || null, education: education || null, income: income || null, height_cm: heightCm || null, drinking: drinking || null, smoking: smoking || null, exercise: exercise || null, has_pets: hasPets || null, want_children: wantChildren || null, relationship_goal: relGoal || null, love_language: loveLanguage || null } as any) };
+    const patch: Partial<UserProfile> = { display_name: name, bio: bio || null, birthday: birthday || null, location_text: loc || null, latitude: pinLat, longitude: pinLon, ethnicity, hobbies, mbti, gender, looking_for_gender: lookingFor, avatar_url: avatarUrl || null, photos, occupation: occupation || null, education: education || null, income: income || null, height_cm: heightCm || null, drinking: drinking || null, smoking: smoking || null, exercise: exercise || null, has_pets: hasPets || null, want_children: wantChildren || null, relationship_goal: relGoal || null, love_language: loveLanguage || null };
     try {
       await updateProfile(userId, patch);
       const { data: refreshed, error } = await sb.from("profiles").select("*").eq("id", userId).single();
@@ -390,15 +490,78 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
       const locationLabel = formatLocation(place.city, place.state, place.country);
       if (locationLabel) { setLoc(locationLabel); setEditText(locationLabel); }
       setPinLat(pos.coords.latitude); setPinLon(pos.coords.longitude);
-    } catch (e: any) {
-      if (e.code === 1) alert("請允許瀏覽器使用定位權限"); else alert("定位失敗，請手動輸入城市");
+    } catch (error: unknown) {
+      const code = error && typeof error === "object" && "code" in error ? Number(error.code) : undefined;
+      if (code === 1) alert("請允許瀏覽器使用定位權限"); else alert("定位失敗，請手動輸入城市");
     } finally {
       setLocating(false);
     }
   }
 
+  async function refreshFavorites() {
+    setFavoritesLoading(true);
+    setFavoritesError("");
+    try {
+      setFavorites(await getFavoriteProfiles(userId));
+    } catch (error) {
+      console.error("Unable to load private favorites", error);
+      const message = errorMessage(error, "暫時無法載入收藏，請稍後再試");
+      if (message.includes("PREMIUM_REQUIRED") || message.toLowerCase().includes("permission")) {
+        setShowFavorites(false);
+        setPremiumGate("favorites");
+      } else {
+        setFavoritesError(message.toLowerCase().includes("favorites") ? "收藏資料庫尚未啟用，請先完成最新的安全更新" : "暫時無法載入收藏，請稍後再試");
+      }
+    } finally {
+      setFavoritesLoading(false);
+    }
+  }
+
+  function openFavorites() {
+    if (!isPremiumUser) { setPremiumGate("favorites"); return; }
+    setShowFavorites(true);
+    void refreshFavorites();
+  }
+
+  async function removeFavorite(item: FavoriteProfile) {
+    if (favoriteBusyId) return;
+    setFavoriteBusyId(item.id);
+    try {
+      await toggleFavorite(item.id, false);
+      setFavorites(current => current.filter(profileItem => profileItem.id !== item.id));
+      if (selectedFavorite?.id === item.id) setSelectedFavorite(null);
+      sound.tap();
+    } catch (error) {
+      console.error(error);
+      alert(errorMessage(error, "移除收藏失敗，請稍後再試"));
+    } finally {
+      setFavoriteBusyId(null);
+    }
+  }
+
+  async function shareInvite() {
+    const url = (import.meta.env.VITE_PUBLIC_APP_URL || "https://nyx-gamma.vercel.app/").replace(/\/$/, "");
+    const data = { title:"NYX", text:"來 NYX 認識真正合拍的人。", url };
+    try {
+      if (navigator.share) {
+        await navigator.share(data);
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(`${data.text} ${url}`);
+        alert("邀請連結已複製");
+      } else {
+        window.prompt("複製邀請連結", url);
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      console.error("Unable to share invite", error);
+      alert("暫時無法分享，請稍後再試");
+    }
+  }
+
   const edu: Record<string, string> = { high_school: "高中", college: "大專", bachelor: "本科", master: "碩士", phd: "博士" };
   const incomeLabel = income === "<20" ? "20萬以下" : income === ">100" ? "100萬 +" : income ? `${income}萬` : "";
+  const childrenLabel: Record<string, string> = { yes:"想要孩子", maybe:"還沒決定", no:"不想要孩子", have:"已有孩子" };
+  const loveLanguageLabel: Record<string, string> = { words:"肯定話語", time:"精心時刻", acts:"行動服務", gifts:"禮物", touch:"身體接觸" };
 
   /* ── VIEW MODE ── */
   const zodiac = zodiacSign(birthday);
@@ -421,7 +584,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         <input ref={avatarRef} type="file" accept="image/*" style={{ display: "none" }} onClick={e => e.stopPropagation()} onChange={e => { if (e.target.files?.[0]) handleAvatar(e.target.files[0]); }} />
         <div style={{ position: "relative", flexShrink: 0 }} onClick={e => { e.stopPropagation(); avatarRef.current?.click(); }}>
           <div style={{ width: 84, height: 84, borderRadius: "50%", overflow: "hidden", background: C.bgCard, border: `2px solid ${C.border}` }}>
-            {avatarUrl ? <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" as const }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><Si n="user" s={30} c={C.textMuted} /></div>}
+            <img src={resolveAvatar(avatarUrl,gender)} alt={`${name} 的頭像`} style={{ width: "100%", height: "100%", objectFit: "cover" as const }} />
           </div>
           {profile.is_verified ? (
             <div style={{ position: "absolute", bottom: 2, right: 2, width: 22, height: 22, borderRadius: "50%", background: C.gold, border: `2.5px solid ${C.bg}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -434,7 +597,10 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         </div>
         <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-            <span style={{ fontSize: 21, fontWeight: 800, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{name}</span>
+            <div style={{ display:"flex",alignItems:"center",gap:7,minWidth:0 }}>
+              <span style={{ fontSize: 21, fontWeight: 800, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{name}</span>
+              <PremiumBadge plan={activePremiumPlan} />
+            </div>
             <Si n="chevron" s={18} c={C.textMuted} />
           </div>
           <div style={{ fontSize: 13, color: C.textMuted, marginTop: 2 }}>@{profile.username}</div>
@@ -469,9 +635,9 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             { ico: "heart", val: stats.likesReceived, label: "喜歡我的", color: C.rose, panel: "liked_me" as const },
             { ico: "star", val: stats.likesGiven, label: "我喜歡的", color: C.gold, panel: "i_liked" as const },
             { ico: "chat", val: stats.matches, label: "配對成功", color: C.superlike, panel: "matches" as const },
-            { ico: "eye", val: stats.profileViews, label: "誰看過我", color: C.mint, panel: null },
+            { ico: "eye", val: stats.profileViews, label: "誰看過我", color: C.mint, panel: "viewed_me" as const },
           ].map((s, i) => (
-            <div key={s.label} onClick={() => s.panel ? openStatsPanel(s.panel) : (!isPremiumUser && setStatsGate(true))}
+            <div key={s.label} onClick={() => { void openStatsPanel(s.panel); }}
               style={{ flex: 1, textAlign: "center" as const, padding: "16px 0", borderRight: i < 3 ? `1px solid ${C.border}` : "none", cursor: "pointer", transition: "background .15s" }}
               onMouseEnter={e => (e.currentTarget.style.background = C.surf)}
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
@@ -488,7 +654,8 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 14 }}>
           <SettingRow icon="user" label="個人資料" onClick={() => setActiveTab("edit")}
             right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 13, color: comp >= 80 ? C.mint : C.gold, fontWeight: 700 }}>{comp}%</span><Si n="chevron" s={16} c={C.textMuted} /></div>} />
-          <SettingRow icon="bookmark" label="我的收藏" right={<span style={{ fontSize: 11.5, color: C.textDim }}>即將推出</span>} />
+          <SettingRow icon="bookmark" label="我的收藏" sub="私密保存，不通知對方" onClick={openFavorites}
+            right={<div style={{ display:"flex",alignItems:"center",gap:8 }}><span style={{ fontSize:11.5,color:isPremiumUser?C.gold:C.textDim }}>{isPremiumUser ? (favorites.length ? `${favorites.length} 人` : "查看") : "VIP"}</span><Si n="chevron" s={16} c={C.textMuted}/></div>} />
           <SettingRow icon="gear" label="一般設定" onClick={() => setActiveTab("settings")} right={<Si n="chevron" s={16} c={C.textMuted} />} />
           <SettingRow icon="shield" label="隱私政策" onClick={() => setShowTerms("privacy")} right={<Si n="chevron" s={16} c={C.textMuted} />} />
           <SettingRow icon="scroll" label="服務條款" onClick={() => setShowTerms("terms")} right={<Si n="chevron" s={16} c={C.textMuted} />} />
@@ -498,9 +665,9 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         {/* Menu group 2 */}
         <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 20 }}>
           <SettingRow icon="crown" label="NYX Premium" onClick={() => setShowPremium(true)}
-            right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12, color: C.gold, fontWeight: 700 }}>查看方案</span><Si n="chevron" s={16} c={C.textMuted} /></div>} />
-          <SettingRow icon="gift" label="邀請好友" onClick={() => alert("邀請好友功能即將推出，敬請期待！")}
-            right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12, color: C.gold, fontWeight: 700 }}>獲得 NYX+</span><Si n="chevron" s={16} c={C.textMuted} /></div>} last />
+            right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12, color: activePremiumPlan ? C.mint : C.gold, fontWeight: 700 }}>{activePremiumPlan ? `目前：${premiumPlanLabel(activePremiumPlan)}` : "查看方案"}</span><Si n="chevron" s={16} c={C.textMuted} /></div>} />
+          <SettingRow icon="gift" label="邀請好友" sub="使用系統分享，不會自動傳送訊息" onClick={()=>{void shareInvite();}}
+            right={<div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12, color: C.gold, fontWeight: 700 }}>分享連結</span><Si n="chevron" s={16} c={C.textMuted} /></div>} last />
         </div>
 
         {/* Logout */}
@@ -520,10 +687,10 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <div style={{ padding:"12px 20px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
               <div>
                 <div style={{ fontSize:17,fontWeight:700,color:C.text }}>
-                  {statsPanel==="liked_me"?"喜歡你的人":statsPanel==="i_liked"?"你喜歡的人":"你的配對"}
+                  {statsPanel==="liked_me"?"喜歡你的人":statsPanel==="i_liked"?"你喜歡的人":statsPanel==="viewed_me"?"誰看過你":"你的配對"}
                 </div>
                 <div style={{ fontSize:12,color:C.textMuted,marginTop:2 }}>
-                  {statsPanel==="liked_me"?`${stats.likesReceived} 人`:statsPanel==="i_liked"?`${stats.likesGiven} 人`:`${stats.matches} 個配對`}
+                  {statsPanel==="liked_me"?`${stats.likesReceived} 人`:statsPanel==="i_liked"?`${stats.likesGiven} 人`:statsPanel==="viewed_me"?`${stats.profileViews} 人`:`${stats.matches} 個配對`}
                 </div>
               </div>
               <button onClick={()=>{setStatsPanel(null);setShowAllMatches(false);}} style={{ width:32,height:32,borderRadius:"50%",background:C.surfHigh,border:"none",color:C.textMuted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16 }}>✕</button>
@@ -534,6 +701,29 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                 <div style={{ display:"flex",justifyContent:"center",padding:"48px 0" }}>
                   <div style={{ width:28,height:28,border:`2px solid ${C.border}`,borderTopColor:C.gold,borderRadius:"50%",animation:"spin .7s linear infinite" }}/>
                 </div>
+              ) : statsPanel === "viewed_me" ? (
+                profileViewers.length === 0 ? (
+                  <div style={{ textAlign:"center" as const,padding:"48px 20px",color:C.textMuted }}>
+                    <div style={{ fontSize:40,marginBottom:14,opacity:.35 }}>◉</div>
+                    <div style={{ fontSize:14 }}>最近還沒有人看過你的個人資料</div>
+                  </div>
+                ) : (
+                  <div>
+                    {profileViewers.map(viewer => (
+                      <div key={viewer.id} style={{ display:"flex",alignItems:"center",gap:14,padding:"12px 20px" }}>
+                        <Av url={viewer.avatar} name={viewer.name} gender={viewer.gender} size={54}/>
+                        <div style={{ flex:1,minWidth:0 }}>
+                          <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                            <span style={{ fontSize:15,fontWeight:650,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{viewer.name}{viewer.age ? `, ${viewer.age}` : ""}</span>
+                            <PremiumBadge plan={viewer.premiumPlan} mini />
+                          </div>
+                          <div style={{ fontSize:12.5,color:C.textMuted,marginTop:3 }}>{viewer.mbti} · {viewer.viewedAt.toLocaleDateString("zh-TW")}</div>
+                        </div>
+                        <Si n="eye" s={17} c={C.mint}/>
+                      </div>
+                    ))}
+                  </div>
+                )
               ) : statsPanel === "matches" ? (
                 myMatches.length === 0 ? (
                   <div style={{ textAlign:"center" as const,padding:"48px 20px",color:C.textMuted }}>
@@ -548,7 +738,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                         style={{ display:"flex",alignItems:"center",gap:14,padding:"12px 20px",cursor:"pointer",transition:"background .15s" }}
                         onMouseEnter={e=>(e.currentTarget.style.background=C.surf)}
                         onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
-                        <Av url={m.avatar} name={m.name} size={54}/>
+                        <Av url={m.avatar} name={m.name} gender={m.gender} size={54}/>
                         <div style={{ flex:1,minWidth:0 }}>
                           <div style={{ fontSize:15,fontWeight:600,color:C.text }}>{m.name}{m.age?`, ${m.age}`:""}</div>
                           <div style={{ fontSize:12.5,color:C.textMuted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const }}>{m.lastMsg}</div>
@@ -592,7 +782,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
                             <div key={item.id} style={{ display:"flex",alignItems:"center",gap:14,padding:"12px 20px",transition:"background .15s" }}
                               onMouseEnter={e=>(e.currentTarget.style.background=C.surf)}
                               onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
-                              <Av url={item.avatar} name={item.name} size={54}/>
+                              <Av url={item.avatar} name={item.name} gender={item.gender} size={54}/>
                               <div style={{ flex:1,minWidth:0 }}>
                                 <div style={{ fontSize:15,fontWeight:600,color:C.text }}>{item.name}{item.age?`, ${item.age}`:""}</div>
                                 <div style={{ fontSize:12.5,marginTop:2,display:"flex",alignItems:"center",gap:6 }}>
@@ -639,17 +829,19 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           </div>
         </div>
       </BottomSheet>}
-      {statsGate && (
+      {premiumGate && (
         <PremiumGateSheet
-          icon="🔒"
-          title="Premium 專屬功能"
-          desc={<span>升級 Premium 即可查看喜歡你的人、<br/>你喜歡的人與所有配對</span>}
-          onUpgrade={()=>{ setStatsGate(false); setShowPremium(true); }}
-          onClose={()=>setStatsGate(false)}
+          icon={premiumGate==="favorites"?"🔖":"🔒"}
+          title={premiumGate==="favorites"?"建立私人收藏":"Premium 專屬功能"}
+          desc={premiumGate==="favorites"?<span>收藏完全私密，不會通知對方<br/>Premium 可收藏 100 人，Premium+ 可收藏 250 人</span>:<span>升級 Premium 即可查看喜歡你的人、<br/>你喜歡的人、誰看過你與所有配對</span>}
+          onUpgrade={()=>{ setPremiumGate(null); setShowPremium(true); }}
+          onClose={()=>setPremiumGate(null)}
         />
       )}
-      {showPremium && <PremiumScreen onBack={() => setShowPremium(false)} profile={profile} />}
+      {showPremium && <PremiumScreen onBack={() => setShowPremium(false)} profile={profile} onProfileUpdate={onUpdate} />}
       {showTerms && <TermsScreen onBack={() => setShowTerms(null)} type={showTerms} />}
+      {showFavorites&&<FavoritesPanel items={favorites} loading={favoritesLoading} error={favoritesError} limit={activePremiumPlan==="premium_plus"?250:100} removingId={favoriteBusyId} onClose={()=>{setShowFavorites(false);setSelectedFavorite(null);}} onRetry={()=>{void refreshFavorites();}} onSelect={setSelectedFavorite} onRemove={item=>{void removeFavorite(item);}}/>}
+      {selectedFavorite&&<ProfileSheet p={selectedFavorite} myMbti={mbti} myProfile={profile} mode="favorite" onClose={()=>setSelectedFavorite(null)} isFavorite favoriteBusy={favoriteBusyId===selectedFavorite.id} onToggleFavorite={()=>{void removeFavorite(selectedFavorite);}}/>}
     </div>
   );
 
@@ -697,6 +889,10 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <EditRow icon="wallet" label="年收入" value={incomeLabel} onClick={() => setEditField("income")} last />
           </div>
 
+          <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, padding:"14px 16px", marginBottom:20, position:"relative", zIndex:4 }}>
+            <MultiSelect label="族裔背景" options={ETHNICITY} value={ethnicity} onChange={setEthnicity} color={C.rose}/>
+          </div>
+
           {/* 關於我 section */}
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>關於我</div>
           <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 20 }}>
@@ -719,6 +915,8 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
             <EditRow icon="paw" label="寵物" value={hasPets === "none" ? "無寵物" : hasPets === "cat" ? "有養貓" : hasPets === "dog" ? "有養狗" : hasPets === "other" ? "有養其他" : ""} onClick={() => setEditField("pets")} />
             <EditRow icon="wine" label="飲酒習慣" value={drinking === "never" ? "不喝酒" : drinking === "sometimes" ? "偶爾喝酒" : drinking === "often" ? "常喝酒" : ""} onClick={() => setEditField("drinking")} />
             <EditRow icon="dumbbell" label="運動習慣" value={exercise === "never" ? "從不運動" : exercise === "sometimes" ? "偶爾運動" : exercise === "weekly" ? "每週運動" : exercise === "daily" ? "每天運動" : ""} onClick={() => setEditField("exercise")} />
+            <EditRow icon="users" label="孩子計畫" value={childrenLabel[wantChildren] || ""} onClick={() => setEditField("children")} />
+            <EditRow icon="heart" label="愛的語言" value={loveLanguageLabel[loveLanguage] || ""} onClick={() => setEditField("love_language")} last />
           </div>
 
           {/* 興趣愛好 section */}
@@ -818,7 +1016,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
               value={editText}
               onChange={e => setEditText(e.target.value)}
               type="date"
-              style={{ width: "100%", padding: "14px 16px", background: C.surf, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 16, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 16, colorScheme: "light" } as any}
+              style={{ width: "100%", padding: "14px 16px", background: C.surf, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 16, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 16, colorScheme: "light" }}
               onFocus={e => e.target.style.borderColor = C.gold}
               onBlur={e => e.target.style.borderColor = C.border}
             />
@@ -964,6 +1162,32 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
           </div>
         </BottomSheet>
       )}
+
+      {editField === "children" && (
+        <BottomSheet onClose={() => setEditField(null)}>
+          <div style={{ padding: "8px 20px 40px" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>孩子計畫</div>
+            {[["yes","想要孩子"],["maybe","還沒決定"],["no","不想要孩子"],["have","已有孩子"]].map(([value,label]) => (
+              <button key={value} onClick={() => { setWantChildren(value); setEditField(null); }} style={{ width:"100%",padding:"16px 20px",marginBottom:8,borderRadius:14,background:wantChildren===value?C.goldSoft:C.surf,border:`1px solid ${wantChildren===value?C.gold:C.border}`,color:wantChildren===value?C.gold:C.text,fontFamily:"inherit",fontSize:15,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                <span>{label}</span>{wantChildren===value&&<span>✓</span>}
+              </button>
+            ))}
+          </div>
+        </BottomSheet>
+      )}
+
+      {editField === "love_language" && (
+        <BottomSheet onClose={() => setEditField(null)}>
+          <div style={{ padding: "8px 20px 40px" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20, textAlign: "center" as const }}>愛的語言</div>
+            {[["words","肯定話語"],["time","精心時刻"],["acts","行動服務"],["gifts","禮物"],["touch","身體接觸"]].map(([value,label]) => (
+              <button key={value} onClick={() => { setLoveLanguage(value); setEditField(null); }} style={{ width:"100%",padding:"16px 20px",marginBottom:8,borderRadius:14,background:loveLanguage===value?C.roseSoft:C.surf,border:`1px solid ${loveLanguage===value?C.rose:C.border}`,color:loveLanguage===value?C.rose:C.text,fontFamily:"inherit",fontSize:15,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                <span>{label}</span>{loveLanguage===value&&<span>✓</span>}
+              </button>
+            ))}
+          </div>
+        </BottomSheet>
+      )}
     </div>
   );
 
@@ -980,8 +1204,8 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 48px" }}>
         <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 16 }}>
           <SettingRow icon="volume" label="音效" right={<Toggle on={soundOn} onChange={() => { sound.enabled = !sound.enabled; setSoundOn(s => !s); }} />} />
-          <SettingRow icon="globe" label="語言" right={<div style={{ display: "flex", gap: 6 }}>{(["zh", "en"] as Lang[]).map(l => <button key={l} onClick={() => { setLang(l); updateProfile(userId, { language: l } as any); sound.tap(); }} style={{ padding: "5px 13px", borderRadius: 20, background: lang === l ? C.grad : "transparent", border: `1px solid ${lang === l ? "transparent" : C.border}`, color: lang === l ? "#fff" : C.textMuted, fontFamily: "inherit", fontSize: 12, fontWeight: lang === l ? 600 : 400, cursor: "pointer" }}>{l === "zh" ? "中文" : "EN"}</button>)}</div>} />
-          <SettingRow icon="eye" label="隱藏在線狀態" sub="開啟後你也看不到其他人的在線狀態" right={<Toggle on={hideOnline} onChange={() => { const v = !hideOnline; setHideOnline(v); updateProfile(userId, { hide_online_status: v } as any); onUpdate({ hide_online_status: v } as any); }} />} />
+          <SettingRow icon="globe" label="語言" right={<div style={{ display: "flex", gap: 6 }}>{(["zh", "en"] as Lang[]).map(l => <button key={l} onClick={() => { setLang(l); void updateProfile(userId, { language: l }); sound.tap(); }} style={{ padding: "5px 13px", borderRadius: 20, background: lang === l ? C.grad : "transparent", border: `1px solid ${lang === l ? "transparent" : C.border}`, color: lang === l ? "#fff" : C.textMuted, fontFamily: "inherit", fontSize: 12, fontWeight: lang === l ? 600 : 400, cursor: "pointer" }}>{l === "zh" ? "中文" : "EN"}</button>)}</div>} />
+          <SettingRow icon="eye" label="隱藏在線狀態" sub="開啟後你也看不到其他人的在線狀態" right={<Toggle on={hideOnline} onChange={() => { const v = !hideOnline; setHideOnline(v); void updateProfile(userId, { hide_online_status: v }); onUpdate({ hide_online_status: v }); }} />} />
           <SettingRow icon="bell" label="推播通知" sub="新配對與新訊息通知" right={<Toggle on={pushOn} onChange={async () => {
             if (pushOn) {
               await removePush(userId);
@@ -991,7 +1215,7 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
               setPushOn(await getPushEnabled());
             }
           }} />} />
-          <SettingRow icon="moon" label="暫停帳號" sub="暫停後你不會出現在探索頁" right={<Toggle on={(profile as any).is_paused || false} onChange={() => { const v = !((profile as any).is_paused || false); updateProfile(userId, { is_paused: v } as any); onUpdate({ is_paused: v } as any); sound.tap(); }} />} last />
+          <SettingRow icon="moon" label="暫停帳號" sub="暫停後你不會出現在探索頁" right={<Toggle on={profile.is_paused || false} onChange={() => { const v = !(profile.is_paused || false); void updateProfile(userId, { is_paused: v }); onUpdate({ is_paused: v }); sound.tap(); }} />} last />
         </div>
         <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 24 }}>
           <SettingRow icon="box" label="導出我的數據" sub="下載你的所有資料（JSON）" right={<Si n="chevron" s={16} c={C.textMuted} />} onClick={async () => { await exportUserData(userId); }} last />
@@ -999,13 +1223,13 @@ export function ProfileScreen({ profile, userId, onLogout, onUpdate, onOpenChat 
         <button onClick={onLogout} style={{ width: "100%", padding: "15px", borderRadius: 14, background: "transparent", border: `1px solid ${C.rose}59`, color: C.rose, fontFamily: "inherit", fontSize: 15, fontWeight: 600, cursor: "pointer", marginBottom: 8, transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.background = C.roseSoft; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>登出帳號</button>
         <button onClick={() => setShowDelete(true)} style={{ width: "100%", padding: "11px", borderRadius: 14, background: "transparent", border: "none", color: C.textDim, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}>刪除帳號</button>
       </div>
-      {statsGate && (
+      {premiumGate && (
         <PremiumGateSheet
-          icon="🔒"
-          title="Premium 專屬功能"
-          desc={<span>升級 Premium 即可查看喜歡你的人、<br/>你喜歡的人與所有配對</span>}
-          onUpgrade={()=>{ setStatsGate(false); setShowPremium(true); }}
-          onClose={()=>setStatsGate(false)}
+          icon={premiumGate==="favorites"?"🔖":"🔒"}
+          title={premiumGate==="favorites"?"建立私人收藏":"Premium 專屬功能"}
+          desc={premiumGate==="favorites"?<span>收藏完全私密，不會通知對方<br/>Premium 可收藏 100 人，Premium+ 可收藏 250 人</span>:<span>升級 Premium 即可查看喜歡你的人、<br/>你喜歡的人、誰看過你與所有配對</span>}
+          onUpgrade={()=>{ setPremiumGate(null); setShowPremium(true); }}
+          onClose={()=>setPremiumGate(null)}
         />
       )}
       {showDelete && <BottomSheet onClose={() => setShowDelete(false)}>

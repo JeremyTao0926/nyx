@@ -11,7 +11,8 @@
     "ios:open": "cap open ios",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:responsive": "node scripts/responsive-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",

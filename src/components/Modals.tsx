@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { C, WRAP, MBTI_LIST, EMOJIS, HOBBIES, ETHNICITY, COUNTRIES, sound, groqVision, toB64, buildSys } from "../utils";
-import type { UserProfile, ImgItem, ExtractedConvo } from "../types";
+import { C, MBTI_LIST, EMOJIS, ETHNICITY, COUNTRIES, sound, toB64, getDailyLikeStatus, sb } from "../utils";
+import type { UserProfile, ImgItem, ExtractedConvo, SimulationMessage } from "../types";
+import { analyzeSimulationPersona, batchImagePayloads, extractConversationFromImageBatch, extractConversationFromText, mergeSimulationMessageSequences, simulationConfidenceLabel } from "../simulation";
 
 /* ─── Shared input style ─────────────────────────────── */
 const INP = { width:"100%", padding:"12px 14px", background:C.surf, border:`1px solid ${C.border}`, borderRadius:12, color:C.text, fontSize:14, outline:"none", fontFamily:"inherit", boxSizing:"border-box" as const, transition:"border-color .2s" };
@@ -144,7 +145,7 @@ export function FilterSheet({ filters, onSave, onClose }:{ filters:Partial<UserP
           <span>距離</span>
           <span style={{ color:unlimited?C.mint:C.text,fontWeight:700,fontSize:13 }}>{unlimited?"無限制 ∞":`${dist} km`}</span>
         </div>
-        <input type="range" min={10} max={500} step={10} value={dist} onChange={e=>setF(p=>({...p,filter_max_distance:+e.target.value}))} style={{ width:"100%",accentColor:unlimited?C.mint:C.rose } as any} />
+        <input type="range" min={10} max={500} step={10} value={dist} onChange={e=>setF(p=>({...p,filter_max_distance:+e.target.value}))} style={{ width:"100%",accentColor:unlimited?C.mint:C.rose }} />
         <div style={{ display:"flex",justifyContent:"space-between",marginTop:5 }}>
           <span style={{ fontSize:11,color:C.textDim }}>10 km</span>
           <span style={{ fontSize:11,color:C.mint }}>∞ 無限</span>
@@ -160,61 +161,186 @@ export function FilterSheet({ filters, onSave, onClose }:{ filters:Partial<UserP
 }
 
 /* ─── SimulateModal ──────────────────────────────────── */
-export function SimulateModal({ onEnter, onClose }:{ onEnter:(imgs:ImgItem[],mode:"new"|"continue",ex:ExtractedConvo|null)=>void; onClose:()=>void }) {
+export function SimulateModal({ userId, onEnter, onClose }:{ userId:string; onEnter:(mode:"new"|"continue",ex:ExtractedConvo)=>void; onClose:()=>void }) {
   const [step,setStep]=useState<"upload"|"choose"|"extracting"|"preview">("upload");
-  const [imgs,setImgs]=useState<ImgItem[]>([]); const [ex,setEx]=useState<ExtractedConvo|null>(null);
-  const fRef=useRef<HTMLInputElement>(null);
-  function addImgs(files:FileList){Array.from(files).slice(0,10-imgs.length).forEach(file=>{const r=new FileReader();r.onloadend=()=>setImgs(p=>[...p,{file,preview:r.result as string}]);r.readAsDataURL(file);});}
-  async function extract(){
-    setStep("extracting");
-    try{const b64s=await Promise.all(imgs.map(i=>toB64(i.file)));const raw=await groqVision(b64s,`從截圖提取，只返回JSON：{"name":"名字或null","messages":[{"from":"me","text":"..."},{"from":"her","text":"..."}],"styleDesc":"她的風格100字"}\n時間順序，圖片用[圖片]`,buildSys("INFP","male"));setEx(JSON.parse(raw.replace(/```json|```/g,"").trim()));}
-    catch{setEx({name:null,messages:[],styleDesc:""});}setStep("preview");
+  const [imgs,setImgs]=useState<ImgItem[]>([]);
+  const [rawText,setRawText]=useState("");
+  const [textFiles,setTextFiles]=useState<File[]>([]);
+  const [targetHint,setTargetHint]=useState("");
+  const [consent,setConsent]=useState(false);
+  const [selectedMode,setSelectedMode]=useState<"new"|"continue">("continue");
+  const [progress,setProgress]=useState("準備分析…");
+  const [error,setError]=useState("");
+  const [ex,setEx]=useState<ExtractedConvo|null>(null);
+  const imageRef=useRef<HTMLInputElement>(null);
+  const textFileRef=useRef<HTMLInputElement>(null);
+  const previewUrls=useRef(new Set<string>());
+  const cancelledRef=useRef(false);
+
+  useEffect(()=>{
+    const urls=previewUrls.current;
+    cancelledRef.current=false;
+    return ()=>{cancelledRef.current=true;urls.forEach(url=>URL.revokeObjectURL(url));urls.clear();};
+  },[]);
+
+  function addImgs(files:FileList){
+    const additions=Array.from(files).filter(file=>file.type.startsWith("image/")).map(file=>{
+      const preview=URL.createObjectURL(file); previewUrls.current.add(preview); return {file,preview};
+    });
+    setImgs(current=>[...current,...additions]);
   }
-  return <BottomSheet onClose={onClose} title="💭 模擬對話模式">
+  function removeImg(index:number){
+    setImgs(current=>{
+      const removed=current[index]; if(removed){URL.revokeObjectURL(removed.preview);previewUrls.current.delete(removed.preview);}
+      return current.filter((_,itemIndex)=>itemIndex!==index);
+    });
+  }
+  function addTextFiles(files:FileList){
+    setTextFiles(current=>[...current,...Array.from(files)]);
+  }
+  async function extract(mode:"new"|"continue"){
+    setSelectedMode(mode); setError("");
+    try{
+      const status=await getDailyLikeStatus(userId);
+      if(cancelledRef.current)return;
+      if(status.cloneRemaining<=0)throw new Error(`今日模擬次數已用完（${status.cloneUsed}/${status.cloneLimit}）`);
+      setStep("extracting"); setProgress("壓縮並整理素材…");
+      const materials:{name:string|null;messages:SimulationMessage[]}[]=[];
+      if(imgs.length){
+        let pendingBatch:string[]=[];
+        let processedImages=0;
+        let batchNumber=0;
+        let continuityTail:SimulationMessage[]=[];
+        const flushImageBatch=async()=>{
+          if(!pendingBatch.length)return;
+          batchNumber+=1;
+          setProgress(`讀取截圖 ${processedImages+1}–${processedImages+pendingBatch.length}/${imgs.length}`);
+          const material=await extractConversationFromImageBatch(pendingBatch,targetHint,batchNumber,continuityTail.slice(-6));
+          if(cancelledRef.current)throw new Error("SIMULATION_CANCELLED");
+          materials.push(material);
+          continuityTail=mergeSimulationMessageSequences([continuityTail,material.messages]).slice(-24);
+          processedImages+=pendingBatch.length;
+          pendingBatch=[];
+        };
+        for(let index=0;index<imgs.length;index+=1){
+          setProgress(`準備截圖 ${index+1}/${imgs.length}`);
+          const encoded=await toB64(imgs[index].file);
+          if(cancelledRef.current)throw new Error("SIMULATION_CANCELLED");
+          const projected=batchImagePayloads([...pendingBatch,encoded]);
+          if(projected.length>1){
+            await flushImageBatch();
+            pendingBatch=[encoded];
+          }else{
+            pendingBatch=projected[0]||[];
+          }
+          if(pendingBatch.length===5)await flushImageBatch();
+        }
+        await flushImageBatch();
+      }
+      if(rawText.trim()){
+        materials.push(await extractConversationFromText(rawText,targetHint,item=>{if(!cancelledRef.current)setProgress(item.label);},()=>cancelledRef.current));
+      }
+      for(let index=0;index<textFiles.length;index+=1){
+        if(cancelledRef.current)throw new Error("SIMULATION_CANCELLED");
+        setProgress(`開啟文字檔 ${index+1}/${textFiles.length} · ${textFiles[index].name}`);
+        const fileText=await textFiles[index].text();
+        materials.push(await extractConversationFromText(fileText,targetHint,item=>{if(!cancelledRef.current)setProgress(`檔案 ${index+1}/${textFiles.length} · ${item.label}`);},()=>cancelledRef.current));
+      }
+      const messages=mergeSimulationMessageSequences(materials.map(material=>material.messages));
+      if(!messages.some(message=>message.from==="target")) throw new Error("未能辨識對方訊息，請確認截圖方向或貼上包含雙方名稱的紀錄");
+      const detectedName=targetHint.trim()||materials.map(material=>material.name).find(Boolean)||null;
+      const persona=await analyzeSimulationPersona(detectedName||"對方",messages,item=>{if(!cancelledRef.current)setProgress(item.label);},()=>cancelledRef.current);
+      setProgress("建立私人模擬工作階段…");
+      const {data:sessionId,error:sessionError}=await sb.rpc("create_private_simulation_session",{
+        p_match_id:null,
+        p_clone_user_id:null,
+        p_clone_name:detectedName||"對方",
+        p_clone_avatar:null,
+        p_persona_profile:{...persona,mode,sourceKind:"imported_chat"},
+        p_messages_used:messages.length,
+        p_source_batch_count:persona.sourceBatchCount,
+        p_mode:mode==="continue"?"continue":"fresh",
+      });
+      if(sessionError)throw sessionError;
+      if(cancelledRef.current)return;
+      if(typeof sessionId!=="string")throw new Error("無法建立模擬工作階段");
+      setEx({
+        name:detectedName,
+        messages:messages.map(message=>({from:message.from==="target"?"her":"me",text:message.text})),
+        styleDesc:persona.styleDescription,
+        sessionId,
+        persona,
+        sourceCount:persona.sourceMessageCount,
+        sourceBatchCount:persona.sourceBatchCount,
+      });
+      setStep("preview");
+    }catch(cause){
+      if(cancelledRef.current||(cause instanceof Error&&cause.message==="SIMULATION_CANCELLED"))return;
+      console.error("Simulation material analysis failed",cause);
+      const rawMessage=cause instanceof Error?cause.message:"素材分析失敗，請稍後再試";
+      setError(rawMessage.includes("CLONE_DAILY_LIMIT_REACHED")?"今日模擬次數已用完，請明天再試或升級方案。":rawMessage);
+      setStep("choose");
+    }
+  }
+
+  const hasSources=imgs.length>0||rawText.trim().length>0||textFiles.length>0;
+  const canContinue=hasSources&&consent;
+  return <BottomSheet onClose={onClose} title="💭 高擬真模擬">
     <div style={{ padding:"20px 20px 48px" }}>
       {step==="upload"&&<>
-        <div style={{ fontSize:13.5,color:C.textMuted,marginBottom:18,lineHeight:1.6 }}>上傳截圖，Nyx 學習她的回覆風格來模擬對話。</div>
-        <div style={{ display:"flex",flexWrap:"wrap" as const,gap:8,marginBottom:14 }}>
-          {imgs.map((img,i)=><div key={i} style={{ position:"relative" }}>
-            <img src={img.preview} alt="" style={{ width:64,height:64,objectFit:"cover" as const,borderRadius:10,border:`1px solid ${C.border}`,display:"block" }}/>
-            <button onClick={()=>setImgs(p=>p.filter((_,j)=>j!==i))} style={{ position:"absolute",top:-5,right:-5,width:18,height:18,borderRadius:"50%",background:C.rose,border:"none",color:"#fff",fontSize:9,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>✕</button>
-          </div>)}
-          {imgs.length<10&&<button onClick={()=>fRef.current?.click()} style={{ width:64,height:64,borderRadius:10,border:`2px dashed ${C.border}`,background:"transparent",color:C.textMuted,fontSize:24,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>+</button>}
+        <div style={{ padding:"12px 14px",borderRadius:14,background:C.goldSoft,border:`1px solid ${C.borderHigh}`,fontSize:12.5,color:C.textSub,lineHeight:1.6,marginBottom:16 }}>
+          素材總數不設上限；系統會自動分批讀取，再濃縮成人格模型。素材愈完整通常愈穩定，但結果仍是 AI 推測，不代表對方真實想法。
         </div>
-        <input ref={fRef} type="file" accept="image/*" multiple style={{ display:"none" }} onChange={e=>{if(e.target.files)addImgs(e.target.files);}}/>
-        <div style={{ fontSize:12,color:C.textDim,marginBottom:18 }}>已選 {imgs.length}/10 張</div>
-        <button onClick={()=>imgs.length>0&&setStep("choose")} style={{ width:"100%",padding:"14px",borderRadius:14,background:imgs.length>0?C.grad:C.surf,border:`1px solid ${imgs.length>0?"transparent":C.border}`,color:imgs.length>0?"#fff":C.textDim,fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:imgs.length>0?"pointer":"default" }}>{imgs.length===0?"請先上傳截圖":"下一步 →"}</button>
-        <button onClick={onClose} style={{ width:"100%",marginTop:10,padding:"12px",borderRadius:14,background:"transparent",border:`1px solid ${C.border}`,color:C.textMuted,fontFamily:"inherit",fontSize:14,cursor:"pointer" }}>取消</button>
+        <label style={{ display:"block",fontSize:12,color:C.textMuted,marginBottom:6 }}>對象名稱（可選，可幫助辨識雙方）</label>
+        <input value={targetHint} onChange={event=>setTargetHint(event.target.value)} placeholder="例如：Alex" style={{...INP,marginBottom:14}}/>
+        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5 }}><span style={{fontSize:13,fontWeight:700,color:C.text}}>聊天截圖</span><span style={{fontSize:11.5,color:C.gold}}>已加入 {imgs.length} 張 · 可繼續加入</span></div>
+        <div style={{fontSize:11,color:C.textDim,marginBottom:9}}>請按由舊到新的時間順序加入，重疊的聊天氣泡會自動去除。</div>
+        <div style={{ display:"flex",flexWrap:"wrap" as const,gap:8,marginBottom:12,maxHeight:152,overflowY:"auto" }}>
+          {imgs.map((img,i)=><div key={img.preview} style={{ position:"relative" }}>
+            <img src={img.preview} alt={`聊天截圖 ${i+1}`} style={{ width:64,height:64,objectFit:"cover" as const,borderRadius:10,border:`1px solid ${C.border}`,display:"block" }}/>
+            <button type="button" aria-label={`移除第 ${i+1} 張截圖`} onClick={()=>removeImg(i)} style={{ position:"absolute",top:-5,right:-5,width:20,height:20,borderRadius:"50%",background:C.rose,border:"none",color:"#fff",fontSize:9,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>✕</button>
+          </div>)}
+          <button type="button" onClick={()=>imageRef.current?.click()} style={{ width:64,height:64,borderRadius:10,border:`2px dashed ${C.border}`,background:"transparent",color:C.textMuted,fontSize:24,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>+</button>
+        </div>
+        <input ref={imageRef} type="file" accept="image/*" multiple style={{ display:"none" }} onChange={event=>{if(event.target.files)addImgs(event.target.files);event.target.value="";}}/>
+
+        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",margin:"16px 0 7px" }}><span style={{fontSize:13,fontWeight:700,color:C.text}}>文字聊天紀錄</span><button type="button" onClick={()=>textFileRef.current?.click()} style={{border:"none",background:"none",color:C.gold,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>匯入 TXT / JSON / CSV</button></div>
+        <input ref={textFileRef} type="file" accept=".txt,.json,.csv,.log,.md,text/plain,application/json,text/csv" multiple style={{display:"none"}} onChange={event=>{if(event.target.files)addTextFiles(event.target.files);event.target.value="";}}/>
+        {textFiles.length>0&&<div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:8,maxHeight:92,overflowY:"auto"}}>{textFiles.map((file,index)=><div key={`${file.name}-${file.lastModified}-${index}`} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:10,background:C.surf,border:`1px solid ${C.border}`,fontSize:11.5,color:C.textMuted}}><span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{file.name}</span><span style={{color:C.textDim}}>{Math.max(1,Math.round(file.size/1024))} KB</span><button type="button" aria-label={`移除 ${file.name}`} onClick={()=>setTextFiles(current=>current.filter((_,itemIndex)=>itemIndex!==index))} style={{border:"none",background:"transparent",color:C.rose,cursor:"pointer",fontSize:12}}>✕</button></div>)}</div>}
+        <textarea value={rawText} onChange={event=>setRawText(event.target.value)} placeholder="也可以直接貼上完整聊天紀錄；不用手動刪時間或名字。" rows={5} style={{...INP,resize:"vertical",lineHeight:1.55}}/>
+
+        <label style={{ display:"flex",alignItems:"flex-start",gap:10,margin:"15px 0",fontSize:12,color:C.textMuted,lineHeight:1.55,cursor:"pointer" }}>
+          <input type="checkbox" checked={consent} onChange={event=>setConsent(event.target.checked)} style={{marginTop:3,accentColor:C.gold}}/>
+          <span>我確認有權使用這些私人內容；只作個人練習，不冒充、公開或用來騷擾對方。</span>
+        </label>
+        <button type="button" disabled={!canContinue} onClick={()=>setStep("choose")} style={{ width:"100%",padding:"14px",borderRadius:14,background:canContinue?C.grad:C.surf,border:`1px solid ${canContinue?"transparent":C.border}`,color:canContinue?"#fff":C.textDim,fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:canContinue?"pointer":"default" }}>{!hasSources?"請先加入素材":!consent?"請先確認使用權":"下一步 →"}</button>
+        <button type="button" onClick={onClose} style={{ width:"100%",marginTop:10,padding:"12px",borderRadius:14,background:"transparent",border:`1px solid ${C.border}`,color:C.textMuted,fontFamily:"inherit",fontSize:14,cursor:"pointer" }}>取消</button>
       </>}
       {step==="choose"&&<>
-        <button onClick={()=>setStep("upload")} style={{ background:"none",border:"none",color:C.textMuted,fontSize:14,cursor:"pointer",marginBottom:18,fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}>← 返回</button>
-        {[{icon:"🆕",t:"新對話",d:"從空白開始，輸入你要說的第一句",fn:()=>onEnter(imgs,"new",null)},
-          {icon:"📜",t:"續接截圖",d:"Nyx 讀取截圖歷史，你接著打下一句",fn:extract}].map((o,i)=>
-          <button key={i} onClick={o.fn} style={{ width:"100%",padding:"18px 16px",borderRadius:16,background:C.surf,border:`1px solid ${C.border}`,textAlign:"left" as const,cursor:"pointer",marginBottom:12,display:"block",transition:"all .2s" }} onMouseEnter={e=>(e.currentTarget.style.borderColor=C.borderHigh)} onMouseLeave={e=>(e.currentTarget.style.borderColor=C.border)}>
-            <div style={{ fontSize:22,marginBottom:6 }}>{o.icon}</div>
-            <div style={{ fontSize:14,fontWeight:700,color:C.text,marginBottom:4 }}>{o.t}</div>
-            <div style={{ fontSize:12.5,color:C.textMuted }}>{o.d}</div>
+        <button type="button" onClick={()=>setStep("upload")} style={{ background:"none",border:"none",color:C.textMuted,fontSize:14,cursor:"pointer",marginBottom:18,fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}>← 返回素材</button>
+        {error&&<div role="alert" style={{padding:"11px 13px",borderRadius:12,background:C.dangerSoft,color:C.danger,fontSize:12.5,lineHeight:1.5,marginBottom:14}}>{error}</div>}
+        {[{icon:"🆕",t:"全新情境",d:"先學完整素材，再從空白情境模擬對方的反應",mode:"new" as const},
+          {icon:"📜",t:"延續原對話",d:"學習全部素材，並以最後一段真實對話作為當下脈絡",mode:"continue" as const}].map(option=>
+          <button key={option.mode} type="button" onClick={()=>{void extract(option.mode);}} style={{ width:"100%",padding:"18px 16px",borderRadius:16,background:C.surf,border:`1px solid ${C.border}`,textAlign:"left" as const,cursor:"pointer",marginBottom:12,display:"block",transition:"all .2s" }} onMouseEnter={event=>(event.currentTarget.style.borderColor=C.borderHigh)} onMouseLeave={event=>(event.currentTarget.style.borderColor=C.border)}>
+            <div style={{ fontSize:22,marginBottom:6 }}>{option.icon}</div>
+            <div style={{ fontSize:14,fontWeight:700,color:C.text,marginBottom:4 }}>{option.t}</div>
+            <div style={{ fontSize:12.5,color:C.textMuted,lineHeight:1.55 }}>{option.d}</div>
           </button>)}
       </>}
       {step==="extracting"&&<div style={{ textAlign:"center",padding:"44px 0" }}>
         <div style={{ display:"flex",gap:7,justifyContent:"center",marginBottom:18 }}>{[0,1,2].map(i=><span key={i} style={{ width:10,height:10,borderRadius:"50%",background:C.warning,display:"inline-block",animation:`dot 1.2s ${i*.2}s ease-in-out infinite` }}/>)}</div>
-        <div style={{ fontSize:14,color:C.textMuted }}>正在分析截圖...</div>
+        <div style={{ fontSize:14,color:C.text,marginBottom:7 }}>正在建立高擬真人格模型</div>
+        <div aria-live="polite" style={{ fontSize:12.5,color:C.textMuted }}>{progress}</div>
+        <div style={{fontSize:11,color:C.textDim,lineHeight:1.5,marginTop:14}}>素材會分批處理，請暫時不要關閉此頁</div>
       </div>}
       {step==="preview"&&ex&&<>
-        <div style={{ fontSize:14,fontWeight:700,color:C.text,marginBottom:14 }}>{ex.name?`讀到：${ex.name}`:"未識別到名字"} · {ex.messages.length} 條訊息</div>
-        <div style={{ maxHeight:180,overflowY:"auto",marginBottom:18,display:"flex",flexDirection:"column",gap:7 }}>{ex.messages.slice(-8).map((m,i)=><div key={i} style={{ display:"flex",justifyContent:m.from==="me"?"flex-end":"flex-start" }}><div style={{ maxWidth:"75%",padding:"8px 12px",borderRadius:10,background:m.from==="me"?C.roseSoft:C.surf,fontSize:12.5,color:C.text,border:`1px solid ${C.border}` }}>{m.text}</div></div>)}</div>
-        <button onClick={()=>onEnter(imgs,"continue",ex)} style={{ width:"100%",padding:"14px",borderRadius:14,background:C.grad,border:"none",color:"#fff",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer" }}>確認進入模擬</button>
-        <button onClick={()=>setStep("choose")} style={{ width:"100%",marginTop:10,padding:"12px",borderRadius:14,background:"transparent",border:`1px solid ${C.border}`,color:C.textMuted,fontFamily:"inherit",fontSize:14,cursor:"pointer" }}>返回</button>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:10}}><div style={{fontSize:15,fontWeight:800,color:C.text}}>{ex.name?`${ex.name} 的模擬模型`:"對方的模擬模型"}</div>{ex.persona&&<span style={{padding:"5px 9px",borderRadius:20,background:C.goldSoft,color:C.gold,fontSize:11,fontWeight:800}}>{simulationConfidenceLabel(ex.persona)}</span>}</div>
+        <div style={{fontSize:12,color:C.textMuted,lineHeight:1.55,marginBottom:12}}>已讀取 {ex.messages.length} 條對話，其中 {ex.sourceCount||0} 條來自對方。{ex.styleDesc}</div>
+        <div style={{padding:"10px 12px",borderRadius:12,background:C.surf,border:`1px solid ${C.border}`,fontSize:11.5,color:C.textMuted,lineHeight:1.55,marginBottom:14}}>AI 只會預測一個可能反應，不代表本人真實想法；沒有素材證據時會保持保守，不會自行升高親密度。</div>
+        <div style={{ maxHeight:180,overflowY:"auto",marginBottom:18,display:"flex",flexDirection:"column",gap:7 }}>{ex.messages.slice(-10).map((m,i)=><div key={`${m.from}-${i}`} style={{ display:"flex",justifyContent:m.from==="me"?"flex-end":"flex-start" }}><div style={{ maxWidth:"75%",padding:"8px 12px",borderRadius:10,background:m.from==="me"?C.roseSoft:C.surf,fontSize:12.5,color:C.text,border:`1px solid ${C.border}` }}>{m.text}</div></div>)}</div>
+        <button type="button" onClick={()=>onEnter(selectedMode,ex)} style={{ width:"100%",padding:"14px",borderRadius:14,background:C.grad,border:"none",color:"#fff",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer" }}>確認進入模擬</button>
+        <button type="button" onClick={()=>setStep("choose")} style={{ width:"100%",marginTop:10,padding:"12px",borderRadius:14,background:"transparent",border:`1px solid ${C.border}`,color:C.textMuted,fontFamily:"inherit",fontSize:14,cursor:"pointer" }}>返回</button>
       </>}
     </div>
   </BottomSheet>;
 }
-
-/* ─── Report Categories ──────────────────────────────── */
-export const REPORT_CATEGORIES = [
-  { id: "fake",       label: "假帳號 / 機器人",  icon: "🤖" },
-  { id: "harassment", label: "騷擾 / 威脅",       icon: "⚠️" },
-  { id: "nudity",     label: "不雅圖片 / 內容",   icon: "🔞" },
-  { id: "scam",       label: "詐騙 / 欺騙",       icon: "💸" },
-  { id: "other",      label: "其他問題",           icon: "⋯" },
-];

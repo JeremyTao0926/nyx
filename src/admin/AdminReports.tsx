@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
-import { getReports, authorizeReview, resolveReport, banUser, getAppeals, resolveAppeal } from "./adminUtils";
-import type { Report, AdminRole, Appeal } from "./adminUtils";
+import { useState, useEffect, useCallback } from "react";
+import { getReports, authorizeReview, resolveReport, banUser, getAppeals, resolveAppeal, errorMessage } from "./adminUtils";
+import type { Report, AdminRole, Appeal, AdminTheme } from "./adminUtils";
 
-interface Props { role: AdminRole; C: any; }
+interface Props { role: AdminRole; C: AdminTheme; }
 
 const CATEGORY_LABELS: Record<string,string> = {
   fake:"假帳號", harassment:"騷擾", nudity:"不雅內容", scam:"詐騙", other:"其他"
@@ -11,21 +11,33 @@ const CATEGORY_LABELS: Record<string,string> = {
 export function AdminReports({ C }: Props) {
   const [reports, setReports]   = useState<Report[]>([]);
   const [showDone, setShowDone] = useState(false);
-  const [loading, setLoading]   = useState(false);
+  const [loading, setLoading]   = useState(true);
   const [active, setActive]     = useState<Report | null>(null);
   const [notes, setNotes]       = useState("");
   const [msg, setMsg]           = useState("");
   const [authorized, setAuthorized] = useState<Set<string>>(new Set());
   const [appeals, setAppeals] = useState<Appeal[]>([]);
 
-  useEffect(() => { load(); }, [showDone]);
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setReports(await getReports(!showDone));
     try { setAppeals(await getAppeals(!showDone)); } catch { setAppeals([]); }
     setLoading(false);
-  }
+  }, [showDone]);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      getReports(!showDone),
+      getAppeals(!showDone).catch(() => [] as Appeal[]),
+    ]).then(([nextReports, nextAppeals]) => {
+      if (cancelled) return;
+      setReports(nextReports);
+      setAppeals(nextAppeals);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [showDone]);
 
   async function authorize(r: Report) {
     await authorizeReview(r.id, "審核員已授權查看此檢舉內容");
@@ -54,8 +66,8 @@ export function AdminReports({ C }: Props) {
           <div style={{ fontSize:13, color:C.textMuted, marginTop:3 }}>查看並處理用戶檢舉 — 查看聊天需要授權</div>
         </div>
         <div style={{ display:"flex", gap:8 }}>
-          <button onClick={()=>setShowDone(false)} style={{ padding:"7px 16px", borderRadius:20, background:!showDone?"rgba(103,87,217,0.12)":"transparent", border:`1px solid ${!showDone?C.gold:C.border}`, color:!showDone?C.gold:C.textMuted, fontFamily:"inherit", fontSize:12.5, cursor:"pointer" }}>待處理</button>
-          <button onClick={()=>setShowDone(true)} style={{ padding:"7px 16px", borderRadius:20, background:showDone?"rgba(103,87,217,0.12)":"transparent", border:`1px solid ${showDone?C.gold:C.border}`, color:showDone?C.gold:C.textMuted, fontFamily:"inherit", fontSize:12.5, cursor:"pointer" }}>已處理</button>
+          <button onClick={()=>{ setLoading(true); setShowDone(false); }} style={{ padding:"7px 16px", borderRadius:20, background:!showDone?"rgba(103,87,217,0.12)":"transparent", border:`1px solid ${!showDone?C.gold:C.border}`, color:!showDone?C.gold:C.textMuted, fontFamily:"inherit", fontSize:12.5, cursor:"pointer" }}>待處理</button>
+          <button onClick={()=>{ setLoading(true); setShowDone(true); }} style={{ padding:"7px 16px", borderRadius:20, background:showDone?"rgba(103,87,217,0.12)":"transparent", border:`1px solid ${showDone?C.gold:C.border}`, color:showDone?C.gold:C.textMuted, fontFamily:"inherit", fontSize:12.5, cursor:"pointer" }}>已處理</button>
         </div>
       </div>
 
@@ -80,13 +92,13 @@ export function AdminReports({ C }: Props) {
                     <button onClick={async ()=>{
                       if (!confirm(`批准申訴並恢復 ${a.username || "此用戶"} 的帳號？`)) return;
                       try { await resolveAppeal(a.id, a.user_id, true, "申訴通過，帳號已恢復"); setMsg("✓ 已批准，帳號已恢復"); load(); }
-                      catch (e: any) { setMsg("✗ 批准失敗：" + (e?.message || e)); }
+                      catch (error: unknown) { setMsg("✗ 批准失敗：" + errorMessage(error)); }
                     }} style={{ padding:"7px 18px", borderRadius:20, background:"rgba(22,165,137,0.12)", border:"1px solid rgba(22,165,137,0.35)", color:C.mint, fontFamily:"inherit", fontSize:12.5, fontWeight:700, cursor:"pointer" }}>批准並恢復帳號</button>
                     <button onClick={async ()=>{
                       const note = prompt("駁回原因（會顯示給用戶）：") || "";
                       if (!note.trim()) return;
                       try { await resolveAppeal(a.id, a.user_id, false, note.trim()); setMsg("✓ 已駁回"); load(); }
-                      catch (e: any) { setMsg("✗ 駁回失敗：" + (e?.message || e)); }
+                      catch (error: unknown) { setMsg("✗ 駁回失敗：" + errorMessage(error)); }
                     }} style={{ padding:"7px 18px", borderRadius:20, background:"rgba(239,95,122,0.10)", border:"1px solid rgba(239,95,122,0.35)", color:C.rose, fontFamily:"inherit", fontSize:12.5, fontWeight:700, cursor:"pointer" }}>駁回</button>
                   </div>
                 )}

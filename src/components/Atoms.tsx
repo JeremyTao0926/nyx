@@ -3,17 +3,18 @@ import type { CSSProperties } from "react";
 import { C } from "../utils";
 import type { LB, Msg } from "../types";
 import { groqChat, buildSys } from "../utils";
+import { defaultAvatarForGender, resolveAvatar } from "../avatar";
 
 /* ─── Avatar ─────────────────────────────────────────── */
-export function Av({ url, name, size=38, grad=C.grad, online, onClick }:
-  { url?:string|null; name?:string; size?:number; grad?:string; online?:boolean; onClick?:()=>void }) {
+export function Av({ url, name, size=38, grad=C.grad, online, onClick, gender, brand=false }:
+  { url?:string|null; name?:string; size?:number; grad?:string; online?:boolean; onClick?:()=>void; gender?:string|null; brand?:boolean }) {
+  const fallback = defaultAvatarForGender(gender);
+  const hasUrl = typeof url === "string" && url.trim().length > 0;
   return (
     <div style={{ position:"relative", flexShrink:0, display:"inline-block" }} onClick={onClick}>
-      {url
-        ? <img src={url} alt="" style={{ width:size, height:size, borderRadius:"50%", objectFit:"cover", display:"block", border:`1px solid ${C.border}`, cursor:onClick?"pointer":"default" }} />
-        : <div style={{ width:size, height:size, borderRadius:"50%", background:grad, display:"flex", alignItems:"center", justifyContent:"center", fontSize:size*.38, fontWeight:700, color:C.gold, border:`1px solid ${C.border}`, cursor:onClick?"pointer":"default" }}>
-            {name?name.charAt(0).toUpperCase():"✦"}
-          </div>}
+      {brand&&!hasUrl
+        ? <div aria-label="NYX AI" style={{ width:size,height:size,borderRadius:"50%",background:grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.38,fontWeight:800,color:"#fff",border:`1px solid ${C.border}`,cursor:onClick?"pointer":"default" }}>✦</div>
+        : <img src={resolveAvatar(url,gender)} alt={name?`${name} 的頭像`:"預設頭像"} onError={event=>{if(!event.currentTarget.src.endsWith(fallback))event.currentTarget.src=fallback;}} style={{ width:size, height:size, borderRadius:"50%", objectFit:"cover", display:"block", background:grad, border:`1px solid ${C.border}`, cursor:onClick?"pointer":"default" }} />}
       {online && <span style={{ position:"absolute", bottom:1, right:1, width:size>36?10:8, height:size>36?10:8, borderRadius:"50%", background:C.mint, border:`2px solid ${C.bg}` }} />}
     </div>
   );
@@ -38,7 +39,7 @@ export function IconBtn({ icon, label, active, color, size=52, onClick }:
 export function TypingBubble({ url="", name="", sim=false }:{ url?:string; name?:string; sim?:boolean }) {
   return (
     <div style={{ display:"flex", alignItems:"flex-end", gap:8 }}>
-      {sim ? <Av url={url} name={name} size={28} /> : <Av size={28} />}
+      {sim ? <Av url={url} name={name} size={28} /> : <Av size={28} brand />}
       <div style={{ padding:"12px 16px", background:C.bgCard, border:`1px solid ${C.border}`, borderRadius:"4px 18px 18px 18px", display:"flex", gap:5, alignItems:"center" }}>
         {[0,1,2].map(i=><span key={i} style={{ width:5, height:5, borderRadius:"50%", background:sim?C.warning:C.gold, display:"inline-block", animation:`dot 1.2s ${i*.18}s ease-in-out infinite` }}/>)}
       </div>

@@ -1,10 +1,18 @@
 import { useState, useEffect } from "react";
 import { getPlatformStats } from "./adminUtils";
-import type { PlatformStats, AdminRole } from "./adminUtils";
+import type { PlatformStats, AdminRole, AdminTheme } from "./adminUtils";
 
-interface Props { role: AdminRole; C: any; }
+interface Props { role: AdminRole; C: AdminTheme; }
 
-function StatCard({ label, value, sub, color, C }: any) {
+interface StatCardProps {
+  label: string;
+  value: number;
+  sub?: string;
+  color?: string;
+  C: AdminTheme;
+}
+
+function StatCard({ label, value, sub, color, C }: StatCardProps) {
   return (
     <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"16px 18px" }}>
       <div style={{ fontSize:12, color:C.textMuted, marginBottom:8, fontWeight:600, letterSpacing:".5px", textTransform:"uppercase" as const }}>{label}</div>

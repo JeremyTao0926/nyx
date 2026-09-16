@@ -1,0 +1,9 @@
+project_id = "xouzteiydlzrxnicudua"
+
+# External services cannot present a Supabase user JWT. These handlers perform
+# their own signature or shared-secret verification inside the function.
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.revenuecat-webhook]
+verify_jwt = false

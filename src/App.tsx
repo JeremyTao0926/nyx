@@ -1,18 +1,29 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { lazy, Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { sb, C, WRAP, GLOBAL_CSS, getProfile, getMatches, getUnreadCount, updateProfile, uploadAvatar } from "./utils";
 import type { UserProfile, MatchItem } from "./types";
 import { AccountSetupScreen, LoginScreen, SplashScreen } from "./screens/AuthScreens";
 import { initPush, removePush } from "./pushNotifications";
-import { ChatListScreen, RealChatScreen } from "./screens/ChatScreens";
-import { NyxChatScreen } from "./screens/NyxChatScreen";
-import { ExploreScreen } from "./screens/ExploreScreen";
-import { ProfileScreen } from "./screens/ProfileScreen";
 import { OnboardingScreen } from "./screens/OnboardingScreen";
 import { isNativeApp } from "./platform";
 import { clearPendingAvatar, loadPendingAvatar } from "./pendingAvatar";
 import { listenForNativeAuthCallbacks } from "./auth";
+import { getActivePremiumPlan } from "./subscription";
 
 type Tab = "explore" | "chat" | "profile";
+
+const ExploreScreen = lazy(() => import("./screens/ExploreScreen").then(module => ({ default: module.ExploreScreen })));
+const ChatListScreen = lazy(() => import("./screens/ChatScreens").then(module => ({ default: module.ChatListScreen })));
+const RealChatScreen = lazy(() => import("./screens/ChatScreens").then(module => ({ default: module.RealChatScreen })));
+const NyxChatScreen = lazy(() => import("./screens/NyxChatScreen").then(module => ({ default: module.NyxChatScreen })));
+const ProfileScreen = lazy(() => import("./screens/ProfileScreen").then(module => ({ default: module.ProfileScreen })));
+
+function ScreenLoader() {
+  return (
+    <div role="status" aria-label="頁面載入中" style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", background:C.bg }}>
+      <div style={{ width:34, height:34, border:`2px solid ${C.border}`, borderTopColor:C.gold, borderRadius:"50%", animation:"spin .7s linear infinite" }}/>
+    </div>
+  );
+}
 
 /* ─── SVG Icons ──────────────────────────────────────── */
 function TabIcon({ tab, active }: { tab: Tab; active: boolean }) {
@@ -53,7 +64,7 @@ function InstallBanner() {
 
   useEffect(() => {
     if (isNativeApp) return;
-    const standalone = (window.navigator as any).standalone === true
+    const standalone = (window.navigator as Navigator & { standalone?: boolean }).standalone === true
       || window.matchMedia("(display-mode: standalone)").matches;
     if (standalone) return;
     const dismissed = localStorage.getItem("nyx-install-dismissed");
@@ -140,23 +151,30 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const payment = params.get("payment");
     const plan = params.get("plan");
-    if (payment === "success" && plan) {
+    let stopped = false;
+    if (payment === "success" && (plan === "premium" || plan === "premium_plus")) {
       // Clean URL
       window.history.replaceState({}, "", "/");
-      // Reload profile to get updated is_premium
       if (userId) {
-        setTimeout(() => {
-          sb.from("profiles").select("*").eq("id", userId).single().then(({ data }) => {
-            if (data) updateLocal(data as any);
-          });
-        }, 2000);
-        alert(`🎉 歡迎加入 ${plan === "premium_plus" ? "NYX Premium+" : "NYX Premium"}！所有功能已解鎖。`);
+        // Stripe redirects can beat its webhook by a few seconds. Poll briefly
+        // so the paid badge and gates update without forcing an app restart.
+        void (async () => {
+          for (let attempt = 0; attempt < 6 && !stopped; attempt += 1) {
+            if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 1500));
+            const { data } = await sb.from("profiles").select("*").eq("id", userId).single();
+            if (!data || stopped) continue;
+            setProfile(current => current ? { ...current, ...(data as UserProfile) } : data as UserProfile);
+            if (getActivePremiumPlan(data) === plan) return;
+          }
+        })();
+        alert(`付款完成，正在同步 ${plan === "premium_plus" ? "NYX Premium+" : "NYX Premium"} 會員權限。`);
       }
     }
     if (payment === "cancelled") {
       window.history.replaceState({}, "", "/");
     }
-  }, [userId, authed]);
+    return () => { stopped = true; };
+  }, [userId]);
 
   const loadUnread = useCallback(async () => {
     if (!userId) return;
@@ -386,7 +404,6 @@ export default function App() {
   const appSwipeStartX = useRef(0);
   const appSwipeStartY = useRef(0);
   const appSwiping = useRef(false);
-  const [appSwipeDx, setAppSwipeDx] = useState(0);
 
   if (loading) return <>
     <style>{GLOBAL_CSS}</style>
@@ -408,7 +425,7 @@ export default function App() {
         </>}
     </div>
   </>;
-  if (profile && ((profile as any).is_banned || (profile as any).is_active === false || (profile as any).deleted_at)) {
+  if (profile && (profile.is_banned || profile.is_active === false || profile.deleted_at)) {
     return <><style>{GLOBAL_CSS}</style><BlockedScreen profile={profile} onLogout={logout}/></>;
   }
   if (!profile.birthday || !profile.username || !profile.display_name) {
@@ -438,21 +455,19 @@ export default function App() {
         }}
         onTouchMove={e=>{
           if (!appSwiping.current) return;
-          const dx = e.touches[0].clientX - appSwipeStartX.current;
           const dy = Math.abs(e.touches[0].clientY - appSwipeStartY.current);
           if (dy > 40) { appSwiping.current = false; return; } // vertical scroll, cancel
-          if (Math.abs(dx) > 8) setAppSwipeDx(dx);
         }}
         onTouchEnd={e=>{
-          if (!appSwiping.current) { setAppSwipeDx(0); return; }
+          if (!appSwiping.current) return;
           const dx = e.changedTouches[0].clientX - appSwipeStartX.current;
           const TABS: Tab[] = ["explore","chat","profile"];
           const cur = TABS.indexOf(tab);
           if (dx < -50 && cur < TABS.length - 1) setTab(TABS[cur + 1]);
           else if (dx > 50 && cur > 0) setTab(TABS[cur - 1]);
-          setAppSwipeDx(0);
           appSwiping.current = false;
         }}>
+        <Suspense fallback={<ScreenLoader/>}>
         <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
           {/* EXPLORE */}
           {tab==="explore" && userId && profile &&
@@ -477,22 +492,31 @@ export default function App() {
             <ProfileScreen profile={profile} userId={userId} onLogout={logout} onUpdate={updateLocal}
               onOpenChat={(matchId, otherId, name, avatar) => {
                 const m = matches.find(x=>x.matchId===matchId) || { id: otherId, matchId, name, avatar, lastMsg:"", time:"", unread:0 };
-                setActiveMatch(m as any);
+                setActiveMatch(m);
                 setInChat(true);
                 setTab("chat");
               }}/>}
         </div>
+        </Suspense>
         <BottomTabBar tab={tab} setTab={t => { setTab(t); if (t!=="chat") setInChat(false); }} unread={totalUnread}/>
       </div>
-      {showOnboarding && userId && <OnboardingScreen userId={userId} onDone={() => { setShowOnboarding(false); updateLocal({ onboarding_done:true } as any); }}/>}
+      {showOnboarding && userId && (
+        <OnboardingScreen userId={userId} onDone={() => { setShowOnboarding(false); updateLocal({ onboarding_done:true }); }}/>
+      )}
     </>
   );
 }
 
 
 /** 帳號被停用/封禁/刪除時的攔截頁，含申訴通道 */
-function BlockedScreen({ profile, onLogout }: { profile: any; onLogout: () => void }) {
-  const [appeal, setAppeal] = useState<any>(null);
+type AccountAppeal = {
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+  admin_note?: string | null;
+};
+
+function BlockedScreen({ profile, onLogout }: { profile: UserProfile; onLogout: () => void }) {
+  const [appeal, setAppeal] = useState<AccountAppeal | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);

@@ -166,14 +166,21 @@ async function sendAPNs(deviceToken: string, title: string, body: string, url = 
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: CORS });
 
   try {
     const authorization = req.headers.get("Authorization");
     if (!authorization) return new Response("Unauthorized", { status: 401, headers: CORS });
-    const { recipient_id, title, body, url, sender_avatar } = await req.json();
-    if (!recipient_id) return new Response("Missing recipient_id", { status: 400 });
+    const { recipient_id, match_id, message_id } = await req.json() as Record<string, unknown>;
+    if (
+      typeof recipient_id !== "string" || recipient_id.length > 64
+      || typeof match_id !== "string" || match_id.length > 64
+      || typeof message_id !== "string" || message_id.length > 128
+    ) {
+      return new Response("Invalid notification request", { status: 400, headers: CORS });
+    }
 
-    console.log("send-push →", recipient_id, title);
+    console.log("send-push →", recipient_id, message_id);
 
     const sb = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -188,10 +195,54 @@ serve(async (req) => {
       `and(blocker_id.eq.${authData.user.id},blocked_id.eq.${recipient_id}),and(blocker_id.eq.${recipient_id},blocked_id.eq.${authData.user.id})`
     ).limit(1);
     if (blocked?.length) return new Response("Recipient unavailable", { status: 403, headers: CORS });
-    const { data: match } = await sb.from("matches").select("id").or(
-      `and(user1_id.eq.${authData.user.id},user2_id.eq.${recipient_id}),and(user1_id.eq.${recipient_id},user2_id.eq.${authData.user.id})`
-    ).limit(1);
-    if (!match?.length) return new Response("No active match", { status: 403, headers: CORS });
+    const { data: match } = await sb.from("matches")
+      .select("id,user1_id,user2_id")
+      .eq("id", match_id)
+      .maybeSingle();
+    const validParticipants = match && (
+      (match.user1_id === authData.user.id && match.user2_id === recipient_id)
+      || (match.user2_id === authData.user.id && match.user1_id === recipient_id)
+    );
+    if (!validParticipants) return new Response("No active match", { status: 403, headers: CORS });
+
+    const [{ data: message }, { data: sender }] = await Promise.all([
+      sb.from("chat_messages")
+        .select("id,content,is_image")
+        .eq("id", message_id)
+        .eq("match_id", match_id)
+        .eq("sender_id", authData.user.id)
+        .maybeSingle(),
+      sb.from("profiles")
+        .select("display_name,username,avatar_url,gender")
+        .eq("id", authData.user.id)
+        .maybeSingle(),
+    ]);
+    if (!message) return new Response("Message not found", { status: 404, headers: CORS });
+
+    const { error: claimError } = await sb.from("push_delivery_log").insert({
+      message_id,
+      sender_id: authData.user.id,
+      recipient_id,
+    });
+    if (claimError?.code === "23505") {
+      return new Response(JSON.stringify({ sent: 0, reason: "duplicate" }), {
+        status: 200, headers: { ...CORS, "Content-Type": "application/json" },
+      });
+    }
+    if (claimError) throw claimError;
+
+    const title = sender?.display_name || sender?.username || "NYX";
+    const messageText = String(message.content || "");
+    const legacyImage = /^https?:\/\/\S+$/.test(messageText);
+    const visibleMessageText = messageText.startsWith("[SPARK_REACT]")
+      ? messageText.replace(/^\[SPARK_REACT\]/, "")
+      : messageText;
+    const body = message.is_image || legacyImage
+      ? "📷 傳送了一張圖片"
+      : (visibleMessageText.startsWith("↩️") ? visibleMessageText.split("\n").slice(1).join("\n") : visibleMessageText).slice(0, 60);
+    const senderAvatar = sender?.avatar_url
+      || (sender?.gender === "female" ? "/avatars/default-female.png" : "/avatars/default-male.png");
+    const url = "/?tab=chat";
 
     const { data: subs, error } = await sb
       .from("push_subscriptions")
@@ -208,8 +259,8 @@ serve(async (req) => {
     }
 
     const notification = JSON.stringify({
-      title, body, icon: sender_avatar || "/favicon.svg",
-      badge: "/favicon.svg", tag: "nyx-msg", url: url || "/"
+      title, body, icon: senderAvatar,
+      badge: "/appicon/icon-192.png", tag: "nyx-msg", url: url || "/"
     });
 
     let sent = 0;
@@ -240,6 +291,12 @@ serve(async (req) => {
       } catch(e) {
         console.error("sendWebPush error:", e);
       }
+    }
+
+    if (sent === 0) {
+      // A transient APNs/Web Push failure can be retried; successful messages
+      // remain claimed so the same chat message cannot notify repeatedly.
+      await sb.from("push_delivery_log").delete().eq("message_id", message_id);
     }
 
     return new Response(JSON.stringify({ sent, total: subs.length }), {
