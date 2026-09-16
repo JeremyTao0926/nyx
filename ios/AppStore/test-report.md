@@ -15,7 +15,7 @@ The web application and iOS wrapper pass the automated checks that can run on Wi
 | Full repository lint | Pass | `npm run lint -- --no-cache` reports 0 errors and 0 warnings. |
 | Production dependency audit | Pass | 0 production vulnerabilities from `npm audit --omit=dev`. |
 | Capacitor iOS sync | Pass | `npm run ios:sync` built the web assets and synced all six native plugins, including the system browser used for OAuth. |
-| Xcode simulator build | Pending latest commit | An earlier macOS 15 run compiled the Debug app for a generic iPhone Simulator with signing disabled; rerun for the current PR before merge. |
+| Xcode simulator build | Pass | PR #3 and merged main `792985e` compiled successfully on macOS 15 for a generic iPhone Simulator with signing disabled. [Main run](https://github.com/JeremyTao0926/nyx/actions/runs/35060617792). |
 
 The full repository lint is green. The production dependency audit is clean. The development-only audit reports three moderate findings in Capacitor CLI's `xcode` → `uuid` chain; npm's proposed fix force-downgrades Capacitor CLI, so it was not applied without a compatible upstream release.
 
@@ -38,6 +38,9 @@ Verified outcomes:
 - Login and registration actions remain visible and usable at the smallest size.
 - Registration has one consistent back control with a minimum 44×44-point target.
 - Public legal/support pages remain scrollable and readable.
+- Landing-page controls remain reachable by scrolling in a 375×420 viewport. This regression was found when production tests were changed to enter through the real landing page instead of the developer login shortcut.
+
+The smoke test uses browser input events rather than DOM `.click()`, avoiding false autoplay warnings while still checking all browser errors. Set `NYX_QA_URL` to production and `NYX_QA_SOCIAL=disabled` while the external auth providers remain unconfigured.
 
 Browser viewport emulation does not prove native safe-area, Dynamic Type, camera, photo picker, location prompt, or on-screen keyboard behavior. Those remain part of the TestFlight matrix below.
 
@@ -80,3 +83,4 @@ Use a dedicated non-production QA account and test on at least one small-screen 
 - Supabase `/auth/v1/settings` returns email enabled, Google/Apple/phone disabled. The production UI hides unconfigured providers. Provider credentials and activation remain required.
 - RevenueCat, APNs, and VAPID credentials remain absent. Deploying handlers does not enable purchases or push notifications by itself.
 - Do not describe the app as App Store-ready until the real-device matrix and account/service configuration above are completed.
+- PR #3 merged and deployed to https://nyx-gamma.vercel.app/. The public entry asset changed, all 16 referenced JavaScript assets were scanned, the active Qwen 3.8 model was present, and the configured Groq secret was not present. Both generated avatar PNGs and all three legal/support pages returned 200.

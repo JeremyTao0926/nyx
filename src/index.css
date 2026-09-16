@@ -118,6 +118,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   display: grid;
   grid-template-rows: auto minmax(190px, 1fr) auto;
   padding: 0 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .nyx-auth-topbar {
   display: flex;

@@ -138,19 +138,26 @@ try {
       screenHeight: viewport.height,
     });
     const errorStart = browserErrors.length;
-    const url = `${baseUrl}/?auth-screen=login&auth-preview=1&qa=${viewport.name}`;
+    const url = `${baseUrl}/?auth-preview=1&qa=${viewport.name}`;
     await client.send("Page.navigate", { url });
     await delay(1800);
 
     // Production ignores developer preview flags. Enter login through the
     // same landing-page control as a user instead of bypassing navigation.
-    const enteredLogin = await evaluate(client, `(() => {
+    const loginTarget = await evaluate(client, `(() => {
       const button = document.querySelector(".nyx-auth-landing .nyx-auth-secondary");
-      if (!button) return false;
-      button.click();
-      return true;
+      if (!button) return null;
+      button.scrollIntoView({ block: "center" });
+      const rect = button.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     })()`);
-    if (enteredLogin) await delay(1000);
+    if (loginTarget) {
+      // Dispatch a real browser input event so audio follows the same user-
+      // activation rules as a tap; DOM .click() falsely triggers autoplay warnings.
+      await client.send("Input.dispatchMouseEvent", { type: "mousePressed", ...loginTarget, button: "left", clickCount: 1 });
+      await client.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...loginTarget, button: "left", clickCount: 1 });
+      await delay(1000);
+    }
 
     const metrics = await evaluate(client, `(() => {
       const root = document.getElementById("root");

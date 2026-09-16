@@ -9,7 +9,7 @@
 - [ ] Set VITE_REVENUECAT_IOS_API_KEY for the production build.
 
 Configured 2026-09-15: GROQ_API_KEY, APP_URL, Stripe key/webhook secret, and both Stripe price IDs. RevenueCat and push credentials are still required; Google/Apple/phone providers are not enabled. Supabase free-plan automatic pausing remains an operational launch risk; choosing a paid plan requires the owner's approval.
-- [ ] After the production Vercel deployment, verify `/privacy.html`, `/terms.html`, and `/support.html` are public and use those stable URLs in App Store Connect. GitHub Pages is optional, not required for the iOS app.
+- [x] Verify `/privacy.html`, `/terms.html`, and `/support.html` are public on https://nyx-gamma.vercel.app (200 responses, 2026-09-15). Use those stable URLs in App Store Connect. GitHub Pages is optional, not required for the iOS app.
 
 ## Apple Developer and RevenueCat
 
