@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 describe("Supabase Edge Functions", () => {
   const root = fileURLToPath(new URL("../supabase/functions/", import.meta.url));
   const functionNames = readdirSync(root, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
+    .filter(entry => entry.isDirectory() && !entry.name.startsWith("_"))
     .map(entry => entry.name);
 
   it.each(functionNames)("%s has valid TypeScript syntax", functionName => {

@@ -5,7 +5,7 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-const GROQ_MODEL = "qwen/qwen3.6-27b";
+const GROQ_MODEL = "qwen/qwen3.8-27b";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });

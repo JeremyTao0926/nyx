@@ -30,6 +30,8 @@ describe("subscription security contracts", () => {
     expect(migration).toContain("SUBSCRIPTION_FIELDS_ARE_SERVER_MANAGED");
     expect(migration).toContain("has_active_nyx_premium(caller)");
     expect(migration).toContain("count(distinct viewer_id)");
+    expect(migration).toContain("create table if not exists public.profile_views");
+    expect(migration).toContain("grant insert on table public.profile_views to authenticated");
     expect(migration).toContain("submit_daily_spark_answer");
     expect(migration).toContain("get_or_create_daily_spark");
     expect(migration).toContain("submit_encounter_choice");
@@ -40,6 +42,7 @@ describe("subscription security contracts", () => {
     expect(migration).toContain('raise exception \'USER_BLOCKED\'');
     expect(migration).toContain("NOT_AUTHORIZED_TO_RESET_USAGE");
     expect(migration).toContain("create or replace function public.reset_daily_likes_if_needed");
+    expect(migration).toContain("superlikes_used >= (case when premium then 5 else 1 end)");
     expect(migration).toContain("nyx_private.can_view_profile(id)");
     expect(migration).toContain("create table if not exists public.billing_accounts");
     expect(migration).toContain("revoke all on table public.billing_accounts from public, anon, authenticated");
@@ -64,7 +67,8 @@ describe("subscription security contracts", () => {
     const revenueCat = source("supabase/functions/revenuecat-webhook/index.ts");
     expect(config).toMatch(/\[functions\.stripe-webhook\][\s\S]*verify_jwt\s*=\s*false/);
     expect(config).toMatch(/\[functions\.revenuecat-webhook\][\s\S]*verify_jwt\s*=\s*false/);
-    expect(stripe).toContain("stripe.webhooks.constructEvent");
+    expect(stripe).toContain("await stripe.webhooks.constructEventAsync");
+    expect(stripe).toContain("Stripe.createSubtleCryptoProvider()");
     expect(revenueCat).toContain("REVENUECAT_WEBHOOK_SECRET");
   });
 

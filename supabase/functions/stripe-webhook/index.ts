@@ -31,7 +31,9 @@ serve(async (req) => {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    event = await stripe.webhooks.constructEventAsync(
+      rawBody, signature, webhookSecret, undefined, Stripe.createSubtleCryptoProvider(),
+    );
   } catch (error) {
     console.error("stripe-webhook signature verification failed", error);
     return new Response("Invalid signature", { status: 400 });
@@ -103,7 +105,8 @@ serve(async (req) => {
       || event.type === "customer.subscription.paused"
       || event.type === "customer.subscription.resumed"
     ) {
-      await syncSubscription(event.data.object as Stripe.Subscription);
+      const subscription = event.data.object as Stripe.Subscription;
+      await syncSubscription(await stripe.subscriptions.retrieve(subscription.id));
     }
 
     if (event.type === "invoice.paid" || event.type === "invoice.payment_failed") {

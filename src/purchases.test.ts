@@ -69,4 +69,9 @@ describe("RevenueCat identity lifecycle", () => {
     invoke.mockResolvedValueOnce({ data: { premium_plan: "premium_plus" }, error: null });
     await expect(syncIOSSubscriptionProfile()).rejects.toThrow("訂閱狀態回傳格式不正確");
   });
+
+  it("reports incomplete App Store offerings instead of loading forever", async () => {
+    revenueCat.getOfferings.mockResolvedValueOnce({ current: null });
+    await expect(getIOSPlanPrices("user-two")).rejects.toThrow("App Store 訂閱方案暫未配置完成");
+  });
 });

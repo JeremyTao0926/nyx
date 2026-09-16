@@ -39,6 +39,9 @@ export async function getIOSPlanPrices(userId: string) {
   await configure(userId);
   const offerings = await Purchases.getOfferings();
   const packages = offerings.current?.availablePackages ?? [];
+  if (!["premium", "premium_plus"].every(planId => findPlanPackage(packages, planId)?.product.priceString)) {
+    throw new Error("App Store 訂閱方案暫未配置完成，請稍後再試");
+  }
   return Object.fromEntries(
     ["premium", "premium_plus"].map(planId => [
       planId,

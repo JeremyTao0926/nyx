@@ -5,9 +5,10 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-const ACTIVE_MODEL = "qwen/qwen3.6-27b";
+const ACTIVE_MODEL = "qwen/qwen3.8-27b";
 const MODEL_ALIASES = new Map<string, string>([
   [ACTIVE_MODEL, ACTIVE_MODEL],
+  ["qwen/qwen3.6-27b", ACTIVE_MODEL],
   // Keep the currently deployed web build working while clients update.
   ["llama-3.3-70b-versatile", ACTIVE_MODEL],
   ["meta-llama/llama-4-scout-17b-16e-instruct", ACTIVE_MODEL],

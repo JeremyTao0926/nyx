@@ -2,11 +2,13 @@
 
 ## Code and backend
 
-- [ ] Link the production Supabase project and apply all four files in `supabase/migrations/` in timestamp order. Use `src/schema_v3.sql` only as the consolidated reference, not as a second migration pass.
+- [x] Link the production Supabase project and apply all four files in `supabase/migrations/` in timestamp order (verified 2026-09-15). Use `src/schema_v3.sql` only as the consolidated reference, not as a second migration pass.
 - [ ] Configure Supabase redirect URLs, then enable and test Google, Apple, and phone providers using docs/AUTH_PROVIDERS.md.
-- [ ] Deploy all ten folders in `supabase/functions/`: create-checkout, delete-account, groq-proxy, moderate-content, revenuecat-webhook, schedule-downgrade, send-push, stripe-webhook, sync-revenuecat-entitlement, and upgrade-subscription.
+- [x] Deploy all ten functions (2026-09-15): create-checkout, delete-account, groq-proxy, moderate-content, revenuecat-webhook, schedule-downgrade, send-push, stripe-webhook, sync-revenuecat-entitlement, and upgrade-subscription. `_shared` is bundled support code, not a separate function.
 - [ ] Set GROQ_API_KEY, REVENUECAT_WEBHOOK_SECRET, REVENUECAT_SECRET_API_KEY, IOS_PREMIUM_PRODUCT_ID, IOS_PREMIUM_PLUS_PRODUCT_ID, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PREMIUM_PRICE_ID, STRIPE_PREMIUM_PLUS_PRICE_ID, APP_URL, APNS_KEY_ID, APNS_TEAM_ID, APNS_PRIVATE_KEY, APNS_BUNDLE_ID, APNS_ENV, VAPID_PUBLIC, VAPID_PRIVATE, and VAPID_SUBJECT secrets.
 - [ ] Set VITE_REVENUECAT_IOS_API_KEY for the production build.
+
+Configured 2026-09-15: GROQ_API_KEY, APP_URL, Stripe key/webhook secret, and both Stripe price IDs. RevenueCat and push credentials are still required; Google/Apple/phone providers are not enabled. Supabase free-plan automatic pausing remains an operational launch risk; choosing a paid plan requires the owner's approval.
 - [ ] After the production Vercel deployment, verify `/privacy.html`, `/terms.html`, and `/support.html` are public and use those stable URLs in App Store Connect. GitHub Pages is optional, not required for the iOS app.
 
 ## Apple Developer and RevenueCat

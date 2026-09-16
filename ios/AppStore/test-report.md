@@ -1,6 +1,6 @@
 # NYX iOS Preflight Test Report
 
-Updated: 2026-09-08
+Updated: 2026-09-15
 
 ## Current result
 
@@ -10,12 +10,12 @@ The web application and iOS wrapper pass the automated checks that can run on Wi
 
 | Check | Result | Notes |
 | --- | --- | --- |
-| Unit and release-contract tests | Pass | 63/63 tests across 11 files, including OAuth, phone normalization, age boundaries, city ranking, matching, avatars, simulation batching/prompts, Premium visibility, subscription security, Edge Function syntax, and iOS release configuration. |
+| Unit and release-contract tests | Pass | 72/72 tests across 12 files, including OAuth, phone normalization, age boundaries, city ranking, matching, avatars, simulation batching/prompts, Premium visibility, subscription security, RevenueCat grace/transfer cases, Edge Function syntax, and iOS release configuration. |
 | TypeScript + production web build | Pass | `npm run build`. |
 | Full repository lint | Pass | `npm run lint -- --no-cache` reports 0 errors and 0 warnings. |
 | Production dependency audit | Pass | 0 production vulnerabilities from `npm audit --omit=dev`. |
 | Capacitor iOS sync | Pass | `npm run ios:sync` built the web assets and synced all six native plugins, including the system browser used for OAuth. |
-| Xcode simulator build | Pass | The macOS 15 GitHub Actions run compiled the Debug app for a generic iPhone Simulator with signing disabled. |
+| Xcode simulator build | Pending latest commit | An earlier macOS 15 run compiled the Debug app for a generic iPhone Simulator with signing disabled; rerun for the current PR before merge. |
 
 The full repository lint is green. The production dependency audit is clean. The development-only audit reports three moderate findings in Capacitor CLI's `xcode` → `uuid` chain; npm's proposed fix force-downgrades Capacitor CLI, so it was not applied without a compatible upstream release.
 
@@ -67,11 +67,16 @@ Use a dedicated non-production QA account and test on at least one small-screen 
 
 - Apple Developer team, certificates, App ID capabilities, agreements, tax/banking, and App Store Connect metadata.
 - RevenueCat/App Store Connect product configuration and production secrets.
-- Supabase schema migration and Edge Function deployment.
 - Google OAuth, Apple Developer/Services ID, and SMS-provider credentials plus Supabase provider enablement.
-- Public privacy, terms, and support URLs.
 - Signed archive, TestFlight installation, real-device QA, screenshots, and reviewer demo account.
 
-## Production probe on 2026-09-08
+## Production probes on 2026-09-15
 
-The production project did not yet expose the new database RPCs, and the following new Edge Functions returned 404 when checked: `groq-proxy`, `moderate-content`, `delete-account`, `sync-revenuecat-entitlement`, `revenuecat-webhook`, and `schedule-downgrade`. This is why AI and newly completed paid/security flows cannot be considered live until the backend deployment checklist above is completed.
+- Supabase was paused again; the owner resumed it. All four migration versions are now confirmed in `supabase_migrations.schema_migrations`.
+- All ten Edge Functions deployed successfully. Unauthenticated protected requests return 401; the Stripe webhook rejects missing signatures with 400. No tested endpoint returns the previous 404.
+- GROQ_API_KEY deployed with the owner's explicit approval. Existing Stripe price IDs configured server-side.
+- The previously configured Qwen 3.6 model returned `model_not_found` for this account. The live models API lists Qwen 3.8; text, image input, and JSON mode all returned 200 with that model. Both AI functions and client constants now use it, with compatibility aliases for older clients.
+- These are provider and deployment checks, **not** an authenticated end-to-end chat test. A dedicated signed-in QA account is still needed for that boundary.
+- Supabase `/auth/v1/settings` returns email enabled, Google/Apple/phone disabled. The production UI hides unconfigured providers. Provider credentials and activation remain required.
+- RevenueCat, APNs, and VAPID credentials remain absent. Deploying handlers does not enable purchases or push notifications by itself.
+- Do not describe the app as App Store-ready until the real-device matrix and account/service configuration above are completed.

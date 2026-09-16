@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 
 const baseUrl = process.env.NYX_QA_URL || "http://127.0.0.1:4173";
+const expectSocial = process.env.NYX_QA_SOCIAL !== "disabled";
 const outputDir = resolve("qa-artifacts", "responsive-smoke");
 mkdirSync(outputDir, { recursive: true });
 
@@ -141,6 +142,16 @@ try {
     await client.send("Page.navigate", { url });
     await delay(1800);
 
+    // Production ignores developer preview flags. Enter login through the
+    // same landing-page control as a user instead of bypassing navigation.
+    const enteredLogin = await evaluate(client, `(() => {
+      const button = document.querySelector(".nyx-auth-landing .nyx-auth-secondary");
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`);
+    if (enteredLogin) await delay(1000);
+
     const metrics = await evaluate(client, `(() => {
       const root = document.getElementById("root");
       const shell = document.querySelector(".nyx-auth-shell");
@@ -172,7 +183,7 @@ try {
       && metrics.rootHeight >= viewport.height - 1
       && metrics.shellHeight >= viewport.height - 1
       && metrics.hasLogin
-      && metrics.hasSocialOptions
+      && metrics.hasSocialOptions === expectSocial
       && errors.length === 0;
     if (!passed) failed = true;
     report.push({ ...viewport, passed, metrics, errors });

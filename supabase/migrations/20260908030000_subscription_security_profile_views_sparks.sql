@@ -280,7 +280,7 @@ begin
     if not premium and likes_used >= 30 then raise exception 'DAILY_LIKE_LIMIT_REACHED'; end if;
     update public.profiles set daily_likes_used = likes_used + 1 where id = caller;
   elsif p_direction = 'superlike' then
-    if superlikes_used >= case when premium then 5 else 1 end then
+    if superlikes_used >= (case when premium then 5 else 1 end) then
       raise exception 'DAILY_SUPERLIKE_LIMIT_REACHED';
     end if;
     update public.profiles set superlike_used_today = superlikes_used + 1 where id = caller;
@@ -335,16 +335,28 @@ using (
 
 
 -- Profile-view rows remain private. Paid users consume only these checked RPCs.
+create table if not exists public.profile_views (
+  id uuid primary key default gen_random_uuid(),
+  viewer_id uuid not null references public.profiles(id) on delete cascade,
+  viewed_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+alter table public.profile_views enable row level security;
 create index if not exists profile_views_viewed_created_idx
   on public.profile_views (viewed_id, created_at desc);
 
+drop policy if exists "insert own profile views" on public.profile_views;
 drop policy if exists "read profile views involving you" on public.profile_views;
 drop policy if exists "viewers read their own profile view history" on public.profile_views;
-create policy "viewers read their own profile view history"
+create policy "insert own profile views"
 on public.profile_views
-for select
+for insert
 to authenticated
-using (auth.uid() = viewer_id);
+with check (auth.uid() = viewer_id and viewer_id <> viewed_id);
+
+revoke all on table public.profile_views from public, anon, authenticated;
+grant insert on table public.profile_views to authenticated;
 
 create or replace function public.get_my_profile_view_count()
 returns bigint

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { premiumFromCustomer } from "../_shared/revenuecat.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -45,27 +46,8 @@ serve(async (req) => {
     }
 
     const customer = await response.json();
-    const entitlement = customer?.subscriber?.entitlements?.premium;
-    const expiration = typeof entitlement?.expires_date === "string" ? entitlement.expires_date : null;
-    const graceExpiration = typeof entitlement?.grace_period_expires_date === "string"
-      ? entitlement.grace_period_expires_date
-      : null;
-    const activeUntil = Math.max(
-      expiration ? Date.parse(expiration) : Number.POSITIVE_INFINITY,
-      graceExpiration ? Date.parse(graceExpiration) : 0,
-    );
-    const active = Boolean(entitlement) && activeUntil > Date.now();
     const premiumPlusProduct = Deno.env.get("IOS_PREMIUM_PLUS_PRODUCT_ID") ?? "nyx_premium_plus_monthly";
-    const productId = String(entitlement?.product_identifier ?? "");
-    const plan = active
-      ? productId === premiumPlusProduct ? "premium_plus" : "premium"
-      : null;
-
-    const profilePatch = {
-      is_premium: active,
-      premium_plan: plan,
-      premium_expires_at: active ? (expiration ?? graceExpiration) : expiration,
-    };
+    const profilePatch = premiumFromCustomer(customer, premiumPlusProduct);
     const { error: updateError } = await admin
       .from("profiles")
       .update(profilePatch)

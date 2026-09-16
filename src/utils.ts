@@ -11,9 +11,9 @@ export const SUPABASE_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Keep provider credentials and API calls inside the authenticated Edge Function.
-// Qwen 3.6 replaces the retired Llama models and supports both text and vision.
-export const TEXT_MODEL   = "qwen/qwen3.6-27b";
-export const VISION_MODEL = "qwen/qwen3.6-27b";
+// Verified against this account's live model list; supports text and vision.
+export const TEXT_MODEL   = "qwen/qwen3.8-27b";
+export const VISION_MODEL = "qwen/qwen3.8-27b";
 type GroqVisionPart =
   | { type: "image_url"; image_url: { url: string } }
   | { type: "text"; text: string };
